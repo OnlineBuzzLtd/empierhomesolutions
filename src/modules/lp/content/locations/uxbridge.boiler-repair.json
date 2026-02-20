@@ -1,0 +1,181 @@
+{
+  "slug": "uxbridge-boiler-repair",
+  "service": "boiler-repair",
+  "serviceLabel": "Boiler Repair",
+  "locationLabel": "Uxbridge",
+  "keyword": "emergency boiler repair",
+  "hero": {
+    "eyebrow": "Heating and Gas Engineers",
+    "headline": "Need {{service}} in {{location}} today?",
+    "subline": "Local engineers solve boiler faults fast with fixed diagnostics, domestic power flushing support, and clear next steps.",
+    "primaryCta": "Call Now",
+    "secondaryCta": "Book Now",
+    "responseTimeBadge": "24/7 emergency call out",
+    "heroImage": {
+      "src": "/images/plumber-smiling.jpg",
+      "alt": "Smiling gas engineer handling a boiler repair",
+      "width": 720,
+      "height": 480
+    }
+  },
+  "trust": {
+    "gasSafeNumber": "918273",
+    "ratingValue": 4.9,
+    "ratingCount": 427,
+    "financeAvailable": true,
+    "guaranteeText": "12-month workmanship guarantee",
+    "brandLogos": [
+      { "name": "Worcester", "src": "/brands/worcester.svg" },
+      { "name": "Vaillant", "src": "/brands/vaillant.svg" },
+      { "name": "Ideal", "src": "/brands/ideal.svg" }
+    ]
+  },
+  "pricing": {
+    "diagnosticFrom": 79,
+    "repairRangeMin": 95,
+    "repairRangeMax": 450,
+    "installRangeMin": 1995,
+    "installRangeMax": 5000,
+    "pricingDisclaimer": "Prices vary by model, parts, and access. Final quote confirmed after diagnosis.",
+    "financeExample": {
+      "monthlyFrom": 0,
+      "summary": "Finance available over 3, 5, 8, and 10 years. Interest rates are discussed at quote appointment."
+    }
+  },
+  "faults": [
+    {
+      "id": "no-heat",
+      "title": "No heat",
+      "description": "Heating on but radiators stay cold.",
+      "icon": "flame"
+    },
+    {
+      "id": "no-hot-water",
+      "title": "No hot water",
+      "description": "Hot water drops out or never comes through.",
+      "icon": "droplets"
+    },
+    {
+      "id": "leak",
+      "title": "Leak",
+      "description": "Drips or pooling water around the boiler cabinet.",
+      "icon": "wrench"
+    },
+    {
+      "id": "low-pressure",
+      "title": "Low pressure",
+      "description": "Pressure repeatedly falls below safe operating range.",
+      "icon": "gauge"
+    },
+    {
+      "id": "kettling",
+      "title": "Kettling",
+      "description": "Rumbling or banging sounds from heat exchanger.",
+      "icon": "bell"
+    },
+    {
+      "id": "error-codes",
+      "title": "Error codes",
+      "description": "Recurring fault codes that lock out heating.",
+      "icon": "triangle-alert"
+    }
+  ],
+  "proofCards": [
+    {
+      "id": "ux-r-1",
+      "postcode": "UB8",
+      "serviceType": "Repair",
+      "outcome": "Heat restored same day",
+      "reviewSnippet": "Quick diagnosis and fix, explained everything clearly.",
+      "date": "2026-01-11"
+    },
+    {
+      "id": "ux-r-2",
+      "postcode": "UB10",
+      "serviceType": "Repair",
+      "outcome": "Leak stopped in one visit",
+      "reviewSnippet": "Very tidy job and transparent pricing from start to finish.",
+      "date": "2026-01-19"
+    },
+    {
+      "id": "ux-r-3",
+      "postcode": "UB9",
+      "serviceType": "Repair",
+      "outcome": "Error code resolved",
+      "reviewSnippet": "Engineer had the right part and fixed it straight away.",
+      "date": "2026-01-22"
+    },
+    {
+      "id": "ux-r-4",
+      "postcode": "UB8",
+      "serviceType": "Repair",
+      "outcome": "Pressure stabilized",
+      "reviewSnippet": "No more pressure drops after the repair.",
+      "date": "2026-01-27"
+    },
+    {
+      "id": "ux-r-5",
+      "postcode": "UB11",
+      "serviceType": "Repair",
+      "outcome": "Hot water recovered",
+      "reviewSnippet": "Arrived on time and sorted hot water before lunch.",
+      "date": "2026-02-01"
+    },
+    {
+      "id": "ux-r-6",
+      "postcode": "UB7",
+      "serviceType": "Repair",
+      "outcome": "Boiler reset and repaired",
+      "reviewSnippet": "Clear diagnosis, fair quote, and reliable workmanship.",
+      "date": "2026-02-03"
+    },
+    {
+      "id": "ux-r-7",
+      "postcode": "HA4",
+      "serviceType": "Repair",
+      "outcome": "Kettling resolved",
+      "reviewSnippet": "Noise gone and heating running smoothly now.",
+      "date": "2026-02-05"
+    }
+  ],
+  "coverage": {
+    "primaryTown": "Uxbridge",
+    "radiusMiles": 12,
+    "postcodes": ["UB7", "UB8", "UB9", "UB10", "UB11", "HA4", "SL0"],
+    "regionsCovered": [
+      "West London",
+      "Greater London",
+      "Buckinghamshire",
+      "Hertfordshire",
+      "Berkshire",
+      "Surrey"
+    ],
+    "outsideAreaNote": "Outside area? Call to confirm"
+  },
+  "faqs": [
+    {
+      "id": "faq-ux-time",
+      "question": "How fast can an engineer reach Uxbridge?",
+      "answer": "Most Uxbridge callouts are attended within 60 minutes during operating hours."
+    },
+    {
+      "id": "faq-ux-price",
+      "question": "Do you charge upfront?",
+      "answer": "You only pay a diagnostic fee first. We confirm repair cost before any work starts."
+    },
+    {
+      "id": "faq-ux-parts",
+      "question": "Can you fix all boiler brands?",
+      "answer": "We repair all major brands and carry common parts for faster first-visit fixes."
+    }
+  ],
+  "cta": {
+    "callLabel": "Call Now",
+    "quoteLabel": "Book Now"
+  },
+  "seo": {
+    "title": "Boiler Repair in Uxbridge | Empire Home Solutions",
+    "description": "Rapid boiler repair in Uxbridge with Gas Safe engineers, transparent pricing, and 24/7 emergency call outs.",
+    "addressRegion": "Uxbridge"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "slug": "finance",
+  "title": "Boiler Finance Options",
+  "description": "Spread the cost of a new boiler with regulated finance options.",
+  "eligibility": [
+    "Applicants must be 18+ and UK residents",
+    "Credit and affordability checks apply",
+    "Final acceptance is determined by the lender"
+  ],
+  "representativeExample": "Finance terms are available over 3, 5, 8, and 10 years, subject to status and affordability checks.",
+  "lenderPanelNote": "Interest rates are discussed during your quote appointment based on lender and applicant profile.",
+  "fcaDisclaimer": "Empire Home Solutions Ltd is an introducer appointed representative. Finance is subject to status. Terms and conditions apply.",
+  "seo": {
+    "title": "Boiler Finance | Empire Home Solutions",
+    "description": "Check boiler finance eligibility and available terms for replacement installations.",
+    "addressRegion": "West London"
+  }
+}

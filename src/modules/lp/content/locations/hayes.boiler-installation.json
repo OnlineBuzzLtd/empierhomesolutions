@@ -1,0 +1,99 @@
+{
+  "slug": "hayes-boiler-installation",
+  "service": "boiler-installation",
+  "serviceLabel": "Boiler Installation",
+  "locationLabel": "Hayes",
+  "keyword": "replace old boiler",
+  "hero": {
+    "eyebrow": "Heating and Gas Engineers",
+    "headline": "Plan your {{service}} in {{location}}",
+    "subline": "Get fixed install pricing, efficient A-rated systems, and domestic power flushing support when required.",
+    "primaryCta": "Call Now",
+    "secondaryCta": "Book Now",
+    "responseTimeBadge": "24/7 emergency call out",
+    "heroImage": {
+      "src": "/images/plumber-smiling.jpg",
+      "alt": "Smiling engineer on a boiler installation in Hayes",
+      "width": 720,
+      "height": 480
+    }
+  },
+  "trust": {
+    "gasSafeNumber": "918273",
+    "ratingValue": 4.8,
+    "ratingCount": 388,
+    "financeAvailable": true,
+    "guaranteeText": "Guaranteed for up to 10 years (selected ranges include 5 or 7 years)",
+    "brandLogos": [
+      { "name": "Worcester", "src": "/brands/worcester.svg" },
+      { "name": "Vaillant", "src": "/brands/vaillant.svg" },
+      { "name": "Ideal", "src": "/brands/ideal.svg" }
+    ]
+  },
+  "pricing": {
+    "diagnosticFrom": 0,
+    "repairRangeMin": 95,
+    "repairRangeMax": 475,
+    "installRangeMin": 1995,
+    "installRangeMax": 5000,
+    "pricingDisclaimer": "Final install pricing depends on boiler size, flue changes, and controls package.",
+    "financeExample": {
+      "monthlyFrom": 0,
+      "summary": "Finance available over 3, 5, 8, and 10 years. Interest rates are discussed at quote appointment."
+    }
+  },
+  "faults": [],
+  "proofCards": [
+    {
+      "id": "ha-i-1",
+      "postcode": "UB3",
+      "serviceType": "Installation",
+      "outcome": "System to combi conversion",
+      "reviewSnippet": "Installation team was fast, tidy, and highly professional.",
+      "date": "2026-01-18"
+    },
+    {
+      "id": "ha-i-2",
+      "postcode": "UB4",
+      "serviceType": "Installation",
+      "outcome": "Efficiency upgrade completed",
+      "reviewSnippet": "Helpful advice on controls and ongoing maintenance.",
+      "date": "2026-02-02"
+    }
+  ],
+  "coverage": {
+    "primaryTown": "Hayes",
+    "radiusMiles": 14,
+    "postcodes": ["UB1", "UB2", "UB3", "UB4", "UB10", "TW5"],
+    "regionsCovered": [
+      "West London",
+      "Greater London",
+      "Buckinghamshire",
+      "Hertfordshire",
+      "Berkshire",
+      "Surrey"
+    ],
+    "outsideAreaNote": "Outside area? Call to confirm"
+  },
+  "faqs": [
+    {
+      "id": "faq-ha-inst-1",
+      "question": "Can you install on weekends?",
+      "answer": "Weekend installation dates are available depending on survey outcome and boiler stock."
+    },
+    {
+      "id": "faq-ha-inst-2",
+      "question": "What warranties are included?",
+      "answer": "Installations are guaranteed for up to 10 years depending on selected boiler range."
+    }
+  ],
+  "cta": {
+    "callLabel": "Call Now",
+    "quoteLabel": "Book Now"
+  },
+  "seo": {
+    "title": "Boiler Installation in Hayes | Empire Home Solutions",
+    "description": "Boiler installation in Hayes with clear fixed quotes, financing over 3, 5, 8, and 10 years, and Gas Safe-certified engineers.",
+    "addressRegion": "Hayes"
+  }
+}

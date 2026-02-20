@@ -1,0 +1,59 @@
+name: Deploy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build preview artifact
+        run: npm run build
+
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-build
+          path: .next
+
+  production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production artifact
+        run: npm run build
+
+      - name: Deploy placeholder
+        run: echo "Connect this step to your hosting provider (Vercel, Render, etc.)"

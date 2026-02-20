@@ -1,0 +1,99 @@
+{
+  "slug": "uxbridge-boiler-installation",
+  "service": "boiler-installation",
+  "serviceLabel": "Boiler Installation",
+  "locationLabel": "Uxbridge",
+  "keyword": "new boiler installation",
+  "hero": {
+    "eyebrow": "Heating and Gas Engineers",
+    "headline": "Get {{service}} in {{location}} with flexible finance terms",
+    "subline": "Fixed-install quotes from trusted engineers, plus domestic power flushing support where needed.",
+    "primaryCta": "Call Now",
+    "secondaryCta": "Book Now",
+    "responseTimeBadge": "24/7 emergency call out",
+    "heroImage": {
+      "src": "/images/plumber-smiling.jpg",
+      "alt": "Smiling engineer installing a modern boiler",
+      "width": 720,
+      "height": 480
+    }
+  },
+  "trust": {
+    "gasSafeNumber": "918273",
+    "ratingValue": 4.9,
+    "ratingCount": 427,
+    "financeAvailable": true,
+    "guaranteeText": "Guaranteed for up to 10 years (selected ranges include 5 or 7 years)",
+    "brandLogos": [
+      { "name": "Worcester", "src": "/brands/worcester.svg" },
+      { "name": "Vaillant", "src": "/brands/vaillant.svg" },
+      { "name": "Ideal", "src": "/brands/ideal.svg" }
+    ]
+  },
+  "pricing": {
+    "diagnosticFrom": 0,
+    "repairRangeMin": 95,
+    "repairRangeMax": 450,
+    "installRangeMin": 1995,
+    "installRangeMax": 5000,
+    "pricingDisclaimer": "Install pricing varies by property size, flue route, controls, and boiler output.",
+    "financeExample": {
+      "monthlyFrom": 0,
+      "summary": "Finance available over 3, 5, 8, and 10 years. Interest rates are discussed at quote appointment."
+    }
+  },
+  "faults": [],
+  "proofCards": [
+    {
+      "id": "ux-i-1",
+      "postcode": "UB8",
+      "serviceType": "Installation",
+      "outcome": "Combi upgrade completed",
+      "reviewSnippet": "Whole installation done in one day and left spotless.",
+      "date": "2026-01-12"
+    },
+    {
+      "id": "ux-i-2",
+      "postcode": "UB10",
+      "serviceType": "Installation",
+      "outcome": "Energy bills reduced",
+      "reviewSnippet": "Great advice on boiler size and controls.",
+      "date": "2026-01-25"
+    }
+  ],
+  "coverage": {
+    "primaryTown": "Uxbridge",
+    "radiusMiles": 15,
+    "postcodes": ["UB7", "UB8", "UB9", "UB10", "UB11", "HA4", "SL0"],
+    "regionsCovered": [
+      "West London",
+      "Greater London",
+      "Buckinghamshire",
+      "Hertfordshire",
+      "Berkshire",
+      "Surrey"
+    ],
+    "outsideAreaNote": "Outside area? Call to confirm"
+  },
+  "faqs": [
+    {
+      "id": "faq-ux-inst-1",
+      "question": "How long does installation take?",
+      "answer": "Most standard combi swaps are completed within one working day."
+    },
+    {
+      "id": "faq-ux-inst-2",
+      "question": "Can I spread the cost?",
+      "answer": "Yes. Finance terms are available over 3, 5, 8, and 10 years, subject to status."
+    }
+  ],
+  "cta": {
+    "callLabel": "Call Now",
+    "quoteLabel": "Book Now"
+  },
+  "seo": {
+    "title": "Boiler Installation in Uxbridge | Empire Home Solutions",
+    "description": "Fixed-price boiler installation in Uxbridge from Heating and Gas Engineers with warranties of up to 10 years.",
+    "addressRegion": "Uxbridge"
+  }
+}

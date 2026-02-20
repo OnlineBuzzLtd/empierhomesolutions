@@ -1,0 +1,144 @@
+{
+  "slug": "hayes-boiler-repair",
+  "service": "boiler-repair",
+  "serviceLabel": "Boiler Repair",
+  "locationLabel": "Hayes",
+  "keyword": "boiler engineer near me",
+  "hero": {
+    "eyebrow": "Heating and Gas Engineers",
+    "headline": "Fast {{service}} across {{location}}",
+    "subline": "Gas Safe local engineers for no-heat, no-hot-water, recurring fault codes, and domestic power flushing support.",
+    "primaryCta": "Call Now",
+    "secondaryCta": "Book Now",
+    "responseTimeBadge": "24/7 emergency call out",
+    "heroImage": {
+      "src": "/images/plumber-smiling.jpg",
+      "alt": "Smiling engineer carrying out a home boiler fault diagnosis",
+      "width": 720,
+      "height": 480
+    }
+  },
+  "trust": {
+    "gasSafeNumber": "918273",
+    "ratingValue": 4.8,
+    "ratingCount": 388,
+    "financeAvailable": true,
+    "guaranteeText": "12-month workmanship guarantee",
+    "brandLogos": [
+      { "name": "Worcester", "src": "/brands/worcester.svg" },
+      { "name": "Vaillant", "src": "/brands/vaillant.svg" },
+      { "name": "Ideal", "src": "/brands/ideal.svg" }
+    ]
+  },
+  "pricing": {
+    "diagnosticFrom": 79,
+    "repairRangeMin": 95,
+    "repairRangeMax": 475,
+    "installRangeMin": 1995,
+    "installRangeMax": 5000,
+    "pricingDisclaimer": "Repair costs depend on fault complexity and replacement part availability.",
+    "financeExample": {
+      "monthlyFrom": 0,
+      "summary": "Finance available over 3, 5, 8, and 10 years. Interest rates are discussed at quote appointment."
+    }
+  },
+  "faults": [
+    {
+      "id": "no-heat",
+      "title": "No heat",
+      "description": "Heating stops during cold spells and rooms stay cold.",
+      "icon": "flame"
+    },
+    {
+      "id": "no-hot-water",
+      "title": "No hot water",
+      "description": "Boiler fires but taps are running lukewarm.",
+      "icon": "droplets"
+    },
+    {
+      "id": "leak",
+      "title": "Leak",
+      "description": "Pipework or pressure valve leaking around the boiler.",
+      "icon": "wrench"
+    },
+    {
+      "id": "low-pressure",
+      "title": "Low pressure",
+      "description": "Gauge drops below 1 bar and boiler shuts off.",
+      "icon": "gauge"
+    },
+    {
+      "id": "kettling",
+      "title": "Kettling",
+      "description": "Loud boiling-like sounds from scale build-up.",
+      "icon": "bell"
+    },
+    {
+      "id": "error-codes",
+      "title": "Error codes",
+      "description": "Persistent display errors stopping normal heating.",
+      "icon": "triangle-alert"
+    }
+  ],
+  "proofCards": [
+    {
+      "id": "ha-r-1",
+      "postcode": "UB3",
+      "serviceType": "Repair",
+      "outcome": "No-heat emergency fixed",
+      "reviewSnippet": "Engineer identified circulation issue quickly and solved it.",
+      "date": "2026-01-13"
+    },
+    {
+      "id": "ha-r-2",
+      "postcode": "UB4",
+      "serviceType": "Repair",
+      "outcome": "Hot water restored",
+      "reviewSnippet": "Excellent communication and a clear quote before work.",
+      "date": "2026-01-21"
+    },
+    {
+      "id": "ha-r-3",
+      "postcode": "UB3",
+      "serviceType": "Repair",
+      "outcome": "Fault code resolved",
+      "reviewSnippet": "Came prepared with the right replacement part.",
+      "date": "2026-01-29"
+    }
+  ],
+  "coverage": {
+    "primaryTown": "Hayes",
+    "radiusMiles": 12,
+    "postcodes": ["UB1", "UB2", "UB3", "UB4", "UB10", "TW5"],
+    "regionsCovered": [
+      "West London",
+      "Greater London",
+      "Buckinghamshire",
+      "Hertfordshire",
+      "Berkshire",
+      "Surrey"
+    ],
+    "outsideAreaNote": "Outside area? Call to confirm"
+  },
+  "faqs": [
+    {
+      "id": "faq-ha-time",
+      "question": "Do you cover Hayes evenings?",
+      "answer": "Yes. Emergency boiler repair slots are available evenings and weekends."
+    },
+    {
+      "id": "faq-ha-brand",
+      "question": "Can you repair older boilers?",
+      "answer": "We can diagnose older systems and advise on repair viability versus replacement."
+    }
+  ],
+  "cta": {
+    "callLabel": "Call Now",
+    "quoteLabel": "Book Now"
+  },
+  "seo": {
+    "title": "Boiler Repair in Hayes | Empire Home Solutions",
+    "description": "Local boiler repair in Hayes with same-day callouts, fixed diagnostics, and trusted Gas Safe engineers.",
+    "addressRegion": "Hayes"
+  }
+}

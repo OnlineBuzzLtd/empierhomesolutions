@@ -1,0 +1,30 @@
+{
+  "slug": "about-trust",
+  "title": "Why Homeowners Trust Empire Home Solutions",
+  "description": "Heating and Gas Engineers for boiler installation, boiler repair, and domestic power flushing.",
+  "companyStory": "Empire Home Solutions started as a local Heating and Gas engineering team serving West London households with rapid, reliable boiler care. Today we continue to focus on clear communication, safe installations, domestic power flushing, and dependable aftercare.",
+  "engineerCredentials": [
+    "Gas Safe Registered engineers on every job",
+    "Manufacturer-accredited installation experience",
+    "Ongoing compliance and safety training"
+  ],
+  "guaranteePolicy": "Boiler installations are guaranteed for up to 10 years depending on selected range, with 5 or 7 year options on selected budget models.",
+  "reviewProof": [
+    "Rated 4.8+ by local homeowners",
+    "Hundreds of completed repair and installation jobs",
+    "24/7 emergency call out coverage for urgent faults"
+  ],
+  "contactInfo": {
+    "phone": "01895 725 151",
+    "mobile": "07340 020 938",
+    "email": "info@empirehomesolutions.co.uk",
+    "area": "West London, Greater London, Buckinghamshire, Hertfordshire, Berkshire, Surrey"
+  },
+  "gasSafeNumber": "918273",
+  "insuranceStatement": "Public liability insurance and employer liability insurance are active and available on request.",
+  "seo": {
+    "title": "About & Trust | Empire Home Solutions",
+    "description": "Learn about our Gas Safe credentials, 24/7 emergency call outs, and up to 10-year installation guarantees.",
+    "addressRegion": "West London"
+  }
+}

@@ -100,15 +100,14 @@ export function HeroSection({ hero, cta, proofLine }: HeroSectionProps) {
                 </p>
               ) : null}
             </div>
-            <div className="h-full min-h-[260px] sm:min-h-[320px] lg:min-h-[620px]">
+            <div className="relative h-full min-h-[260px] sm:min-h-[320px] lg:min-h-[620px]">
               <Image
                 src={hero.heroImage.src}
                 alt={hero.heroImage.alt}
-                width={hero.heroImage.width}
-                height={hero.heroImage.height}
+                fill
                 sizes="(max-width: 1024px) 100vw, 58vw"
                 priority
-                className="h-full w-full object-cover object-[70%_center]"
+                className="object-cover object-[52%_12%]"
               />
             </div>
           </div>

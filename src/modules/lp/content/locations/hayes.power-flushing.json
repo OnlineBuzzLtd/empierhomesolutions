@@ -1,0 +1,132 @@
+{
+  "slug": "hayes-power-flushing",
+  "service": "power-flushing",
+  "serviceLabel": "Power Flushing",
+  "locationLabel": "Hayes",
+  "keyword": "domestic power flushing",
+  "hero": {
+    "eyebrow": "Heating and Gas Engineers",
+    "headline": "Need {{service}} in {{location}}?",
+    "subline": "Clean sludge and debris from your heating system to improve radiator output and boiler efficiency.",
+    "primaryCta": "Call Now",
+    "secondaryCta": "Book Now",
+    "responseTimeBadge": "24/7 emergency call out",
+    "heroImage": {
+      "src": "/images/powerflush-shane.jpg",
+      "alt": "Engineer completing a home power flushing visit in Hayes",
+      "width": 720,
+      "height": 480
+    }
+  },
+  "trust": {
+    "gasSafeNumber": "663578",
+    "ratingValue": 5.0,
+    "ratingCount": 19,
+    "financeAvailable": false,
+    "guaranteeText": "Clear fixed quote before work starts",
+    "brandLogos": [
+      { "name": "Vaillant", "src": "/brands/vaillant.svg" },
+      { "name": "Glow-worm", "src": "/brands/glow-worm.svg" },
+      { "name": "Worcester", "src": "/brands/worcester.svg" }
+    ]
+  },
+  "pricing": {
+    "diagnosticFrom": 79,
+    "repairRangeMin": 320,
+    "repairRangeMax": 680,
+    "installRangeMin": 120,
+    "installRangeMax": 245,
+    "pricingDisclaimer": "Power flushing pricing varies by system size, sludge condition, and whether a magnetic filter service is needed."
+  },
+  "faults": [
+    {
+      "id": "cold-radiators",
+      "title": "Cold radiators",
+      "description": "Some radiators stay cold while others get hot.",
+      "icon": "flame"
+    },
+    {
+      "id": "dirty-water",
+      "title": "Dirty water",
+      "description": "Black or discoloured water when bleeding radiators.",
+      "icon": "droplets"
+    },
+    {
+      "id": "circulation-issues",
+      "title": "Poor circulation",
+      "description": "System struggles to move heat evenly around the home.",
+      "icon": "gauge"
+    },
+    {
+      "id": "boiler-lockouts",
+      "title": "Boiler lockouts",
+      "description": "Repeated flow-related lockouts linked to sludge build-up.",
+      "icon": "triangle-alert"
+    },
+    {
+      "id": "radiator-noise",
+      "title": "Radiator noise",
+      "description": "Gurgling, banging, or trapped-air sounds from the system.",
+      "icon": "bell"
+    },
+    {
+      "id": "filter-blockage",
+      "title": "Filter blockage",
+      "description": "Magnetic filter collecting excessive debris from the circuit.",
+      "icon": "wrench"
+    }
+  ],
+  "proofCards": [
+    {
+      "id": "ha-pf-1",
+      "postcode": "UB3",
+      "serviceType": "Power Flushing",
+      "outcome": "Even radiator heat restored",
+      "reviewSnippet": "Great result after one visit and much quieter boiler.",
+      "date": "2026-01-20"
+    },
+    {
+      "id": "ha-pf-2",
+      "postcode": "UB4",
+      "serviceType": "Power Flushing",
+      "outcome": "Improved boiler performance",
+      "reviewSnippet": "Fast response and clear explanation throughout.",
+      "date": "2026-02-04"
+    }
+  ],
+  "coverage": {
+    "primaryTown": "Hayes",
+    "radiusMiles": 12,
+    "postcodes": ["UB1", "UB2", "UB3", "UB4", "UB10", "TW5"],
+    "regionsCovered": [
+      "West London",
+      "Greater London",
+      "Buckinghamshire",
+      "Hertfordshire",
+      "Berkshire",
+      "Surrey"
+    ],
+    "outsideAreaNote": "Outside area? Call to confirm"
+  },
+  "faqs": [
+    {
+      "id": "faq-ha-pf-frequency",
+      "question": "How often should a system be power flushed?",
+      "answer": "It depends on system condition, but many homes benefit when symptoms appear or before major upgrades."
+    },
+    {
+      "id": "faq-ha-pf-brands",
+      "question": "Do you work on all boiler brands?",
+      "answer": "Yes. We are accredited for Vaillant and Glow-worm and can advise across all major brands."
+    }
+  ],
+  "cta": {
+    "callLabel": "Call Now",
+    "quoteLabel": "Book Now"
+  },
+  "seo": {
+    "title": "Power Flushing in Hayes | Empire Home Solutions",
+    "description": "Domestic power flushing in Hayes to remove sludge, improve circulation, and help your heating system run efficiently.",
+    "addressRegion": "Hayes"
+  }
+}

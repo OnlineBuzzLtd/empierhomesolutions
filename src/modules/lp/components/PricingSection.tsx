@@ -4,6 +4,11 @@ import type { PricingContent } from "@/modules/lp/types";
 type PricingSectionProps = {
   pricing: PricingContent;
   emphasizeFinance?: boolean;
+  labels?: {
+    diagnostic?: string;
+    repair?: string;
+    install?: string;
+  };
 };
 
 function formatGbp(value: number) {
@@ -14,17 +19,23 @@ function formatGbp(value: number) {
   }).format(value);
 }
 
-export function PricingSection({ pricing, emphasizeFinance = false }: PricingSectionProps) {
+export function PricingSection({ pricing, emphasizeFinance = false, labels }: PricingSectionProps) {
+  const pricingLabels = {
+    diagnostic: labels?.diagnostic ?? "Diagnostic from",
+    repair: labels?.repair ?? "Typical repair range",
+    install: labels?.install ?? "Typical install range",
+  };
+
   return (
     <Section title="Transparent pricing" subtitle="No hidden charges. You approve all work before we start.">
       <div className="grid gap-4 md:grid-cols-3">
-        <PriceCard label="Diagnostic from" value={formatGbp(pricing.diagnosticFrom)} />
+        <PriceCard label={pricingLabels.diagnostic} value={formatGbp(pricing.diagnosticFrom)} />
         <PriceCard
-          label="Typical repair range"
+          label={pricingLabels.repair}
           value={`${formatGbp(pricing.repairRangeMin)} - ${formatGbp(pricing.repairRangeMax)}`}
         />
         <PriceCard
-          label="Typical install range"
+          label={pricingLabels.install}
           value={`${formatGbp(pricing.installRangeMin)} - ${formatGbp(pricing.installRangeMax)}`}
         />
       </div>

@@ -89,7 +89,7 @@ export const seoSchema = z.object({
 
 export const lpContentSchema = z.object({
   slug: z.string().min(4),
-  service: z.enum(["boiler-repair", "boiler-installation"]),
+  service: z.enum(["boiler-repair", "boiler-installation", "power-flushing"]),
   serviceLabel: z.string().min(4),
   locationLabel: z.string().min(2),
   keyword: z.string().min(2),

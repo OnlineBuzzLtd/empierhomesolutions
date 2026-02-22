@@ -20,6 +20,12 @@ describe("loadLpContent", () => {
     expect(content).toBeNull();
   });
 
+  it("loads power flushing content", () => {
+    const content = loadLpContent({ service: "power-flushing", location: "uxbridge" });
+    expect(content).toBeTruthy();
+    expect(content?.service).toBe("power-flushing");
+  });
+
   it("applies keyword token replacement from query", () => {
     const content = loadLpContent({
       service: "boiler-repair",

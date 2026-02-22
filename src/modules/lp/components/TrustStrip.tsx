@@ -35,7 +35,7 @@ export function TrustStrip({
     {
       key: "rating",
       icon: <Star size={15} className="fill-amber-400 text-amber-400" />,
-      label: `${trust.ratingValue.toFixed(1)} (${trust.ratingCount}+ reviews)`,
+      label: `${trust.ratingValue.toFixed(1)} (${trust.ratingCount} reviews)`,
       emphasize: false,
     },
     ...(showFinance
@@ -82,7 +82,7 @@ export function TrustStrip({
     trustOrder === "rating-first" ? [trustItems[1], trustItems[0], ...trustItems.slice(2)] : trustItems;
 
   return (
-    <section className="border-y border-slate-200 bg-[#f6f7f8]">
+    <section className="border-y border-slate-200 bg-[var(--ehs-surface-contrast)]">
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--ehs-card-shadow)]">
           <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
@@ -102,9 +102,10 @@ export function TrustStrip({
           </div>
           <div className={cn("pt-4")}>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Boiler brands we work with
+              Accredited installers: Vaillant and Glow-worm
             </p>
-          <BrandLogoRow logos={trust.brandLogos} />
+            <p className="mb-3 text-xs text-slate-500">We also advise and install across all major brands.</p>
+            <BrandLogoRow logos={trust.brandLogos} />
           </div>
         </div>
       </div>

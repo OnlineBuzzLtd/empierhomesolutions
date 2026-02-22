@@ -5,6 +5,7 @@ import Script from "next/script";
 import { ChevronDown, House, PhoneCall } from "lucide-react";
 import { businessDetails } from "@/lib/business";
 import { publicEnv } from "@/lib/env";
+import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { StickyCallBar } from "@/modules/lp/components/StickyCallBar";
 import { AnalyticsTracker } from "@/modules/tracking/AnalyticsTracker";
 
@@ -52,7 +53,7 @@ export default function LpLayout({ children }: { children: ReactNode }) {
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3.5">
             <Link href="/lp/boiler-repair/uxbridge" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <Image
-                src="/brands/ehs-logo.png"
+                src="/brands/ehs-logo-white.png"
                 alt="Empire Home Solutions logo"
                 width={50}
                 height={50}
@@ -109,6 +110,13 @@ export default function LpLayout({ children }: { children: ReactNode }) {
                 <ChevronDown size={13} />
               </Link>
               <Link
+                href="/lp/power-flushing/uxbridge"
+                className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
+              >
+                Power Flushing
+                <ChevronDown size={13} />
+              </Link>
+              <Link
                 href="/finance"
                 className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
               >
@@ -131,6 +139,7 @@ export default function LpLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
         {children}
+        <SiteFooter />
       </main>
       <Suspense fallback={null}>
         <StickyCallBar />

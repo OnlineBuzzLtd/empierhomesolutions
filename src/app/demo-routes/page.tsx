@@ -7,6 +7,8 @@ const demoPages = [
   { href: "/lp/boiler-repair/hayes", label: "Boiler Repair - Hayes" },
   { href: "/lp/boiler-installation/uxbridge", label: "Boiler Installation - Uxbridge" },
   { href: "/lp/boiler-installation/hayes", label: "Boiler Installation - Hayes" },
+  { href: "/lp/power-flushing/uxbridge", label: "Power Flushing - Uxbridge" },
+  { href: "/lp/power-flushing/hayes", label: "Power Flushing - Hayes" },
   { href: "/finance", label: "Finance" },
   { href: "/about-trust", label: "About & Trust" },
 ];
@@ -17,7 +19,7 @@ export default function DemoRoutesPage() {
       <div className="mx-auto max-w-4xl space-y-6">
         <header className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-[var(--ehs-card-shadow)]">
           <Image
-            src="/brands/ehs-logo.png"
+            src="/brands/ehs-logo-white.png"
             alt="Empire Home Solutions logo"
             width={42}
             height={42}

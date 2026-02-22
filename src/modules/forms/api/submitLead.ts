@@ -25,7 +25,7 @@ export const leadRequestSchema = z.object({
   pagePath: z.string().min(1),
   service: z.string().optional(),
   location: z.string().optional(),
-  leadType: z.enum(["repair", "install", "finance"]).default("repair"),
+  leadType: z.enum(["repair", "install", "finance", "power-flush"]).default("repair"),
   origin: z.string().url(),
   attribution: attributionSchema,
 });

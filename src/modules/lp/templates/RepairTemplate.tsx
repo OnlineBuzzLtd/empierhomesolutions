@@ -23,7 +23,17 @@ type RepairTemplateProps = {
 };
 
 export function RepairTemplate({ content, trustOrder }: RepairTemplateProps) {
-  const heroProofLine = `Gas Safe ${content.trust.gasSafeNumber} | ${content.trust.ratingValue.toFixed(1)} (${content.trust.ratingCount}+ reviews) | ${businessDetails.emergencyHours}`;
+  const heroProofLine = `Gas Safe ${content.trust.gasSafeNumber} | ${content.trust.ratingValue.toFixed(1)} (${content.trust.ratingCount} reviews) | ${businessDetails.emergencyHours}`;
+  const leadType = content.service === "power-flushing" ? "power-flush" : "repair";
+  const heading = content.service === "power-flushing" ? "Book your power flushing visit" : undefined;
+  const pricingLabels =
+    content.service === "power-flushing"
+      ? {
+          diagnostic: "System check from",
+          repair: "Typical power flush range",
+          install: "Filter and inhibitor add-ons",
+        }
+      : undefined;
 
   return (
     <>
@@ -35,11 +45,11 @@ export function RepairTemplate({ content, trustOrder }: RepairTemplateProps) {
         diagnosticFrom={content.pricing.diagnosticFrom}
       />
       <FaultListSection faults={content.faults} />
-      <PricingSection pricing={content.pricing} />
+      <PricingSection pricing={content.pricing} labels={pricingLabels} />
       <ProofCardsSection cards={content.proofCards} />
       <CoverageSection coverage={content.coverage} />
       <FaqSection faqs={content.faqs} />
-      <QuoteForm service={content.service} location={content.locationLabel} leadType="repair" />
+      <QuoteForm service={content.service} location={content.locationLabel} leadType={leadType} heading={heading} />
     </>
   );
 }

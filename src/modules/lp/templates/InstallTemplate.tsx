@@ -22,7 +22,7 @@ type InstallTemplateProps = {
 };
 
 export function InstallTemplate({ content, trustOrder }: InstallTemplateProps) {
-  const heroProofLine = `Gas Safe ${content.trust.gasSafeNumber} | ${content.trust.ratingValue.toFixed(1)} (${content.trust.ratingCount}+ reviews) | ${businessDetails.emergencyHours}`;
+  const heroProofLine = `Gas Safe ${content.trust.gasSafeNumber} | ${content.trust.ratingValue.toFixed(1)} (${content.trust.ratingCount} reviews) | ${businessDetails.emergencyHours}`;
 
   return (
     <>

@@ -28,6 +28,8 @@ npm run dev
 - `http://localhost:3000/lp/boiler-repair/hayes`
 - `http://localhost:3000/lp/boiler-installation/uxbridge`
 - `http://localhost:3000/lp/boiler-installation/hayes`
+- `http://localhost:3000/lp/power-flushing/uxbridge`
+- `http://localhost:3000/lp/power-flushing/hayes`
 - `http://localhost:3000/finance`
 - `http://localhost:3000/about-trust`
 
@@ -35,7 +37,7 @@ npm run dev
 
 - Service/location LP routes with JSON content loader + Zod validation
 - Dynamic text replacement for `{{location}}`, `{{service}}`, `{{keyword}}`
-- LP templates for repair/install, plus finance and about-trust pages
+- LP templates for repair/install/power-flushing, plus finance and about-trust pages
 - Sticky mobile call bar, hero call CTA tracking, FAQ expand tracking
 - React Hook Form lead form with validation, honeypot, webhook submission
 - Lead API with origin validation, sanitization, attribution, and rate limiting

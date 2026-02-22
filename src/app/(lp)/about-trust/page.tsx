@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BadgeCheck, Clock3, Mail, MapPin, MessageCircle, PhoneCall, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Clock3, Mail, MapPin, MessageCircle, PhoneCall, ShieldCheck, Star } from "lucide-react";
+import { businessDetails } from "@/lib/business";
 import { publicEnv } from "@/lib/env";
 import { Section } from "@/modules/ui/Section";
 import { loadAboutTrustContent } from "@/modules/lp/content/loadContent";
@@ -85,6 +86,9 @@ export default function AboutTrustPage() {
             <ShieldCheck size={16} />
             Gas Safe Registration Number: {content.gasSafeNumber}
           </p>
+          <p className="mt-2 inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm">
+            VAT Registration Number: {businessDetails.vatRegistrationNumber}
+          </p>
           <p className="mt-2 text-sm text-slate-100">{content.insuranceStatement}</p>
         </article>
 
@@ -133,6 +137,41 @@ export default function AboutTrustPage() {
                 >
                   Book Now
                 </Link>
+                <a
+                  href={businessDetails.googleReviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-[var(--ehs-brand-dark)]"
+                >
+                  <Star size={14} className="fill-amber-400 text-amber-400" />
+                  Google Reviews
+                </a>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  href={businessDetails.socials.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-[var(--ehs-brand-dark)]"
+                >
+                  Facebook
+                </a>
+                <a
+                  href={businessDetails.socials.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-[var(--ehs-brand-dark)]"
+                >
+                  Instagram
+                </a>
+                <a
+                  href={businessDetails.socials.youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-[var(--ehs-brand-dark)]"
+                >
+                  YouTube
+                </a>
               </div>
             </div>
           </div>

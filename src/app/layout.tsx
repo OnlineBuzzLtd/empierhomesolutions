@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Empire Home Solutions",
-  description: "Paid landing page foundation for repair, installation, finance, and trust pages.",
+  description: "Landing pages for boiler repair, boiler installation, power flushing, finance, and trust.",
 };
 
 export default function RootLayout({

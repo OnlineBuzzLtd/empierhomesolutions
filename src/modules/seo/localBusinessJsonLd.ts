@@ -1,4 +1,5 @@
 import type { LpContent } from "@/modules/lp/types";
+import { businessDetails } from "@/lib/business";
 
 export function buildLocalBusinessJsonLd(content: LpContent, phoneNumber: string) {
   return {
@@ -9,6 +10,15 @@ export function buildLocalBusinessJsonLd(content: LpContent, phoneNumber: string
     areaServed: [content.locationLabel, ...content.coverage.postcodes],
     description: content.seo.description,
     serviceType: content.serviceLabel,
+    sameAs: Object.values(businessDetails.socials),
+    vatID: `GB${businessDetails.vatRegistrationNumber}`,
+    identifier: [
+      {
+        "@type": "PropertyValue",
+        propertyID: "GasSafe",
+        value: businessDetails.gasSafeNumber,
+      },
+    ],
     aggregateRating: {
       "@type": "AggregateRating",
       ratingValue: content.trust.ratingValue,

@@ -1,0 +1,140 @@
+{
+  "slug": "uxbridge-power-flushing",
+  "service": "power-flushing",
+  "serviceLabel": "Power Flushing",
+  "locationLabel": "Uxbridge",
+  "keyword": "power flushing near me",
+  "hero": {
+    "eyebrow": "Heating and Gas Engineers",
+    "headline": "Book {{service}} in {{location}}",
+    "subline": "Restore radiator performance, reduce boiler noise, and improve circulation with a full domestic system flush.",
+    "primaryCta": "Call Now",
+    "secondaryCta": "Book Now",
+    "responseTimeBadge": "24/7 emergency call out",
+    "heroImage": {
+      "src": "/images/powerflush-shane.jpg",
+      "alt": "Engineer carrying out a domestic power flushing visit",
+      "width": 720,
+      "height": 480
+    }
+  },
+  "trust": {
+    "gasSafeNumber": "663578",
+    "ratingValue": 5.0,
+    "ratingCount": 19,
+    "financeAvailable": false,
+    "guaranteeText": "Clear fixed quote before work starts",
+    "brandLogos": [
+      { "name": "Vaillant", "src": "/brands/vaillant.svg" },
+      { "name": "Glow-worm", "src": "/brands/glow-worm.svg" },
+      { "name": "Worcester", "src": "/brands/worcester.svg" }
+    ]
+  },
+  "pricing": {
+    "diagnosticFrom": 79,
+    "repairRangeMin": 350,
+    "repairRangeMax": 700,
+    "installRangeMin": 120,
+    "installRangeMax": 245,
+    "pricingDisclaimer": "Power flushing cost depends on radiator count, sludge level, and required inhibitor/filter top-up."
+  },
+  "faults": [
+    {
+      "id": "cold-spots",
+      "title": "Cold spots",
+      "description": "Radiators heat unevenly with cold areas at the bottom.",
+      "icon": "flame"
+    },
+    {
+      "id": "noisy-boiler",
+      "title": "Boiler noise",
+      "description": "Rumbling or kettling sounds from trapped sludge and poor flow.",
+      "icon": "bell"
+    },
+    {
+      "id": "slow-warmup",
+      "title": "Slow warm-up",
+      "description": "Heating takes too long to warm rooms even with thermostat on.",
+      "icon": "gauge"
+    },
+    {
+      "id": "frequent-bleeding",
+      "title": "Frequent bleeding",
+      "description": "Radiators repeatedly need bleeding and system balance drops.",
+      "icon": "droplets"
+    },
+    {
+      "id": "blocked-pipework",
+      "title": "Blocked pipework",
+      "description": "Circulation problems from debris in older systems.",
+      "icon": "wrench"
+    },
+    {
+      "id": "high-bills",
+      "title": "High bills",
+      "description": "Inefficient circulation can increase gas use and running costs.",
+      "icon": "triangle-alert"
+    }
+  ],
+  "proofCards": [
+    {
+      "id": "ux-pf-1",
+      "postcode": "UB8",
+      "serviceType": "Power Flushing",
+      "outcome": "Radiator circulation restored",
+      "reviewSnippet": "All cold spots removed and system now heats quickly.",
+      "date": "2026-01-16"
+    },
+    {
+      "id": "ux-pf-2",
+      "postcode": "UB10",
+      "serviceType": "Power Flushing",
+      "outcome": "Boiler noise reduced",
+      "reviewSnippet": "Engineer explained process clearly and left everything tidy.",
+      "date": "2026-01-31"
+    },
+    {
+      "id": "ux-pf-3",
+      "postcode": "UB9",
+      "serviceType": "Power Flushing",
+      "outcome": "Balanced heating performance",
+      "reviewSnippet": "Radiators warm evenly now and pressure is stable.",
+      "date": "2026-02-07"
+    }
+  ],
+  "coverage": {
+    "primaryTown": "Uxbridge",
+    "radiusMiles": 12,
+    "postcodes": ["UB7", "UB8", "UB9", "UB10", "UB11", "HA4", "SL0"],
+    "regionsCovered": [
+      "West London",
+      "Greater London",
+      "Buckinghamshire",
+      "Hertfordshire",
+      "Berkshire",
+      "Surrey"
+    ],
+    "outsideAreaNote": "Outside area? Call to confirm"
+  },
+  "faqs": [
+    {
+      "id": "faq-ux-pf-duration",
+      "question": "How long does a power flush take?",
+      "answer": "Most domestic systems take between half a day and one full day depending on size."
+    },
+    {
+      "id": "faq-ux-pf-need",
+      "question": "How do I know if I need a power flush?",
+      "answer": "Cold radiator spots, noisy boilers, and slow heat-up are common signs your system may benefit."
+    }
+  ],
+  "cta": {
+    "callLabel": "Call Now",
+    "quoteLabel": "Book Now"
+  },
+  "seo": {
+    "title": "Power Flushing in Uxbridge | Empire Home Solutions",
+    "description": "Domestic power flushing in Uxbridge to restore radiator heat, improve circulation, and protect boiler efficiency.",
+    "addressRegion": "Uxbridge"
+  }
+}

@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f5f7;
-  --foreground: #0f172a;
-  --ehs-brand-dark: #2e4450;
-  --ehs-brand-dark-strong: #243743;
-  --ehs-brand-accent: #f15a2f;
-  --ehs-brand-accent-soft: #ffebe2;
-  --ehs-surface: #f3f4f6;
-  --ehs-panel: #eef1f3;
-  --ehs-card-shadow: 0 10px 24px rgba(36, 55, 67, 0.08);
+  --background: #f3f6ff;
+  --foreground: #0f1738;
+  --ehs-brand-dark: #01003e;
+  --ehs-brand-dark-strong: #000024;
+  --ehs-brand-accent: #4f78c3;
+  --ehs-brand-accent-soft: #dce8fb;
+  --ehs-surface: #f2f5fd;
+  --ehs-panel: #e7eefb;
+  --ehs-surface-contrast: #edf2fb;
+  --ehs-card-shadow: 0 12px 28px rgba(1, 0, 62, 0.12);
 }
 
 @theme inline {

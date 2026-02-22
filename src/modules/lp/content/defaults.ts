@@ -14,22 +14,22 @@ export const defaultLpContent: LpContentInput = {
     secondaryCta: "Book Now",
     responseTimeBadge: "24/7 emergency call out",
     heroImage: {
-      src: "/images/plumber-smiling.jpg",
+      src: "/images/powerflush-shane.jpg",
       alt: "Smiling gas engineer repairing a domestic boiler",
       width: 720,
       height: 480,
     },
   },
   trust: {
-    gasSafeNumber: "918273",
-    ratingValue: 4.9,
-    ratingCount: 412,
+    gasSafeNumber: "663578",
+    ratingValue: 5,
+    ratingCount: 19,
     financeAvailable: true,
     guaranteeText: "12 month workmanship guarantee",
     brandLogos: [
-      { name: "Worcester", src: "/brands/worcester.svg" },
       { name: "Vaillant", src: "/brands/vaillant.svg" },
-      { name: "Ideal", src: "/brands/ideal.svg" },
+      { name: "Glow-worm", src: "/brands/glow-worm.svg" },
+      { name: "Worcester", src: "/brands/worcester.svg" },
     ],
   },
   pricing: {

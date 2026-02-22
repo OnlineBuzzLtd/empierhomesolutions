@@ -12,22 +12,22 @@
     "secondaryCta": "Book Now",
     "responseTimeBadge": "24/7 emergency call out",
     "heroImage": {
-      "src": "/images/plumber-smiling.jpg",
+      "src": "/images/powerflush-shane.jpg",
       "alt": "Smiling engineer installing a modern boiler",
       "width": 720,
       "height": 480
     }
   },
   "trust": {
-    "gasSafeNumber": "918273",
-    "ratingValue": 4.9,
-    "ratingCount": 427,
+    "gasSafeNumber": "663578",
+    "ratingValue": 5.0,
+    "ratingCount": 19,
     "financeAvailable": true,
     "guaranteeText": "Guaranteed for up to 10 years (selected ranges include 5 or 7 years)",
     "brandLogos": [
       { "name": "Worcester", "src": "/brands/worcester.svg" },
       { "name": "Vaillant", "src": "/brands/vaillant.svg" },
-      { "name": "Ideal", "src": "/brands/ideal.svg" }
+      { "name": "Glow-worm", "src": "/brands/glow-worm.svg" }
     ]
   },
   "pricing": {

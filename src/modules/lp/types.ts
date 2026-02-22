@@ -1,4 +1,4 @@
-export type ServiceSlug = "boiler-repair" | "boiler-installation";
+export type ServiceSlug = "boiler-repair" | "boiler-installation" | "power-flushing";
 
 export type HeroContent = {
   eyebrow: string;

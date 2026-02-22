@@ -1,0 +1,6 @@
+<svg width="180" height="64" viewBox="0 0 180 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="1" width="178" height="62" rx="8" fill="white" stroke="#D3DCE3" />
+  <circle cx="27" cy="32" r="12" fill="#5B9F3E" />
+  <path d="M27 22C30.2 22 33 24.8 33 28C33 31.2 30.2 34 27 34C23.8 34 21 36.8 21 40" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+  <text x="46" y="37" fill="#22313D" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Glow-worm</text>
+</svg>

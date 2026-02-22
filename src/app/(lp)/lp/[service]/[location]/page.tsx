@@ -104,7 +104,7 @@ export default async function LpPage({ params, searchParams }: RouteProps) {
     );
   }
 
-  if (content.service === "boiler-repair") {
+  if (content.service === "boiler-repair" || content.service === "power-flushing") {
     return (
       <>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />

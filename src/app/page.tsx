@@ -3,30 +3,39 @@ import Link from "next/link";
 import { CheckCircle2, Clock3, House, PhoneCall, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
 import { BrandLogoRow } from "@/modules/lp/components/BrandLogoRow";
+import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 
 const coreServices = [
   {
     title: "Emergency Boiler Repair",
     description: "Rapid fault diagnosis and same-day repair for no heat, no hot water, leaks, and lockouts.",
+    href: "/lp/boiler-repair/uxbridge",
   },
   {
     title: "Boiler Installation",
     description:
       "A-rated boiler upgrades with fixed quoting, clean installs, and warranty-backed workmanship.",
+    href: "/lp/boiler-installation/uxbridge",
   },
   {
-    title: "Domestic Power Flushing",
+    title: "Power Flushing",
     description:
       "Improve heating circulation and radiator performance with targeted domestic system flushing.",
+    href: "/lp/power-flushing/uxbridge",
   },
   {
     title: "Boiler Finance",
     description: "Flexible finance options to spread installation costs, subject to status and affordability checks.",
+    href: "/finance",
   },
 ];
 
 const trustPoints = [
   "Gas Safe registered engineers",
+  `Gas Safe number ${businessDetails.gasSafeNumber}`,
+  `VAT registration number ${businessDetails.vatRegistrationNumber}`,
+  `Accredited installers of ${businessDetails.accreditedBrands.join(" and ")}`,
+  "Happy to discuss all major boiler brands",
   "Transparent pricing before work starts",
   "Rated highly by local homeowners",
   "Installation warranties of up to 10 years",
@@ -34,8 +43,16 @@ const trustPoints = [
 ];
 
 const bannerItems = [
-  { key: "gas-safe", label: "Gas Safe: 918273", icon: <ShieldCheck size={15} className="text-emerald-600" /> },
-  { key: "rating", label: "4.9 (427+ reviews)", icon: <Star size={15} className="fill-amber-400 text-amber-400" /> },
+  {
+    key: "gas-safe",
+    label: `Gas Safe: ${businessDetails.gasSafeNumber}`,
+    icon: <ShieldCheck size={15} className="text-emerald-600" />,
+  },
+  {
+    key: "rating",
+    label: `${businessDetails.googleRatingValue.toFixed(1)} (${businessDetails.googleReviewCount} reviews)`,
+    icon: <Star size={15} className="fill-amber-400 text-amber-400" />,
+  },
   {
     key: "diagnostic",
     label: "Fixed diagnostic from £79",
@@ -66,7 +83,7 @@ export default function HomePage() {
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3.5">
           <Link href="/" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
             <Image
-              src="/brands/ehs-logo.png"
+              src="/brands/ehs-logo-white.png"
               alt="Empire Home Solutions logo"
               width={50}
               height={50}
@@ -119,6 +136,12 @@ export default function HomePage() {
               className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
             >
               Boiler Installation
+            </Link>
+            <Link
+              href="/lp/power-flushing/uxbridge"
+              className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
+            >
+              Power Flushing
             </Link>
             <Link
               href="/finance"
@@ -191,15 +214,14 @@ export default function HomePage() {
                   </Link>
                 </div>
               </div>
-              <div className="h-full min-h-[260px] sm:min-h-[320px] lg:min-h-[620px]">
+              <div className="relative h-full min-h-[260px] sm:min-h-[320px] lg:min-h-[620px]">
                 <Image
-                  src="/images/plumber-smiling.jpg"
-                  alt="Boiler engineer servicing a domestic heating system"
-                  width={1280}
-                  height={960}
+                  src="/images/powerflush-shane.jpg"
+                  alt="EHS engineer carrying out a power flushing service"
+                  fill
                   sizes="(max-width: 1024px) 100vw, 58vw"
                   priority
-                  className="h-full w-full object-cover object-[70%_center]"
+                  className="object-cover object-[52%_12%]"
                 />
               </div>
             </div>
@@ -208,7 +230,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-[#f6f7f8]">
+      <section className="border-y border-slate-200 bg-[var(--ehs-surface-contrast)]">
         <div className="mx-auto w-full max-w-6xl px-4 py-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--ehs-card-shadow)]">
             <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
@@ -228,13 +250,14 @@ export default function HomePage() {
             </div>
             <div className="pt-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Boiler brands we work with
+                Accredited installers: Vaillant and Glow-worm
               </p>
+              <p className="mb-3 text-xs text-slate-500">We also advise on all major boiler brands.</p>
               <BrandLogoRow
                 logos={[
-                  { name: "Worcester", src: "/brands/worcester.svg" },
                   { name: "Vaillant", src: "/brands/vaillant.svg" },
-                  { name: "Ideal", src: "/brands/ideal.svg" },
+                  { name: "Glow-worm", src: "/brands/glow-worm.svg" },
+                  { name: "Worcester", src: "/brands/worcester.svg" },
                 ]}
               />
             </div>
@@ -247,7 +270,7 @@ export default function HomePage() {
           <h2 className="border-l-4 border-[var(--ehs-brand-accent)] pl-3 text-3xl font-semibold text-[var(--ehs-brand-dark)]">
             Core Services
           </h2>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {coreServices.map((service) => (
               <article
                 key={service.title}
@@ -255,13 +278,19 @@ export default function HomePage() {
               >
                 <h3 className="text-lg font-semibold text-[var(--ehs-brand-dark)]">{service.title}</h3>
                 <p className="mt-2 text-sm text-slate-700">{service.description}</p>
+                <Link
+                  href={service.href}
+                  className="mt-4 inline-flex text-sm font-semibold text-[var(--ehs-brand-accent)] hover:opacity-80"
+                >
+                  Learn more
+                </Link>
               </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="trust" className="bg-[#f6f7f8] px-4 py-14">
+      <section id="trust" className="bg-[var(--ehs-surface-contrast)] px-4 py-14">
         <div className="mx-auto w-full max-w-6xl">
           <h2 className="border-l-4 border-[var(--ehs-brand-accent)] pl-3 text-3xl font-semibold text-[var(--ehs-brand-dark)]">
             Why Homeowners Choose Us
@@ -288,6 +317,9 @@ export default function HomePage() {
               {businessDetails.mobilePhoneDisplay}
             </p>
             <p className="text-sm text-slate-700">{businessDetails.email}</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Gas Safe {businessDetails.gasSafeNumber} | VAT {businessDetails.vatRegistrationNumber}
+            </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <a
@@ -302,20 +334,19 @@ export default function HomePage() {
             >
               Book Now
             </Link>
+            <a
+              href={businessDetails.googleReviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-[var(--ehs-brand-dark)]"
+            >
+              Read Google Reviews
+            </a>
           </div>
         </div>
       </section>
 
-      <footer className="bg-[var(--ehs-brand-dark)] px-4 py-8 text-sm text-white">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4">
-          <p>© 2026 Empire Home Solutions</p>
-          <div className="flex gap-4">
-            <Link href="/about-trust" className="hover:text-white">
-              About & Trust
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
+import { Star } from "lucide-react";
+import { businessDetails } from "@/lib/business";
 import { publicEnv } from "@/lib/env";
 import { QuoteForm } from "@/modules/lp/components/QuoteForm";
 import { Section } from "@/modules/ui/Section";
@@ -34,6 +37,36 @@ export default function FinancePage() {
     <>
       <Section className="pt-10" title={content.title} subtitle={content.description}>
         <div className="grid gap-4">
+          <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--ehs-card-shadow)]">
+            <a href={businessDetails.finance.calculatorUrl} target="_blank" rel="noopener noreferrer">
+              <Image
+                src={businessDetails.finance.bannerImageUrl}
+                alt="Finance options banner"
+                width={1200}
+                height={240}
+                className="h-auto w-full"
+              />
+            </a>
+            <div className="flex flex-wrap gap-2 p-4">
+              <a
+                href={businessDetails.finance.calculatorUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-md bg-[var(--ehs-brand-accent)] px-3 py-2 text-xs font-semibold text-white"
+              >
+                Open Finance Calculator
+              </a>
+              <a
+                href={businessDetails.googleReviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-[var(--ehs-brand-dark)]"
+              >
+                <Star size={14} className="fill-amber-400 text-amber-400" />
+                Read Google Reviews
+              </a>
+            </div>
+          </article>
           <article className="rounded-xl border border-slate-200 border-t-4 border-t-[var(--ehs-brand-accent)] bg-white p-4 shadow-[var(--ehs-card-shadow)]">
             <h2 className="text-lg font-semibold text-[var(--ehs-brand-dark)]">Eligibility</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">

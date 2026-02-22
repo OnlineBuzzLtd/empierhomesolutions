@@ -6,22 +6,27 @@ import type { AboutTrustContent, FinanceContent, LpContent, ServiceSlug } from "
 import aboutTrustRaw from "@/modules/lp/content/about-trust.json";
 import financeRaw from "@/modules/lp/content/finance.json";
 import hayesInstallRaw from "@/modules/lp/content/locations/hayes.boiler-installation.json";
+import hayesPowerFlushingRaw from "@/modules/lp/content/locations/hayes.power-flushing.json";
 import hayesRepairRaw from "@/modules/lp/content/locations/hayes.boiler-repair.json";
 import uxbridgeInstallRaw from "@/modules/lp/content/locations/uxbridge.boiler-installation.json";
+import uxbridgePowerFlushingRaw from "@/modules/lp/content/locations/uxbridge.power-flushing.json";
 import uxbridgeRepairRaw from "@/modules/lp/content/locations/uxbridge.boiler-repair.json";
 
-export const ALLOWED_SERVICES: ServiceSlug[] = ["boiler-repair", "boiler-installation"];
+export const ALLOWED_SERVICES: ServiceSlug[] = ["boiler-repair", "boiler-installation", "power-flushing"];
 
 const lpContentMap: Record<string, unknown> = {
   "boiler-repair/uxbridge": uxbridgeRepairRaw,
   "boiler-installation/uxbridge": uxbridgeInstallRaw,
+  "power-flushing/uxbridge": uxbridgePowerFlushingRaw,
   "boiler-repair/hayes": hayesRepairRaw,
   "boiler-installation/hayes": hayesInstallRaw,
+  "power-flushing/hayes": hayesPowerFlushingRaw,
 };
 
 const serviceLabelMap: Record<ServiceSlug, string> = {
   "boiler-repair": "Boiler Repair",
   "boiler-installation": "Boiler Installation",
+  "power-flushing": "Power Flushing",
 };
 
 function mergeWithDefaults(raw: unknown) {

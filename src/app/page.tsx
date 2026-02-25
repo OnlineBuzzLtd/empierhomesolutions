@@ -150,6 +150,12 @@ export default function HomePage() {
               Finance
             </Link>
             <Link
+              href="/areas-we-cover"
+              className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
+            >
+              Areas We Cover
+            </Link>
+            <Link
               href="/about-trust"
               className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
             >
@@ -216,12 +222,12 @@ export default function HomePage() {
               </div>
               <div className="relative h-full min-h-[260px] sm:min-h-[320px] lg:min-h-[620px]">
                 <Image
-                  src="/images/powerflush-shane.jpg"
+                  src="/images/main-hero-2026-02-25.jpg"
                   alt="EHS engineer carrying out a power flushing service"
                   fill
                   sizes="(max-width: 1024px) 100vw, 58vw"
                   priority
-                  className="object-cover object-[52%_12%]"
+                  className="object-cover object-[52%_0%]"
                 />
               </div>
             </div>

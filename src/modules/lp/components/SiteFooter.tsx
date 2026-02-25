@@ -38,6 +38,9 @@ export function SiteFooter() {
             <Link href="/finance" className="hover:text-white">
               Finance
             </Link>
+            <Link href="/areas-we-cover" className="hover:text-white">
+              Areas We Cover
+            </Link>
             <Link href="/lp/power-flushing/uxbridge" className="hover:text-white">
               Power Flushing
             </Link>

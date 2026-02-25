@@ -9,6 +9,7 @@ const demoPages = [
   { href: "/lp/boiler-installation/hayes", label: "Boiler Installation - Hayes" },
   { href: "/lp/power-flushing/uxbridge", label: "Power Flushing - Uxbridge" },
   { href: "/lp/power-flushing/hayes", label: "Power Flushing - Hayes" },
+  { href: "/areas-we-cover", label: "Areas We Cover" },
   { href: "/finance", label: "Finance" },
   { href: "/about-trust", label: "About & Trust" },
 ];

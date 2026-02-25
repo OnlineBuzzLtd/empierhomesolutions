@@ -20,6 +20,23 @@ describe("loadLpContent", () => {
     expect(content).toBeNull();
   });
 
+  it("generates LP content for catalog locations without dedicated JSON", () => {
+    const content = loadLpContent({ service: "boiler-repair", location: "watford" });
+
+    expect(content).toBeTruthy();
+    expect(content?.service).toBe("boiler-repair");
+    expect(content?.locationLabel).toBe("Watford");
+    expect(content?.coverage.postcodes).toEqual(["WD"]);
+  });
+
+  it("normalizes multi-word location names", () => {
+    const content = loadLpContent({ service: "power-flushing", location: "West Byfleet" });
+
+    expect(content).toBeTruthy();
+    expect(content?.service).toBe("power-flushing");
+    expect(content?.locationLabel).toBe("West Byfleet");
+  });
+
   it("loads power flushing content", () => {
     const content = loadLpContent({ service: "power-flushing", location: "uxbridge" });
     expect(content).toBeTruthy();

@@ -123,6 +123,12 @@ export default function LpLayout({ children }: { children: ReactNode }) {
                 Finance
               </Link>
               <Link
+                href="/areas-we-cover"
+                className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
+              >
+                Areas We Cover
+              </Link>
+              <Link
                 href="/about-trust"
                 className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
               >

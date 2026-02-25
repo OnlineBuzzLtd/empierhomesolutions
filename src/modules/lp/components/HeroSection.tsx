@@ -107,7 +107,7 @@ export function HeroSection({ hero, cta, proofLine }: HeroSectionProps) {
                 fill
                 sizes="(max-width: 1024px) 100vw, 58vw"
                 priority
-                className="object-cover object-[52%_12%]"
+                className="object-cover object-[52%_0%]"
               />
             </div>
           </div>

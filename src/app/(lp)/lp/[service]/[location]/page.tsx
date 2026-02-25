@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { publicEnv } from "@/lib/env";
 import { getAbFlags } from "@/modules/lp/abFlags";
+import { getAllLocationEntries } from "@/modules/lp/content/locationCatalog";
 import { ALLOWED_SERVICES, loadLpContent, normalizeLocationSlug } from "@/modules/lp/content/loadContent";
 import { InstallTemplate } from "@/modules/lp/templates/InstallTemplate";
 import { RepairTemplate } from "@/modules/lp/templates/RepairTemplate";
 import { buildLocalBusinessJsonLd } from "@/modules/seo/localBusinessJsonLd";
 import { resolveCallNumber } from "@/modules/tracking/callNumber";
 
-const demoLocations = ["uxbridge", "hayes"];
+const staticLocationSlugs = getAllLocationEntries().map((location) => location.slug);
 export const revalidate = 3600;
 
 type RouteProps = {
@@ -27,7 +28,7 @@ function getCanonicalUrl(service: string, location: string) {
 
 export async function generateStaticParams() {
   return ALLOWED_SERVICES.flatMap((service) =>
-    demoLocations.map((location) => ({
+    staticLocationSlugs.map((location) => ({
       service,
       location,
     })),

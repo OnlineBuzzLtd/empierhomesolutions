@@ -59,9 +59,9 @@ const tierCards = [
 ] as const;
 
 const trustPoints = [
-  "Built around how trade businesses actually work: lead, quote, booking, job, invoice, payment.",
-  "Easy for the office team to manage and clear for engineers to use on the job.",
-  "Setup and rollout support included so the team can get using it properly.",
+  "Track the full job in one place: lead, quote, booking, job, invoice, payment.",
+  "Simple for the office team and clear for engineers on site.",
+  "Setup and training included so your team can get started properly.",
 ] as const;
 
 const includedItems = [
@@ -118,11 +118,11 @@ export default function EmpireTechSolutionsPage() {
                 Empire Tech Solutions
               </div>
               <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
-                A simple CRM for trade businesses that want less admin and better control.
+                CRM software for plumbers, electricians, and growing trade businesses.
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-white/74 sm:text-lg">
-                Keep leads, customers, jobs, engineers, quotes, invoices, payments, and documents all in one place,
-                so the office team and engineers are working from the same system.
+                Manage leads, jobs, quotes, invoices, and your diary in one place. Keep the office team and engineers
+                working from the same system.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
@@ -143,21 +143,21 @@ export default function EmpireTechSolutionsPage() {
             </div>
 
             <div className="rounded-[28px] border border-white/10 bg-white/6 p-5 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#dbc092]">Why trade firms choose it</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#dbc092]">Why trades choose it</p>
               <div className="mt-4 grid gap-3">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-sm font-semibold text-white">Built around your jobs</p>
-                  <p className="mt-1 text-sm text-white/70">Set up around the way your business books, quotes, completes, and invoices work.</p>
+                  <p className="text-sm font-semibold text-white">One place for the whole job</p>
+                  <p className="mt-1 text-sm text-white/70">From first enquiry to quote, booking, job, invoice, and payment.</p>
                 </div>
                 <div className="rounded-2xl border border-[#c2893a]/50 bg-[#c2893a]/12 p-4">
-                  <p className="text-sm font-semibold text-white">Made for office and field teams</p>
+                  <p className="text-sm font-semibold text-white">Office and engineers stay in sync</p>
                   <p className="mt-1 text-sm text-white/80">
-                    Everyone can see the same job details, notes, files, and next steps.
+                    Everyone sees the same job details, notes, files, and updates.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-sm font-semibold text-white">Ready as you grow</p>
-                  <p className="mt-1 text-sm text-white/70">Add more users, more services, and more reporting as the business gets bigger.</p>
+                  <p className="text-sm font-semibold text-white">Built to grow with you</p>
+                  <p className="mt-1 text-sm text-white/70">Add more staff, more services, and more jobs as the business grows.</p>
                 </div>
               </div>
             </div>

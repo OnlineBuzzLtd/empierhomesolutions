@@ -1,43 +1,21 @@
-import Link from 'next/link'
+import { LoginForm } from "@/modules/crm/components/forms/LoginForm";
+import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
+import { getCrmSetupState } from "@/modules/crm/lib/setup";
 
 export default function LoginPage() {
+  const setup = getCrmSetupState();
+
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Empire</p>
-          <h1 className="text-2xl font-bold text-white">Home Solutions CRM</h1>
-          <p className="text-sm text-gray-400 mt-2">Internal team access only</p>
+        <div className="mb-8 text-center">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Empire</p>
+          <h1 className="text-3xl font-bold text-white">Home Solutions CRM</h1>
+          <p className="mt-2 text-sm text-slate-400">Internal team access only</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow-2xl space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email</label>
-            <input
-              type="email"
-              defaultValue="shaz@empirehomesolutions.co.uk"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Password</label>
-            <input
-              type="password"
-              defaultValue="••••••••"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <Link
-            href="/dashboard"
-            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg text-center transition-colors"
-          >
-            Sign In
-          </Link>
-          <p className="text-center text-xs text-gray-400">
-            Demo mode — click Sign In to explore
-          </p>
-        </div>
+        {!setup.configured && setup.message ? <SetupNotice message={setup.message} /> : <LoginForm />}
       </div>
     </div>
-  )
+  );
 }

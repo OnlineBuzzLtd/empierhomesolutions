@@ -31,9 +31,6 @@ export default function AreasWeCoverPage() {
             <h1 className="mt-2 text-2xl font-semibold text-[var(--ehs-brand-dark)] md:text-4xl">
               Areas We Cover
             </h1>
-            <p className="mt-2 text-sm text-slate-600 md:text-base">
-              Use this page to access every local paid-campaign landing page using the same current LP format.
-            </p>
             <div className="mt-4">
               <Link
                 href="/"
@@ -67,16 +64,7 @@ export default function AreasWeCoverPage() {
           </div>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--ehs-card-shadow)] md:p-8">
-            <h2 className="text-xl font-semibold text-[var(--ehs-brand-dark)] md:text-2xl">
-              Paid Campaign Landing URLs
-            </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Every location has three LP URLs:
-              <span className="ml-1 rounded bg-[var(--ehs-panel)] px-2 py-1 font-mono text-xs">
-                /lp/service/location-slug
-              </span>
-            </p>
-            <div className="mt-6 space-y-6">
+            <div className="space-y-6">
               {locationGroups.map((group) => (
                 <section key={group.postcodeArea}>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">

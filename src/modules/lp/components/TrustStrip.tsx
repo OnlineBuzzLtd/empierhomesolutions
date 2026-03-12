@@ -1,7 +1,5 @@
 import { Clock3, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
-import { cn } from "@/lib/cn";
-import { BrandLogoRow } from "@/modules/lp/components/BrandLogoRow";
 import type { TrustStripContent } from "@/modules/lp/types";
 
 type TrustStripProps = {
@@ -99,13 +97,6 @@ export function TrustStrip({
                 {item.label}
               </p>
             ))}
-          </div>
-          <div className={cn("pt-4")}>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Accredited installers: Vaillant and Glow-worm
-            </p>
-            <p className="mb-3 text-xs text-slate-500">We also advise and install across all major brands.</p>
-            <BrandLogoRow logos={trust.brandLogos} />
           </div>
         </div>
       </div>

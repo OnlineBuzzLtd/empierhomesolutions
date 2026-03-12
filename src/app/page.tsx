@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2, Clock3, House, PhoneCall, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
-import { BrandLogoRow } from "@/modules/lp/components/BrandLogoRow";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 
 const coreServices = [
@@ -253,19 +252,6 @@ export default function HomePage() {
                   {item.label}
                 </p>
               ))}
-            </div>
-            <div className="pt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Accredited installers: Vaillant and Glow-worm
-              </p>
-              <p className="mb-3 text-xs text-slate-500">We also advise on all major boiler brands.</p>
-              <BrandLogoRow
-                logos={[
-                  { name: "Vaillant", src: "/brands/vaillant.svg" },
-                  { name: "Glow-worm", src: "/brands/glow-worm.svg" },
-                  { name: "Worcester", src: "/brands/worcester.svg" },
-                ]}
-              />
             </div>
           </div>
         </div>

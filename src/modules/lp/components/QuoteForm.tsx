@@ -175,15 +175,13 @@ export function QuoteForm({
           />
         </Field>
 
-        <Field label={isMobile ? "Issue (optional on mobile)" : "Issue"} error={errors.issue?.message}>
+        <Field label="Issue" error={errors.issue?.message}>
           <textarea
             {...register("issue")}
             onFocus={onFirstFocus}
             rows={4}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[var(--ehs-brand-accent)] focus:ring-2 focus:ring-[var(--ehs-brand-accent)]/20"
-            placeholder={
-              isMobile ? "Optional: include fault code or symptom" : "Tell us what is happening..."
-            }
+            placeholder="Tell us what is happening..."
           />
         </Field>
 

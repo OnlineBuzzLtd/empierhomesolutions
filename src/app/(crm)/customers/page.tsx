@@ -1,59 +1,56 @@
-import Link from 'next/link'
-import { customers, jobs } from '@/modules/crm/lib/mockData'
+import Link from "next/link";
+import { CustomerCreateForm } from "@/modules/crm/components/forms/CustomerCreateForm";
+import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
+import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
+import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
+import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { getCrmSetupState } from "@/modules/crm/lib/setup";
+import { listCustomers, listCustomFieldDefinitions } from "@/modules/crm/lib/data";
 
-export default function CustomersPage() {
+export default async function CustomersPage() {
+  const setup = getCrmSetupState();
+  if (!setup.configured && setup.message) {
+    return <SetupNotice message={setup.message} />;
+  }
+
+  await requireCrmUser();
+  const [customers, customFields] = await Promise.all([listCustomers(), listCustomFieldDefinitions()]);
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-          <p className="text-gray-500 text-sm mt-1">{customers.length} total customers</p>
-        </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-          + Add Customer
-        </button>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
+        <p className="mt-1 text-sm text-slate-500">{customers.length} customers in CRM.</p>
       </div>
 
-      {/* Search bar (UI only in demo) */}
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-        <input
-          type="text"
-          placeholder="Search by name, postcode, or phone..."
-          className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          readOnly
-        />
-      </div>
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
+        <SectionCard title="Customer List">
+          {customers.length === 0 ? (
+            <EmptyState message="No customers yet. Create the first customer using the form." />
+          ) : (
+            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+              {customers.map((customer) => (
+                <Link key={customer.id} href={`/customers/${customer.id}`} className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-slate-50">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{customer.full_name}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {customer.phone || "No phone"} · {customer.postcode || "No postcode"}
+                    </p>
+                  </div>
+                  <div className="text-right text-xs text-slate-500">
+                    <p>{customer.job_count} total jobs</p>
+                    <p>{customer.active_job_count} active</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </SectionCard>
 
-      {/* Customer list */}
-      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-        {customers.map((customer) => {
-          const jobCount = jobs.filter((j) => j.customer_id === customer.id).length
-          const activeJobs = jobs.filter((j) => j.customer_id === customer.id && ['enquiry','booked','in_progress'].includes(j.status)).length
-          return (
-            <Link
-              key={customer.id}
-              href={`/customers/${customer.id}`}
-              className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors group"
-            >
-              <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
-                {customer.full_name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">{customer.full_name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{customer.phone} · {customer.address_line1}, {customer.postcode}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-xs text-gray-500">{jobCount} job{jobCount !== 1 ? 's' : ''}</p>
-                {activeJobs > 0 && (
-                  <span className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">{activeJobs} active</span>
-                )}
-              </div>
-              <span className="text-gray-300 group-hover:text-gray-500">›</span>
-            </Link>
-          )
-        })}
+        <SectionCard title="Add Customer">
+          <CustomerCreateForm customFields={customFields} />
+        </SectionCard>
       </div>
     </div>
-  )
+  );
 }

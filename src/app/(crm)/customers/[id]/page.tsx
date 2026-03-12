@@ -1,131 +1,131 @@
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import {
-  getCustomer,
-  getJobsForCustomer,
-  getNotesForEntity,
-  statusConfig,
-  formatDate,
-  formatDateTime,
-} from '@/modules/crm/lib/mockData'
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
+import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
+import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
+import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
+import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
+import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { formatDate, formatDateTime } from "@/modules/crm/lib/format";
+import { getCustomerDetail } from "@/modules/crm/lib/data";
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const customer = getCustomer(id)
-  if (!customer) notFound()
+  await requireCrmUser();
+  const { id } = await params;
+  const detail = await getCustomerDetail(id);
+  if (!detail) {
+    notFound();
+  }
 
-  const customerJobs = getJobsForCustomer(id)
-  const customerNotes = getNotesForEntity('customer', id)
+  const { customer, jobs, notes, assets, attachments } = detail;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Breadcrumb */}
-      <nav className="text-sm text-gray-400">
-        <Link href="/customers" className="hover:text-blue-600">Customers</Link>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <nav className="text-sm text-slate-500">
+        <Link href="/customers" className="hover:text-blue-700">
+          Customers
+        </Link>
         <span className="mx-2">›</span>
-        <span className="text-gray-700 font-medium">{customer.full_name}</span>
+        <span className="font-medium text-slate-900">{customer.full_name}</span>
       </nav>
 
-      {/* Customer header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold shrink-0">
-              {customer.full_name.charAt(0)}
+      <SectionCard title={customer.full_name}>
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">Customer since {formatDate(customer.created_at)}</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <p className="text-sm text-slate-700">Phone: {customer.phone || "Not set"}</p>
+              <p className="text-sm text-slate-700">Email: {customer.email || "Not set"}</p>
+              <p className="text-sm text-slate-700">Postcode: {customer.postcode || "Not set"}</p>
+              <p className="text-sm text-slate-700">Source: {customer.source || "Not set"}</p>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{customer.full_name}</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Customer since {formatDate(customer.created_at)}</p>
-            </div>
+            <p className="text-sm text-slate-700">Address: {[customer.address_line1, customer.address_line2, customer.city].filter(Boolean).join(", ") || "Not set"}</p>
+            <p className="text-sm text-slate-700">Notes: {customer.notes || "No notes"}</p>
           </div>
-          <button className="text-sm text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">Edit</button>
-        </div>
 
-        <div className="mt-5 grid sm:grid-cols-2 gap-4">
-          <InfoRow label="Phone" value={customer.phone} href={`tel:${customer.phone}`} />
-          <InfoRow label="Email" value={customer.email} href={`mailto:${customer.email}`} />
-          <InfoRow label="Address" value={`${customer.address_line1}, ${customer.city}`} />
-          <InfoRow label="Postcode" value={customer.postcode} />
+          <ApiForm endpoint={`/api/crm/customers/${customer.id}`} method="PATCH" submitLabel="Update Customer" className="grid gap-3">
+            <input name="full_name" defaultValue={customer.full_name} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="phone" defaultValue={customer.phone ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="email" defaultValue={customer.email ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="address_line1" defaultValue={customer.address_line1 ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="city" defaultValue={customer.city ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="postcode" defaultValue={customer.postcode ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="notes" defaultValue={customer.notes ?? ""} className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </ApiForm>
         </div>
+      </SectionCard>
 
-        {customer.notes && (
-          <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-100">
-            <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Notes</p>
-            <p className="text-sm text-yellow-900">{customer.notes}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Jobs */}
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-900">Jobs ({customerJobs.length})</h2>
-          <button className="text-xs text-blue-600 font-medium hover:underline">+ New Job</button>
-        </div>
-        {customerJobs.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No jobs yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {customerJobs.map((job) => {
-              const cfg = statusConfig[job.status]
-              return (
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SectionCard title={`Jobs (${jobs.length})`}>
+          {jobs.length === 0 ? (
+            <EmptyState message="No jobs linked to this customer yet." />
+          ) : (
+            <ul className="space-y-2">
+              {jobs.map((job) => (
                 <li key={job.id}>
-                  <Link href={`/jobs/${job.id}`} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+                  <Link href={`/jobs/${job.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-3 hover:bg-slate-50">
                     <div>
-                      <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700">{job.title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{job.scheduled_date} {job.scheduled_time} · {job.assigned_engineer}</p>
+                      <p className="text-sm font-semibold text-slate-900">{job.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">{job.scheduled_date || "TBC"} · {job.assigned_engineer || "Unassigned"}</p>
                     </div>
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${cfg.color}`}>{cfg.label}</span>
                   </Link>
                 </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
 
-      {/* Notes */}
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-900">Notes ({customerNotes.length})</h2>
-          <button className="text-xs text-blue-600 font-medium hover:underline">+ Add Note</button>
-        </div>
-        {customerNotes.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No notes yet.</p>
-        ) : (
+        <SectionCard title={`Assets (${assets.length})`}>
+          {assets.length === 0 ? (
+            <EmptyState message="No tracked assets for this customer yet." />
+          ) : (
+            <ul className="space-y-3">
+              {assets.map((asset) => (
+                <li key={asset.id} className="rounded-lg border border-slate-200 p-3">
+                  <p className="text-sm font-semibold text-slate-900">{asset.asset_type}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {[asset.make, asset.model, asset.serial_number].filter(Boolean).join(" · ") || "No model details"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Service due {formatDate(asset.service_due_date)} · Warranty ends {formatDate(asset.warranty_end_date)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SectionCard title={`Notes (${notes.length})`}>
+          {notes.length === 0 ? <EmptyState message="No notes yet." /> : null}
           <ul className="space-y-3">
-            {customerNotes.map((note) => (
-              <li key={note.id} className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-800">{note.body}</p>
-                <p className="text-xs text-gray-400 mt-1.5">{note.created_by} · {formatDateTime(note.created_at)}</p>
+            {notes.map((note) => (
+              <li key={note.id} className="rounded-lg bg-slate-50 p-3">
+                <p className="text-sm text-slate-800">{note.body}</p>
+                <p className="mt-1 text-xs text-slate-500">{formatDateTime(note.created_at)}</p>
               </li>
             ))}
           </ul>
-        )}
-        {/* Add note demo input */}
-        <div className="mt-4 flex gap-2">
-          <input
-            type="text"
-            placeholder="Add a note..."
-            className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            readOnly
-          />
-          <button className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
-        </div>
-      </section>
-    </div>
-  )
-}
+          <div className="mt-4">
+            <NoteCreateForm entityType="customer" entityId={customer.id} />
+          </div>
+        </SectionCard>
 
-function InfoRow({ label, value, href }: { label: string; value: string; href?: string }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
-      {href ? (
-        <a href={href} className="text-sm text-blue-600 hover:underline mt-0.5 block">{value}</a>
-      ) : (
-        <p className="text-sm text-gray-800 mt-0.5">{value}</p>
-      )}
+        <SectionCard title={`Attachments (${attachments.length})`}>
+          {attachments.length === 0 ? <EmptyState message="No attachments yet." /> : null}
+          <ul className="space-y-2">
+            {attachments.map((attachment) => (
+              <li key={attachment.id} className="rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                {attachment.file_name} · {attachment.file_type}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4">
+            <AttachmentUploadForm entityType="customer" entityId={customer.id} />
+          </div>
+        </SectionCard>
+      </div>
     </div>
-  )
+  );
 }

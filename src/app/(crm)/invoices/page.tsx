@@ -1,59 +1,68 @@
-import Link from 'next/link'
-import { invoices, customers, jobs, invoiceStatusConfig, formatCurrency, formatDate } from '@/modules/crm/lib/mockData'
+import Link from "next/link";
+import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
+import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
+import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
+import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
+import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
+import { getCrmSetupState } from "@/modules/crm/lib/setup";
+import { invoiceStatusConfig } from "@/modules/crm/lib/status";
+import { listInvoices } from "@/modules/crm/lib/data";
 
-export default function InvoicesPage() {
-  const totalUnpaid = invoices.filter((i) => i.status === 'unpaid').reduce((s, i) => s + i.total, 0)
-  const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.total, 0)
+export default async function InvoicesPage() {
+  const setup = getCrmSetupState();
+  if (!setup.configured && setup.message) {
+    return <SetupNotice message={setup.message} />;
+  }
+
+  await requireCrmUser();
+  const invoices = await listInvoices();
+  const totalUnpaid = invoices.filter((invoice) => invoice.status === "unpaid").reduce((sum, invoice) => sum + invoice.total, 0);
+  const totalPaid = invoices.filter((invoice) => invoice.status === "paid").reduce((sum, invoice) => sum + invoice.total, 0);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-          <p className="text-gray-500 text-sm mt-1">{invoices.length} invoices</p>
-        </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-          + New Invoice
-        </button>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Invoices</h1>
+        <p className="mt-1 text-sm text-slate-500">{invoices.length} invoices in CRM.</p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-yellow-50 rounded-xl p-4">
-          <p className="text-xs font-medium text-yellow-700 uppercase tracking-wide">Unpaid</p>
-          <p className="text-2xl font-bold text-yellow-900 mt-1">{formatCurrency(totalUnpaid)}</p>
-        </div>
-        <div className="bg-green-50 rounded-xl p-4">
-          <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Collected</p>
-          <p className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(totalPaid)}</p>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <SummaryCard label="Unpaid" value={formatCurrency(totalUnpaid)} />
+        <SummaryCard label="Paid" value={formatCurrency(totalPaid)} />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-        {invoices.map((invoice) => {
-          const customer = customers.find((c) => c.id === invoice.customer_id)
-          const job = jobs.find((j) => j.id === invoice.job_id)
-          const cfg = invoiceStatusConfig[invoice.status]
-          return (
-            <Link
-              key={invoice.id}
-              href={`/invoices/${invoice.id}`}
-              className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors group"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">{invoice.invoice_number}</p>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
+      <SectionCard title="Invoice List">
+        {invoices.length === 0 ? (
+          <EmptyState message="No invoices yet." />
+        ) : (
+          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+            {invoices.map((invoice) => (
+              <Link key={invoice.id} href={`/invoices/${invoice.id}`} className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-slate-50">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{invoice.invoice_number}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {invoice.customer?.full_name ?? "Customer"} · {invoice.job?.title ?? "Job"} · Due {formatDate(invoice.due_date)}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">{customer?.full_name} · {job?.title}</p>
-                <p className="text-xs text-gray-400 mt-0.5">Due {formatDate(invoice.due_date)}</p>
-              </div>
-              <p className="text-base font-bold text-gray-900 shrink-0">{formatCurrency(invoice.total)}</p>
-              <span className="text-gray-300 group-hover:text-gray-500">›</span>
-            </Link>
-          )
-        })}
-      </div>
+                <div className="flex items-center gap-3">
+                  <StatusBadge config={invoiceStatusConfig[invoice.status]} />
+                  <span className="text-sm font-semibold text-slate-900">{formatCurrency(invoice.total)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </SectionCard>
     </div>
-  )
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
+    </div>
+  );
 }

@@ -12,6 +12,7 @@ const demoPages = [
   { href: "/areas-we-cover", label: "Areas We Cover" },
   { href: "/finance", label: "Finance" },
   { href: "/about-trust", label: "About & Trust" },
+  { href: "/empire-tech-solutions", label: "Empire Tech Solutions CRM LP" },
 ];
 
 export default function DemoRoutesPage() {

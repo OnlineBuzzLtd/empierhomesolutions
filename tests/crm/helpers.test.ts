@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { groupAttachmentsByBucket, isImageAttachment, normalizeAttachmentType } from "@/modules/crm/lib/attachments";
+import { resolveAiHubViewState } from "@/modules/crm/lib/addons";
+import { buildAiHubAggregateMetrics } from "@/modules/crm/lib/ai-hub";
 import { buildAssetReminderItems, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
 import { applyCrmModeFilter, crmDemoScenarioKey, crmDemoSteps, findCrmDemoStepIndex, isCrmDemoMutationBlocked } from "@/modules/crm/lib/demo";
 import { buildQuoteDraftFromTemplate, buildCatalogLineItem, parsePaymentTermsInput, summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
-import type { Appointment, Attachment, CustomerAsset, QuoteTemplate } from "@/modules/crm/types";
+import type { AddonState, Appointment, Attachment, CustomerAsset, QuoteTemplate } from "@/modules/crm/types";
 
 describe("crm attachment helpers", () => {
   it("groups attachments into user-facing buckets", () => {
@@ -120,6 +122,52 @@ describe("crm reporting helpers", () => {
       completedJobs: 1,
       openJobs: 1,
     });
+  });
+});
+
+describe("crm ai hub helpers", () => {
+  it("derives aggregate add-on ROI metrics", () => {
+    const metrics = buildAiHubAggregateMetrics([
+      {
+        roi_metrics: {
+          missed_calls_recovered: 14,
+          bookings_captured: 6,
+          leads_qualified: 19,
+          average_response_minutes: 2,
+        },
+      },
+      {
+        roi_metrics: {
+          missed_calls_recovered: 7,
+          bookings_captured: 11,
+          leads_qualified: 22,
+          average_response_minutes: 1,
+        },
+      },
+    ]);
+
+    expect(metrics).toEqual({
+      missed_calls_recovered: 21,
+      bookings_captured: 17,
+      leads_qualified: 41,
+      average_response_minutes: 2,
+    });
+  });
+
+  it("resolves the AI Hub state from add-on and role", () => {
+    const addon: AddonState = {
+      addon_key: "ai_comms_hub",
+      enabled: false,
+      demo_enabled: true,
+      display_name: "AI Hub",
+      price_label: "From GBP 299/mo per company",
+      cta_url: null,
+      summary: "Demo add-on",
+    };
+
+    expect(resolveAiHubViewState(addon, "sales")).toBe("locked");
+    expect(resolveAiHubViewState(addon, "management")).toBe("demo");
+    expect(resolveAiHubViewState({ ...addon, enabled: true }, "sales")).toBe("enabled");
   });
 });
 

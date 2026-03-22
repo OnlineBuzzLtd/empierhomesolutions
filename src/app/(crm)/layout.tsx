@@ -6,6 +6,7 @@ import "../globals.css";
 import { DemoPanel } from "@/modules/crm/components/demo/DemoPanel";
 import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider";
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
+import { getAddonState } from "@/modules/crm/lib/addons";
 import { getCrmSession, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { LogoutButton } from "@/modules/crm/components/layout/LogoutButton";
@@ -22,6 +23,7 @@ const baseNavItems = [
   { href: "/customers", label: "Customers", icon: "👤" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/calendar", label: "Calendar", icon: "🗓" },
+  { href: "/ai-hub", label: "AI Hub", icon: "🤖", locked: true },
   { href: "/quotes", label: "Quotes", icon: "📋" },
   { href: "/invoices", label: "Invoices", icon: "📄" },
   { href: "/staff", label: "Staff", icon: "🪪" },
@@ -30,7 +32,7 @@ const baseNavItems = [
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const pathname = requestHeaders.get("x-crm-pathname") ?? "";
-  const session = await getCrmSession();
+  const [session, aiHubAddon] = await Promise.all([getCrmSession(), getAddonState("ai_comms_hub")]);
   const demoState = await getCrmDemoState();
   const setup = getCrmSetupState();
   const canManageDemo = userCanManageSettings(session.profile?.role);
@@ -69,7 +71,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
                 >
                   <span>{item.icon}</span>
-                  {item.label}
+                  <span>{item.label}</span>
+                  {item.href === "/ai-hub" && !aiHubAddon.enabled ? (
+                    <span className="ml-auto rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">
+                      Add-on
+                    </span>
+                  ) : null}
                 </Link>
               ))}
             </nav>
@@ -92,7 +99,14 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                   <div className="hidden gap-1 lg:flex">
                     {navItems.map((item) => (
                       <Link key={item.href} href={item.href} className="rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
-                        {item.label}
+                        <span className="inline-flex items-center gap-2">
+                          <span>{item.label}</span>
+                          {item.href === "/ai-hub" && !aiHubAddon.enabled ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+                              Add-on
+                            </span>
+                          ) : null}
+                        </span>
                       </Link>
                     ))}
                   </div>

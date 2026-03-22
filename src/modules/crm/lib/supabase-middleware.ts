@@ -45,7 +45,7 @@ export async function updateCrmSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isProtectedRoute = /^\/(dashboard|leads|customers|jobs|calendar|quotes|invoices|staff|reports|settings)(\/.*)?$/.test(pathname);
+  const isProtectedRoute = /^\/(dashboard|leads|customers|jobs|calendar|ai-hub|quotes|invoices|staff|reports|settings)(\/.*)?$/.test(pathname);
   const demoCookie = request.cookies.get(crmDemoCookieName)?.value;
   const isDemoActive = Boolean(demoCookie);
 

@@ -47,6 +47,18 @@ export type SupportedEntityType = (typeof supportedEntityTypes)[number];
 export const certificationCategories = ["qualification", "id", "compliance", "training"] as const;
 export type CertificationCategory = (typeof certificationCategories)[number];
 
+export const crmAddonKeys = ["ai_comms_hub"] as const;
+export type CrmAddonKey = (typeof crmAddonKeys)[number];
+
+export const aiConversationChannels = ["sms", "whatsapp", "web_chat", "voice"] as const;
+export type AiConversationChannel = (typeof aiConversationChannels)[number];
+
+export const aiAgentTypes = ["triage", "qualification", "booking", "faq", "escalation"] as const;
+export type AiAgentType = (typeof aiAgentTypes)[number];
+
+export const aiMessageRoles = ["customer", "assistant", "system"] as const;
+export type AiMessageRole = (typeof aiMessageRoles)[number];
+
 export type StatusBadgeConfig = {
   label: string;
   className: string;
@@ -356,6 +368,94 @@ export type QuoteTemplate = {
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
+};
+
+export type AddonState = {
+  id?: string;
+  addon_key: CrmAddonKey;
+  enabled: boolean;
+  demo_enabled: boolean;
+  display_name: string;
+  price_label: string;
+  cta_url: string | null;
+  summary: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AiRoiMetrics = {
+  missed_calls_recovered: number;
+  bookings_captured: number;
+  leads_qualified: number;
+  average_response_minutes: number;
+};
+
+export type AiScenario = {
+  id: string;
+  scenario_key: string;
+  title: string;
+  subtitle: string | null;
+  channel: AiConversationChannel;
+  customer_name: string;
+  customer_handle: string;
+  inbound_label: string;
+  summary: string;
+  final_outcome: string;
+  roi_metrics: AiRoiMetrics;
+  extracted_entities: Record<string, string>;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+};
+
+export type AiMessage = {
+  id: string;
+  conversation_id: string;
+  sort_order: number;
+  offset_seconds: number;
+  role: AiMessageRole;
+  sender_label: string;
+  body: string;
+  channel: AiConversationChannel | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+};
+
+export type AiAgentAction = {
+  id: string;
+  conversation_id: string;
+  sort_order: number;
+  offset_seconds: number;
+  agent_type: AiAgentType;
+  title: string;
+  detail: string;
+  status_label: string;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+};
+
+export type AiCrmImpact = {
+  id: string;
+  conversation_id: string;
+  sort_order: number;
+  offset_seconds: number;
+  impact_type: string;
+  title: string;
+  detail: string;
+  crm_entity_type: "lead" | "customer" | "appointment" | "job" | "quote" | "invoice" | null;
+  crm_entity_id: string | null;
+  route_path: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+};
+
+export type AiConversation = AiScenario & {
+  messages: AiMessage[];
+  actions: AiAgentAction[];
+  impacts: AiCrmImpact[];
 };
 
 export type CustomFieldValue = {

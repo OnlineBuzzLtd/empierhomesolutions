@@ -24,11 +24,11 @@ describe("crm middleware", () => {
     }));
 
     const { updateCrmSession } = await import("@/modules/crm/lib/supabase-middleware");
-    const response = await updateCrmSession(new NextRequest("https://example.com/dashboard"));
+    const response = await updateCrmSession(new NextRequest("https://example.com/ai-hub"));
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toContain("/login");
-    expect(response.headers.get("set-cookie")).toContain("crm_next=%2Fdashboard");
+    expect(response.headers.get("set-cookie")).toContain("crm_next=%2Fai-hub");
   });
 
   it("blocks CRM mutations while demo mode is active", async () => {

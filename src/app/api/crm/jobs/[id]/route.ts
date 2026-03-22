@@ -1,8 +1,7 @@
 import { jobSchema } from "@/modules/crm/lib/validation";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
-import { validateRequiredDocuments } from "@/modules/crm/lib/rules";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { validateRequiredProgression } from "@/modules/crm/lib/rules";
+import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,20 +11,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid job payload.");
   }
 
-  const supabase = await createCrmServerClient();
-  const { data: existing } = await supabase.schema("crm").from("jobs").select("service_id, job_type_id").eq("id", id).single();
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
 
-  if (parsed.data.status) {
-    const validation = await validateRequiredDocuments({
+  const { supabase } = auth.session;
+  const { data: existing } = await supabase.schema("crm").from("jobs").select("service_id, job_type_id, status").eq("id", id).single();
+
+  if (existing && (parsed.data.status || parsed.data.service_id || parsed.data.job_type_id)) {
+    const validation = await validateRequiredProgression({
       entityType: "job",
       entityId: id,
       serviceId: parsed.data.service_id ?? existing?.service_id,
       jobTypeId: parsed.data.job_type_id ?? existing?.job_type_id,
-      pipelineStage: parsed.data.status,
+      pipelineStage: parsed.data.status ?? existing.status,
+      incomingCustomFields: extractCustomFieldValues(body),
     });
 
     if (!validation.valid) {
-      return jsonError(`Missing required documents: ${validation.missing.join(", ")}`);
+      const messages = [
+        validation.missingFields.length ? `required fields: ${validation.missingFields.join(", ")}` : null,
+        validation.missingDocuments.length ? `required documents: ${validation.missingDocuments.join(", ")}` : null,
+      ].filter(Boolean);
+      return jsonError(`Cannot move job forward. Missing ${messages.join(" and ")}.`);
     }
   }
 

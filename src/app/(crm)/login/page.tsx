@@ -1,9 +1,12 @@
+import { cookies } from "next/headers";
 import { LoginForm } from "@/modules/crm/components/forms/LoginForm";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 
-export default function LoginPage() {
+export default async function LoginPage() {
   const setup = getCrmSetupState();
+  const cookieStore = await cookies();
+  const fallbackNext = cookieStore.get("crm_next")?.value ?? null;
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -14,7 +17,7 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-slate-400">Internal team access only</p>
         </div>
 
-        {!setup.configured && setup.message ? <SetupNotice message={setup.message} /> : <LoginForm />}
+        {!setup.configured && setup.message ? <SetupNotice message={setup.message} /> : <LoginForm fallbackNext={fallbackNext} />}
       </div>
     </div>
   );

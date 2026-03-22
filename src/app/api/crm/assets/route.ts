@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 
 const assetSchema = z.object({
   customer_id: z.string().uuid(),
@@ -23,7 +22,12 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid asset payload.");
   }
 
-  const supabase = await createCrmServerClient();
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { supabase } = auth.session;
   const { data, error } = await supabase.schema("crm").from("customer_assets").insert(parsed.data).select("*").single();
   if (error) {
     return jsonError(error.message, 500);

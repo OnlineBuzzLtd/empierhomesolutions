@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { DemoReadonlyNotice } from "@/modules/crm/components/demo/DemoReadonlyNotice";
+import { useCrmDemoMode } from "@/modules/crm/components/demo/DemoModeProvider";
 
 type ApiFormProps = {
   endpoint: string;
@@ -22,6 +24,7 @@ export function ApiForm({
   successMessage = "Saved.",
   children,
 }: ApiFormProps) {
+  const demo = useCrmDemoMode();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -65,15 +68,18 @@ export function ApiForm({
 
   return (
     <form action={handleSubmit} className={className}>
-      {children}
+      <fieldset disabled={isSubmitting || demo.active} className="space-y-3 disabled:opacity-60">
+        {children}
+      </fieldset>
       <div className="mt-4 flex items-center gap-3">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || demo.active}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
-          {isSubmitting ? "Saving..." : submitLabel}
+          {demo.active ? "Demo Mode Locked" : isSubmitting ? "Saving..." : submitLabel}
         </button>
+        <DemoReadonlyNotice />
         {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
         {error ? <p className="text-sm text-rose-700">{error}</p> : null}
       </div>

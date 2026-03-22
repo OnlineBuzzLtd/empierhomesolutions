@@ -1,4 +1,6 @@
 import { getServerEnv, publicEnv } from "@/lib/env";
+import { getCrmEnv } from "@/modules/crm/lib/env";
+import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import type { Attribution } from "@/modules/tracking/attribution";
 import { z } from "zod";
 
@@ -65,13 +67,17 @@ function sanitizeAttribution(attribution: Attribution = {}) {
   );
 }
 
+function normalizePhone(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 export function sanitizeLeadPayload(lead: LeadRequest) {
   const normalizedIssue = lead.issue ? sanitizeText(lead.issue) : "";
 
   return {
     name: sanitizeText(lead.name),
     postcode: sanitizeText(lead.postcode.toUpperCase()),
-    phone: sanitizeText(lead.phone),
+    phone: normalizePhone(lead.phone),
     issue: normalizedIssue || "Not provided",
     leadType: lead.leadType,
     metadata: {
@@ -82,6 +88,174 @@ export function sanitizeLeadPayload(lead: LeadRequest) {
     },
     attribution: sanitizeAttribution(lead.attribution),
   };
+}
+
+const serviceSlugByLeadType: Record<LeadRequest["leadType"], string | null> = {
+  repair: "boilers",
+  install: "boilers",
+  finance: "boilers",
+  "power-flush": "power-flushing",
+};
+
+const jobTypeSlugByLeadType: Record<LeadRequest["leadType"], string | null> = {
+  repair: "boiler-repair",
+  install: "boiler-install",
+  finance: "boiler-install",
+  "power-flush": "power-flush",
+};
+
+function buildLeadNotes(cleanPayload: ReturnType<typeof sanitizeLeadPayload>) {
+  const noteLines = [
+    `Website lead type: ${cleanPayload.leadType}`,
+    `Issue: ${cleanPayload.issue}`,
+  ];
+
+  if (cleanPayload.metadata.service) {
+    noteLines.push(`Landing service: ${cleanPayload.metadata.service}`);
+  }
+
+  if (cleanPayload.metadata.location) {
+    noteLines.push(`Landing location: ${cleanPayload.metadata.location}`);
+  }
+
+  const attributionLines = Object.entries(cleanPayload.attribution).map(([key, value]) => `${key}: ${value}`);
+  if (attributionLines.length > 0) {
+    noteLines.push(`Attribution: ${attributionLines.join(", ")}`);
+  }
+
+  return noteLines.join("\n");
+}
+
+async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
+  const crmEnv = getCrmEnv();
+  if (!crmEnv.adminEnabled) {
+    return {
+      ok: false,
+      status: 503,
+      error: {
+        code: "crm_not_configured",
+        message: "CRM lead capture is not configured.",
+      },
+    };
+  }
+
+  const cleanPayload = sanitizeLeadPayload(lead);
+  const admin = createCrmServiceRoleClient();
+  const leadNotes = buildLeadNotes(cleanPayload);
+
+  const serviceSlug = serviceSlugByLeadType[cleanPayload.leadType];
+  const jobTypeSlug = jobTypeSlugByLeadType[cleanPayload.leadType];
+
+  const [{ data: service }, { data: existingCustomer }] = await Promise.all([
+    serviceSlug
+      ? admin.schema("crm").from("services").select("id").eq("slug", serviceSlug).maybeSingle()
+      : Promise.resolve({ data: null }),
+    admin
+      .schema("crm")
+      .from("customers")
+      .select("id, notes")
+      .eq("phone", cleanPayload.phone)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const serviceId = service?.id ?? null;
+  let jobTypeId: string | null = null;
+
+  if (serviceId && jobTypeSlug) {
+    const { data: jobType } = await admin
+      .schema("crm")
+      .from("job_types")
+      .select("id")
+      .eq("service_id", serviceId)
+      .eq("slug", jobTypeSlug)
+      .maybeSingle();
+
+    jobTypeId = jobType?.id ?? null;
+  }
+
+  let customerId = existingCustomer?.id ?? null;
+
+  if (!customerId) {
+    const { data: customer, error: customerError } = await admin
+      .schema("crm")
+      .from("customers")
+      .insert({
+        full_name: cleanPayload.name,
+        phone: cleanPayload.phone,
+        postcode: cleanPayload.postcode,
+        source: "Website booking form",
+        notes: leadNotes,
+      })
+      .select("id")
+      .single();
+
+    if (customerError || !customer) {
+      return {
+        ok: false,
+        status: 500,
+        error: {
+          code: "customer_create_failed",
+          message: customerError?.message ?? "Customer record could not be created.",
+        },
+      };
+    }
+
+    customerId = customer.id;
+  } else {
+    const mergedNotes = [existingCustomer?.notes, leadNotes].filter(Boolean).join("\n\n");
+    await admin
+      .schema("crm")
+      .from("customers")
+      .update({
+        full_name: cleanPayload.name,
+        postcode: cleanPayload.postcode,
+        source: "Website booking form",
+        notes: mergedNotes,
+      })
+      .eq("id", customerId);
+  }
+
+  const { data: createdLead, error: leadError } = await admin
+    .schema("crm")
+    .from("leads")
+    .insert({
+      customer_id: customerId,
+      service_id: serviceId,
+      job_type_id: jobTypeId,
+      status: "new",
+      source: cleanPayload.attribution.utm_source || "Website booking form",
+      notes: leadNotes,
+    })
+    .select("id")
+    .single();
+
+  if (leadError || !createdLead) {
+    return {
+      ok: false,
+      status: 500,
+      error: {
+        code: "lead_create_failed",
+        message: leadError?.message ?? "Lead record could not be created.",
+      },
+    };
+  }
+
+  await admin.schema("crm").from("notes").insert([
+    {
+      entity_type: "customer",
+      entity_id: customerId,
+      body: `Website enquiry received.\n${leadNotes}`,
+    },
+    {
+      entity_type: "lead",
+      entity_id: createdLead.id,
+      body: `Website enquiry received.\n${leadNotes}`,
+    },
+  ]);
+
+  return { ok: true };
 }
 
 export type LeadSubmitResult =
@@ -116,6 +290,15 @@ export async function submitLeadToWebhook(lead: LeadRequest): Promise<LeadSubmit
         message: "Spam validation failed.",
       },
     };
+  }
+
+  const crmSubmission = await submitLeadToCrm(lead);
+  if (crmSubmission.ok) {
+    return crmSubmission;
+  }
+
+  if (crmSubmission.error.code !== "crm_not_configured") {
+    return crmSubmission;
   }
 
   const cleanPayload = sanitizeLeadPayload(lead);

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { crmRoles } from "@/modules/crm/types";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
 
 const userRoleSchema = z.object({
   user_id: z.string().uuid(),
@@ -17,7 +16,12 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid user profile payload.");
   }
 
-  const supabase = await createCrmServerClient();
+  const auth = await requireManagerCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { supabase } = auth.session;
   const payload = {
     user_id: parsed.data.user_id,
     role: parsed.data.role,

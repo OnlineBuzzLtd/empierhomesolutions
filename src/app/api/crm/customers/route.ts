@@ -1,7 +1,6 @@
 import { customerSchema } from "@/modules/crm/lib/validation";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -10,7 +9,12 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid customer payload.");
   }
 
-  const supabase = await createCrmServerClient();
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { supabase } = auth.session;
   const { data, error } = await supabase.schema("crm").from("customers").insert(parsed.data).select("*").single();
   if (error) {
     return jsonError(error.message, 500);

@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { CrmRole, UserProfile } from "@/modules/crm/types";
@@ -36,7 +37,9 @@ export async function requireCrmUser() {
   }
 
   if (!session.user) {
-    redirect("/login");
+    const headerStore = await headers();
+    const nextPath = headerStore.get("x-crm-next");
+    redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
   }
 
   return session;

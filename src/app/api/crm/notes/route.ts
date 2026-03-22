@@ -1,6 +1,5 @@
 import { noteSchema } from "@/modules/crm/lib/validation";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess, parseJsonBody } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, parseJsonBody, requireCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
   const parsed = await parseJsonBody(request, noteSchema);
@@ -8,10 +7,12 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid note payload.");
   }
 
-  const supabase = await createCrmServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { supabase, user } = auth.session;
 
   const payload = {
     ...parsed.data,

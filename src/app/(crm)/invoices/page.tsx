@@ -4,6 +4,8 @@ import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { invoiceStatusConfig } from "@/modules/crm/lib/status";
@@ -16,7 +18,8 @@ export default async function InvoicesPage() {
   }
 
   await requireCrmUser();
-  const invoices = await listInvoices();
+  const demoState = await getCrmDemoState();
+  const invoices = await listInvoices(demoState.mode);
   const totalUnpaid = invoices.filter((invoice) => invoice.status === "unpaid").reduce((sum, invoice) => sum + invoice.total, 0);
   const totalPaid = invoices.filter((invoice) => invoice.status === "paid").reduce((sum, invoice) => sum + invoice.total, 0);
 
@@ -32,9 +35,9 @@ export default async function InvoicesPage() {
         <SummaryCard label="Paid" value={formatCurrency(totalPaid)} />
       </div>
 
-      <SectionCard title="Invoice List">
+      <SectionCard title="Invoice List" demoAnchor="invoice-record">
         {invoices.length === 0 ? (
-          <EmptyState message="No invoices yet." />
+          <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("invoices") : "No invoices yet."} />
         ) : (
           <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
             {invoices.map((invoice) => (

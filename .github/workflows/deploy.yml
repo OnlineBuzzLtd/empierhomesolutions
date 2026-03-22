@@ -12,6 +12,9 @@ jobs:
   preview:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,20 +28,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build preview artifact
-        run: npm run build
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
 
-      - name: Upload preview artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-build
-          path: .next
+      - name: Pull Vercel preview config
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build preview deployment
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy preview
+        id: deploy_preview
+        run: |
+          DEPLOYMENT_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "deployment_url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+
+      - name: CRM route smoke
+        run: CRM_BASE_URL=${{ steps.deploy_preview.outputs.deployment_url }} npm run crm:smoke:routes
 
   production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: production
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,8 +67,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build production artifact
-        run: npm run build
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
 
-      - name: Deploy placeholder
-        run: echo "Connect this step to your hosting provider (Vercel, Render, etc.)"
+      - name: Pull Vercel production config
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build production deployment
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy production
+        id: deploy_production
+        run: |
+          DEPLOYMENT_URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "deployment_url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+
+      - name: CRM route smoke
+        run: CRM_BASE_URL=${{ steps.deploy_production.outputs.deployment_url }} npm run crm:smoke:routes

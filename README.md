@@ -64,6 +64,8 @@ CRM:
 - `http://localhost:3000/calendar`
 - `http://localhost:3000/quotes`
 - `http://localhost:3000/invoices`
+- `http://localhost:3000/staff`
+- `http://localhost:3000/reports`
 - `http://localhost:3000/settings`
 
 ## What This Branch Includes
@@ -80,11 +82,15 @@ CRM:
 
 - Supabase auth-backed login flow
 - protected CRM route group and session-aware layout
-- dashboard, leads, customers, jobs, calendar, quotes, invoices, and settings screens
-- API routes for CRM CRUD flows
+- dashboard, leads, customers, jobs, calendar, quotes, invoices, staff, reports, and settings screens
+- API routes for CRM CRUD, reporting, staff, catalog, demo mode, and attachment flows
 - dynamic custom fields and required document rule support
 - private storage support for CRM attachments
-- Supabase migrations for schema, seed data, admin bootstrap, and API exposure
+- signed attachment access and grouped private file handling
+- staff directory and certification tracking
+- reporting summary and workload views
+- production-safe demo mode with seeded demo data and guided replay
+- Supabase migrations for schema, seed data, admin bootstrap, staff/reporting/catalog expansion, RLS hardening, demo mode, and API exposure
 
 ## Supabase Notes
 
@@ -102,10 +108,22 @@ The current implementation uses:
 - `npm run lint`
 - `npm run typecheck`
 - `npm run build`
+- `npm run crm:smoke:routes`
+- `npm run crm:smoke:remote`
+- `npm run crm:demo:bootstrap`
+- `npm run crm:smoke:demo`
+
+## Demo Mode
+
+- Start from the CRM header as a management/admin user.
+- Demo mode is read-only and uses dedicated demo-tagged records in the real backend.
+- The walkthrough now drills into seeded customer, job, quote, and invoice records instead of only list pages.
+- Use `npm run crm:demo:bootstrap` to ensure the demo dataset and demo auth-linked profiles exist.
 
 ## Docs
 
 - `docs/crm-prd.md`
+- `docs/crm-prod-readiness.md`
 - `docs/paid-lp-foundation-task-list.md`
 - `docs/reporting-dashboard-spec.md`
 - `docs/deployment-pipeline.md`

@@ -5,16 +5,17 @@ import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentU
 import { ExpenseCreateForm } from "@/modules/crm/components/forms/ExpenseCreateForm";
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
 import { PaymentCreateForm } from "@/modules/crm/components/forms/PaymentCreateForm";
+import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
-import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { formatCurrency, formatDate, formatDateTime } from "@/modules/crm/lib/format";
 import { getJobDetail } from "@/modules/crm/lib/data";
 import { invoiceStatusConfig, jobStatusConfig, quoteStatusConfig } from "@/modules/crm/lib/status";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireCrmUser();
+  const session = await requireCrmUser();
   const { id } = await params;
   const detail = await getJobDetail(id);
   if (!detail) {
@@ -34,7 +35,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         <span className="font-medium text-slate-900">{job.title}</span>
       </nav>
 
-      <SectionCard title={job.title} action={<StatusBadge config={jobStatusConfig[job.status]} />}>
+      <SectionCard title={job.title} action={<StatusBadge config={jobStatusConfig[job.status]} />} demoAnchor="job-record">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-3">
             <p className="text-sm text-slate-600">{job.description || "No description provided."}</p>
@@ -157,14 +158,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         </SectionCard>
 
         <SectionCard title={`Attachments (${attachments.length})`}>
-          {attachments.length === 0 ? <EmptyState message="No attachments yet." /> : null}
-          <ul className="space-y-2">
-            {attachments.map((attachment) => (
-              <li key={attachment.id} className="rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                {attachment.file_name} · {attachment.file_type}
-              </li>
-            ))}
-          </ul>
+          <AttachmentList attachments={attachments} canDelete={userCanManageSettings(session.profile?.role)} />
           <div className="mt-4">
             <AttachmentUploadForm entityType="job" entityId={job.id} />
           </div>

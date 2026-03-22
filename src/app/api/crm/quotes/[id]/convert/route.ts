@@ -1,10 +1,14 @@
 import { addDays } from "date-fns";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess, nextInvoiceNumber } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, nextInvoiceNumber, requireCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createCrmServerClient();
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { supabase } = auth.session;
 
   const { data: quote, error: quoteError } = await supabase.schema("crm").from("quotes").select("*").eq("id", id).single();
   if (quoteError || !quote) {

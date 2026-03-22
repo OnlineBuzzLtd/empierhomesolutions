@@ -1,6 +1,5 @@
 import { expenseSchema } from "@/modules/crm/lib/validation";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -9,10 +8,12 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid expense payload.");
   }
 
-  const supabase = await createCrmServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { supabase, user } = auth.session;
 
   const payload = {
     ...parsed.data,

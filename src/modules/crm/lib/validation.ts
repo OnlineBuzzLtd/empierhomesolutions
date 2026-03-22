@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { appointmentStatuses, appointmentTypes, customFieldTypes, expenseCategories, invoiceStatuses, jobStatuses, leadStatuses, paymentStatuses, paymentTypes, quoteStatuses, supportedEntityTypes } from "@/modules/crm/types";
+import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, expenseCategories, invoiceStatuses, jobStatuses, leadStatuses, paymentStatuses, paymentTypes, quoteStatuses, supportedEntityTypes } from "@/modules/crm/types";
 
 export const lineItemSchema = z.object({
   description: z.string().min(2),
@@ -159,4 +159,53 @@ export const customFieldValueSchema = z.object({
   entity_type: z.enum(supportedEntityTypes),
   entity_id: z.string().uuid(),
   value_json: z.unknown(),
+});
+
+export const userCertificationSchema = z.object({
+  user_profile_id: z.string().uuid(),
+  title: z.string().min(2),
+  category: z.enum(certificationCategories),
+  issuer: z.string().optional().nullable(),
+  issue_date: z.string().optional().nullable(),
+  expiry_date: z.string().optional().nullable(),
+  reminder_days_before: z.coerce.number().int().nonnegative().default(30),
+  file_url: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export const supplierSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(2),
+  category: z.string().optional().nullable(),
+  contact_name: z.string().optional().nullable(),
+  email: z.string().email().optional().or(z.literal("")).nullable(),
+  phone: z.string().optional().nullable(),
+  pricing_last_updated_at: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export const productSchema = z.object({
+  id: z.string().uuid().optional(),
+  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  supplier_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  category: z.string().optional().nullable(),
+  name: z.string().min(2),
+  sku: z.string().optional().nullable(),
+  unit_cost: z.coerce.number().nonnegative().default(0),
+  markup_percent: z.coerce.number().optional().nullable(),
+  sell_price: z.coerce.number().nonnegative(),
+  vat_category: z.string().default("standard_20"),
+  active: z.coerce.boolean().default(true),
+});
+
+export const quoteTemplateSchema = z.object({
+  id: z.string().uuid().optional(),
+  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  job_type_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  name: z.string().min(2),
+  description: z.string().optional().nullable(),
+  line_items: z.array(lineItemSchema).default([]),
+  optional_extras: z.array(lineItemSchema).default([]),
+  payment_terms: z.record(z.string(), z.unknown()).optional().nullable(),
+  active: z.coerce.boolean().default(true),
 });

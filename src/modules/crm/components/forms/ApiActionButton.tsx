@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DemoReadonlyNotice } from "@/modules/crm/components/demo/DemoReadonlyNotice";
+import { useCrmDemoMode } from "@/modules/crm/components/demo/DemoModeProvider";
 
 export function ApiActionButton({
   endpoint,
@@ -14,6 +16,7 @@ export function ApiActionButton({
   label: string;
   className?: string;
 }) {
+  const demo = useCrmDemoMode();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,11 +42,12 @@ export function ApiActionButton({
       <button
         type="button"
         onClick={handleClick}
-        disabled={isSubmitting}
+        disabled={isSubmitting || demo.active}
         className={className}
       >
-        {isSubmitting ? "Working..." : label}
+        {demo.active ? "Demo Mode Locked" : isSubmitting ? "Working..." : label}
       </button>
+      <DemoReadonlyNotice />
       {error ? <p className="text-xs text-rose-700">{error}</p> : null}
     </div>
   );

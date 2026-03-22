@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DemoReadonlyNotice } from "@/modules/crm/components/demo/DemoReadonlyNotice";
+import { useCrmDemoMode } from "@/modules/crm/components/demo/DemoModeProvider";
+import { getAttachmentTypeOptions } from "@/modules/crm/lib/attachments";
 
 export function AttachmentUploadForm({
   entityType,
@@ -10,6 +13,8 @@ export function AttachmentUploadForm({
   entityType: string;
   entityId: string;
 }) {
+  const demo = useCrmDemoMode();
+  const attachmentTypes = getAttachmentTypeOptions(entityType);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,19 +41,28 @@ export function AttachmentUploadForm({
 
   return (
     <form action={handleSubmit} className="space-y-3">
-      <input type="hidden" name="entity_type" value={entityType} />
-      <input type="hidden" name="entity_id" value={entityId} />
-      <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-        <input name="file" type="file" required className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <input name="file_type" placeholder="image / certificate / compliance" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-      </div>
+      <fieldset disabled={isSubmitting || demo.active} className="space-y-3 disabled:opacity-60">
+        <input type="hidden" name="entity_type" value={entityType} />
+        <input type="hidden" name="entity_id" value={entityId} />
+        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <input name="file" type="file" required className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <select name="file_type" defaultValue={attachmentTypes[0]} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            {attachmentTypes.map((type) => (
+              <option key={type} value={type}>
+                {type.replaceAll("-", " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+      </fieldset>
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || demo.active}
         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
       >
-        {isSubmitting ? "Uploading..." : "Upload Attachment"}
+        {demo.active ? "Demo Mode Locked" : isSubmitting ? "Uploading..." : "Upload Attachment"}
       </button>
+      <DemoReadonlyNotice />
       {error ? <p className="text-sm text-rose-700">{error}</p> : null}
     </form>
   );

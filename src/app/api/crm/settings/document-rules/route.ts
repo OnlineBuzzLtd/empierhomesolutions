@@ -1,15 +1,19 @@
 import { requiredDocumentRuleSchema } from "@/modules/crm/lib/validation";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
+  const auth = await requireManagerCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
   const body = await request.json();
   const parsed = requiredDocumentRuleSchema.safeParse(body);
   if (!parsed.success) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid required document rule payload.");
   }
 
-  const supabase = await createCrmServerClient();
+  const { supabase } = auth.session;
   const { data, error } = await supabase
     .schema("crm")
     .from("required_document_rules")

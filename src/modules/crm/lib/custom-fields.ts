@@ -1,14 +1,30 @@
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 
-export function extractCustomFieldValues(input: Record<string, FormDataEntryValue | null>) {
+export function extractCustomFieldValues(input: Record<string, unknown>) {
   const entries = Object.entries(input)
-    .filter(([key, value]) => key.startsWith("custom_field_") && typeof value === "string" && value.trim().length > 0)
+    .filter(([key, value]) => key.startsWith("custom_field_") && value !== null && value !== undefined)
     .map(([key, value]) => ({
       field_definition_id: key.replace("custom_field_", ""),
       value_json: value,
     }));
 
   return entries;
+}
+
+export function isCustomFieldValuePresent(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((entry) => isCustomFieldValuePresent(entry));
+  }
+
+  return true;
 }
 
 export async function upsertCustomFieldValues(params: {

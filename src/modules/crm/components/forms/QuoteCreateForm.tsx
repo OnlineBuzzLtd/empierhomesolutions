@@ -1,22 +1,37 @@
-import type { Customer, Job, Quote } from "@/modules/crm/types";
+import type { Customer, Job, Product, Quote } from "@/modules/crm/types";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { LineItemsEditor } from "@/modules/crm/components/forms/LineItemsEditor";
 
 export function QuoteCreateForm({
   customers,
   jobs,
+  products = [],
   initialQuote,
+  optionalExtras = [],
+  paymentTermsSummary,
+  templateLabel,
   endpoint = "/api/crm/quotes",
   submitLabel = "Create Quote",
 }: {
   customers: Customer[];
   jobs: Job[];
-  initialQuote?: Quote;
+  products?: Product[];
+  initialQuote?: Partial<Quote>;
+  optionalExtras?: Quote["line_items"];
+  paymentTermsSummary?: string | null;
+  templateLabel?: string | null;
   endpoint?: string;
   submitLabel?: string;
 }) {
   return (
     <ApiForm endpoint={endpoint} submitLabel={submitLabel} className="space-y-3">
+      {templateLabel || paymentTermsSummary || optionalExtras.length > 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          {templateLabel ? <p className="font-semibold text-slate-900">Template: {templateLabel}</p> : null}
+          {paymentTermsSummary ? <p className="mt-1">Payment terms: {paymentTermsSummary}</p> : null}
+          {optionalExtras.length > 0 ? <p className="mt-1 text-slate-600">{optionalExtras.length} optional extras ready to add below.</p> : null}
+        </div>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-2">
         <select name="customer_id" defaultValue={initialQuote?.customer_id} required className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
           <option value="">Select customer…</option>
@@ -48,7 +63,18 @@ export function QuoteCreateForm({
         </select>
         <input name="valid_until" type="date" defaultValue={initialQuote?.valid_until ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </div>
-      <LineItemsEditor name="line_items" initialItems={initialQuote?.line_items} />
+      <LineItemsEditor
+        key={JSON.stringify({
+          templateLabel,
+          lineItems: initialQuote?.line_items ?? [],
+          optionalExtras,
+          products: products.map((product) => product.id),
+        })}
+        name="line_items"
+        initialItems={initialQuote?.line_items}
+        products={products}
+        optionalExtras={optionalExtras}
+      />
     </ApiForm>
   );
 }

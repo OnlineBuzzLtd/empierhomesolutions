@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
 import { getDashboardData } from "@/modules/crm/lib/data";
+import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency } from "@/modules/crm/lib/format";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
@@ -14,7 +17,8 @@ export default async function DashboardPage() {
   }
 
   await requireCrmUser();
-  const data = await getDashboardData();
+  const demoState = await getCrmDemoState();
+  const data = await getDashboardData(demoState.mode);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -23,12 +27,14 @@ export default async function DashboardPage() {
         <p className="mt-1 text-sm text-slate-500">Live CRM overview from Supabase.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Open Jobs" value={String(data.openJobsCount)} sub="enquiry / booked / in progress" />
-        <StatCard label="Today&apos;s Jobs" value={String(data.todaysJobs.length)} sub="scheduled today" />
-        <StatCard label="Unpaid Invoices" value={formatCurrency(data.unpaidInvoicesTotal)} sub="awaiting payment" />
-        <StatCard label="Open Leads" value={String(data.newLeadCount)} sub="new / follow-up workload" />
-      </div>
+      <DemoAnchor name="dashboard-overview">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Open Jobs" value={String(data.openJobsCount)} sub="enquiry / booked / in progress" />
+          <StatCard label="Today&apos;s Jobs" value={String(data.todaysJobs.length)} sub="scheduled today" />
+          <StatCard label="Unpaid Invoices" value={formatCurrency(data.unpaidInvoicesTotal)} sub="awaiting payment" />
+          <StatCard label="Open Leads" value={String(data.newLeadCount)} sub="new / follow-up workload" />
+        </div>
+      </DemoAnchor>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -39,7 +45,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
           {data.todaysJobs.length === 0 ? (
-            <p className="text-sm text-slate-500">No jobs scheduled today.</p>
+            <p className="text-sm text-slate-500">{demoState.active ? getCrmDemoEmptyMessage("today's jobs") : "No jobs scheduled today."}</p>
           ) : (
             <ul className="space-y-3">
               {data.todaysJobs.map((job) => (
@@ -66,21 +72,25 @@ export default async function DashboardPage() {
               View all
             </Link>
           </div>
-          <ul className="space-y-3">
-            {data.recentCustomers.map((customer) => (
-              <li key={customer.id}>
-                <Link href={`/customers/${customer.id}`} className="flex items-center gap-3 rounded-lg p-3 hover:bg-slate-50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-700">
-                    {customer.full_name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{customer.full_name}</p>
-                    <p className="text-xs text-slate-500">{customer.postcode || "No postcode"}</p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {data.recentCustomers.length === 0 ? (
+            <p className="text-sm text-slate-500">{demoState.active ? getCrmDemoEmptyMessage("recent customers") : "No recent customers yet."}</p>
+          ) : (
+            <ul className="space-y-3">
+              {data.recentCustomers.map((customer) => (
+                <li key={customer.id}>
+                  <Link href={`/customers/${customer.id}`} className="flex items-center gap-3 rounded-lg p-3 hover:bg-slate-50">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-700">
+                      {customer.full_name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{customer.full_name}</p>
+                      <p className="text-xs text-slate-500">{customer.postcode || "No postcode"}</p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
@@ -121,6 +131,9 @@ export default async function DashboardPage() {
             </tbody>
           </table>
         </div>
+        {data.activeJobs.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">{demoState.active ? getCrmDemoEmptyMessage("active jobs") : "No active jobs right now."}</p>
+        ) : null}
       </section>
     </div>
   );

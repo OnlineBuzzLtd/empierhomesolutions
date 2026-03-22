@@ -1,10 +1,14 @@
 import { jobTypeSchema, serviceSchema } from "@/modules/crm/lib/validation";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const supabase = await createCrmServerClient();
+  const auth = await requireManagerCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const { supabase } = auth.session;
 
   if (body.kind === "job_type") {
     const parsed = jobTypeSchema.safeParse(body);

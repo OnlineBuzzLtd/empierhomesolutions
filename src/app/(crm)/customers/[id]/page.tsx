@@ -3,14 +3,15 @@ import { notFound } from "next/navigation";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
+import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
-import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { formatDate, formatDateTime } from "@/modules/crm/lib/format";
 import { getCustomerDetail } from "@/modules/crm/lib/data";
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireCrmUser();
+  const session = await requireCrmUser();
   const { id } = await params;
   const detail = await getCustomerDetail(id);
   if (!detail) {
@@ -29,7 +30,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <span className="font-medium text-slate-900">{customer.full_name}</span>
       </nav>
 
-      <SectionCard title={customer.full_name}>
+      <SectionCard title={customer.full_name} demoAnchor="customer-record">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-3">
             <p className="text-sm text-slate-600">Customer since {formatDate(customer.created_at)}</p>
@@ -113,14 +114,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </SectionCard>
 
         <SectionCard title={`Attachments (${attachments.length})`}>
-          {attachments.length === 0 ? <EmptyState message="No attachments yet." /> : null}
-          <ul className="space-y-2">
-            {attachments.map((attachment) => (
-              <li key={attachment.id} className="rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                {attachment.file_name} · {attachment.file_type}
-              </li>
-            ))}
-          </ul>
+          <AttachmentList attachments={attachments} canDelete={userCanManageSettings(session.profile?.role)} />
           <div className="mt-4">
             <AttachmentUploadForm entityType="customer" entityId={customer.id} />
           </div>

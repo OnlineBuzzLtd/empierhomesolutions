@@ -44,6 +44,9 @@ export type CustomFieldType = (typeof customFieldTypes)[number];
 export const supportedEntityTypes = ["lead", "customer", "asset", "job", "quote", "invoice"] as const;
 export type SupportedEntityType = (typeof supportedEntityTypes)[number];
 
+export const certificationCategories = ["qualification", "id", "compliance", "training"] as const;
+export type CertificationCategory = (typeof certificationCategories)[number];
+
 export type StatusBadgeConfig = {
   label: string;
   className: string;
@@ -62,8 +65,26 @@ export type UserProfile = {
   pay_notes: string | null;
   contract_file_url: string | null;
   active: boolean;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
   updated_at: string;
+};
+
+export type UserCertification = {
+  id: string;
+  user_profile_id: string;
+  title: string;
+  category: CertificationCategory;
+  issuer: string | null;
+  issue_date: string | null;
+  expiry_date: string | null;
+  reminder_days_before: number;
+  file_url: string | null;
+  notes: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
 };
 
 export type Service = {
@@ -96,6 +117,8 @@ export type Lead = {
   assigned_to: string | null;
   next_action_at: string | null;
   notes: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
   updated_at: string;
 };
@@ -115,6 +138,8 @@ export type Customer = {
   referral_notes: string | null;
   notes: string | null;
   archived: boolean;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
   updated_at: string;
 };
@@ -132,6 +157,8 @@ export type CustomerAsset = {
   warranty_end_date: string | null;
   cylinder_type: string | null;
   notes: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
   updated_at: string;
 };
@@ -150,6 +177,8 @@ export type Job = {
   status: JobStatus;
   assigned_engineer: string | null;
   created_by: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
   updated_at: string;
 };
@@ -160,6 +189,8 @@ export type Note = {
   entity_id: string;
   body: string;
   created_by: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -176,6 +207,8 @@ export type Appointment = {
   status: AppointmentStatus;
   reminder_offset_minutes: number | null;
   recurrence_rule: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -197,6 +230,8 @@ export type Quote = {
   total: number;
   status: QuoteStatus;
   valid_until: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -214,6 +249,8 @@ export type Invoice = {
   status: InvoiceStatus;
   due_date: string | null;
   paid_at: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -229,6 +266,8 @@ export type Payment = {
   received_at: string | null;
   reference: string | null;
   notes: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -240,6 +279,8 @@ export type Expense = {
   category: ExpenseCategory;
   receipt_url: string | null;
   created_by: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -251,6 +292,8 @@ export type Attachment = {
   file_url: string;
   file_type: string;
   created_by: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -266,6 +309,52 @@ export type CustomFieldDefinition = {
   required: boolean;
   active: boolean;
   sort_order: number;
+  created_at: string;
+};
+
+export type Supplier = {
+  id: string;
+  name: string;
+  category: string | null;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  pricing_last_updated_at: string | null;
+  notes: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+};
+
+export type Product = {
+  id: string;
+  service_id: string | null;
+  supplier_id: string | null;
+  category: string | null;
+  name: string;
+  sku: string | null;
+  unit_cost: number;
+  markup_percent: number | null;
+  sell_price: number;
+  vat_category: string;
+  active: boolean;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  updated_at: string;
+};
+
+export type QuoteTemplate = {
+  id: string;
+  service_id: string | null;
+  job_type_id: string | null;
+  name: string;
+  description: string | null;
+  line_items: LineItem[];
+  optional_extras: LineItem[];
+  payment_terms: Record<string, unknown> | null;
+  active: boolean;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
 
@@ -290,6 +379,39 @@ export type RequiredDocumentRule = {
   due_within_days: number | null;
   active: boolean;
   created_at: string;
+};
+
+export type CalendarItem = Appointment & {
+  source: "appointment" | "lead_follow_up" | "service_due" | "warranty_expiry";
+  customer?: Pick<Customer, "id" | "full_name" | "postcode"> | null;
+  lead?: Pick<Lead, "id" | "status" | "source"> | null;
+  owner?: Pick<UserProfile, "id" | "full_name" | "role"> | null;
+  recurrence_origin_id?: string | null;
+  entity_link?: string | null;
+  synthetic?: boolean;
+};
+
+export type StaffDirectoryEntry = UserProfile & {
+  certifications: UserCertification[];
+};
+
+export type ReportsSummary = {
+  totalRevenue: number;
+  unpaidRevenue: number;
+  invoiceCount: number;
+  paidInvoiceCount: number;
+  leadCount: number;
+  convertedLeadCount: number;
+  jobCount: number;
+  completedJobCount: number;
+  totalExpenses: number;
+  profitEstimate: number;
+  engineerWorkload: Array<{
+    engineer: string;
+    totalJobs: number;
+    completedJobs: number;
+    openJobs: number;
+  }>;
 };
 
 export type CustomerWithCounts = Customer & {

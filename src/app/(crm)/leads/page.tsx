@@ -4,6 +4,8 @@ import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatRelativeTime } from "@/modules/crm/lib/format";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { leadStatusConfig } from "@/modules/crm/lib/status";
@@ -16,11 +18,12 @@ export default async function LeadsPage() {
   }
 
   await requireCrmUser();
+  const demoState = await getCrmDemoState();
   const [leads, services, jobTypes, users, customFields] = await Promise.all([
-    listLeads(),
+    listLeads(demoState.mode),
     listServices(),
     listJobTypes(),
-    listUserProfiles(),
+    listUserProfiles(demoState.mode),
     listCustomFieldDefinitions(),
   ]);
 
@@ -32,9 +35,9 @@ export default async function LeadsPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <SectionCard title="Lead Pipeline">
+        <SectionCard title="Lead Pipeline" demoAnchor="lead-pipeline">
           {leads.length === 0 ? (
-            <EmptyState message="No leads yet. Add the first lead using the form." />
+            <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("leads") : "No leads yet. Add the first lead using the form."} />
           ) : (
             <div className="space-y-3">
               {leads.map((lead) => (

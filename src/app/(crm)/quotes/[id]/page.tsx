@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiActionButton } from "@/modules/crm/components/forms/ApiActionButton";
+import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
+import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
-import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
-import { getQuoteDetail } from "@/modules/crm/lib/data";
+import { getQuoteDetail, listAttachmentsForEntity } from "@/modules/crm/lib/data";
 import { quoteStatusConfig } from "@/modules/crm/lib/status";
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireCrmUser();
+  const session = await requireCrmUser();
   const { id } = await params;
-  const quote = await getQuoteDetail(id);
+  const [quote, attachments] = await Promise.all([getQuoteDetail(id), listAttachmentsForEntity("quote", id)]);
   if (!quote) {
     notFound();
   }
@@ -26,7 +28,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         <span className="font-medium text-slate-900">{quote.quote_number}</span>
       </nav>
 
-      <SectionCard title={quote.quote_number} action={<StatusBadge config={quoteStatusConfig[quote.status]} />}>
+      <SectionCard title={quote.quote_number} action={<StatusBadge config={quoteStatusConfig[quote.status]} />} demoAnchor="quote-record">
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
             <p className="text-sm font-semibold text-slate-900">{quote.customer?.full_name}</p>
@@ -82,6 +84,17 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
             <span>Total</span>
             <span>{formatCurrency(quote.total)}</span>
           </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title={`Attachments (${attachments.length})`}>
+        <AttachmentList
+          attachments={attachments}
+          canDelete={userCanManageSettings(session.profile?.role)}
+          emptyMessage="No quote attachments yet."
+        />
+        <div className="mt-4">
+          <AttachmentUploadForm entityType="quote" entityId={quote.id} />
         </div>
       </SectionCard>
     </div>

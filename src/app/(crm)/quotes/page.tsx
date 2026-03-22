@@ -5,19 +5,36 @@ import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
+import { buildQuoteDraftFromTemplate, summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { quoteStatusConfig } from "@/modules/crm/lib/status";
-import { listCustomers, listJobs, listQuotes } from "@/modules/crm/lib/data";
+import { listCustomers, listJobs, listProducts, listQuoteTemplates, listQuotes } from "@/modules/crm/lib/data";
 
-export default async function QuotesPage() {
+export default async function QuotesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const setup = getCrmSetupState();
   if (!setup.configured && setup.message) {
     return <SetupNotice message={setup.message} />;
   }
 
   await requireCrmUser();
-  const [quotes, customers, jobs] = await Promise.all([listQuotes(), listCustomers(), listJobs()]);
+  const demoState = await getCrmDemoState();
+  const params = await searchParams;
+  const templateId = typeof params.template === "string" ? params.template : null;
+  const [quotes, customers, jobs, templates, products] = await Promise.all([
+    listQuotes(demoState.mode),
+    listCustomers(demoState.mode),
+    listJobs(demoState.mode),
+    listQuoteTemplates(demoState.mode),
+    listProducts(demoState.mode),
+  ]);
+  const selectedTemplate = templateId ? templates.find((template) => template.id === templateId) ?? null : null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -27,9 +44,9 @@ export default async function QuotesPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <SectionCard title="Quote List">
+        <SectionCard title="Quote List" demoAnchor="quote-record">
           {quotes.length === 0 ? (
-            <EmptyState message="No quotes yet." />
+            <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("quotes") : "No quotes yet."} />
           ) : (
             <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
               {quotes.map((quote) => (
@@ -51,7 +68,29 @@ export default async function QuotesPage() {
         </SectionCard>
 
         <SectionCard title="Create Quote">
-          <QuoteCreateForm customers={customers} jobs={jobs} />
+          <div className="mb-4 flex flex-wrap gap-2">
+            <Link href="/quotes" className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate ? "border border-slate-200 text-slate-600 hover:bg-slate-50" : "bg-slate-900 text-white"}`}>
+              Blank quote
+            </Link>
+            {templates.map((template) => (
+              <Link
+                key={template.id}
+                href={`/quotes?template=${template.id}`}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate?.id === template.id ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              >
+                {template.name}
+              </Link>
+            ))}
+          </div>
+          <QuoteCreateForm
+            customers={customers}
+            jobs={jobs}
+            products={products}
+            initialQuote={buildQuoteDraftFromTemplate(selectedTemplate)}
+            optionalExtras={selectedTemplate?.optional_extras ?? []}
+            paymentTermsSummary={summarizePaymentTerms(selectedTemplate?.payment_terms)}
+            templateLabel={selectedTemplate?.name ?? null}
+          />
         </SectionCard>
       </div>
     </div>

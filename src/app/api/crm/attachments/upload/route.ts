@@ -1,12 +1,18 @@
 export const runtime = "nodejs";
 
-import { createCrmServerClient, createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess } from "@/modules/crm/lib/api";
+import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
+import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { normalizeAttachmentType } from "@/modules/crm/lib/attachments";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 
 export async function POST(request: Request) {
   if (!getCrmEnv().adminEnabled) {
     return jsonError("Supabase service role is required for file uploads.", 500);
+  }
+
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
   }
 
   const formData = await request.formData();
@@ -17,7 +23,7 @@ export async function POST(request: Request) {
 
   const entityType = String(formData.get("entity_type") ?? "");
   const entityId = String(formData.get("entity_id") ?? "");
-  const fileType = String(formData.get("file_type") ?? file.type ?? "file");
+  const fileType = normalizeAttachmentType(String(formData.get("file_type") ?? file.type ?? "file")) || "file";
 
   if (!entityType || !entityId) {
     return jsonError("Missing entity information.");
@@ -35,10 +41,7 @@ export async function POST(request: Request) {
     return jsonError(upload.error.message, 500);
   }
 
-  const supabase = await createCrmServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = auth.session;
 
   const { data, error } = await supabase
     .schema("crm")

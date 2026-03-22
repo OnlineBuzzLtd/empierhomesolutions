@@ -1,8 +1,12 @@
 import { quoteSchema } from "@/modules/crm/lib/validation";
-import { computeFinancials, jsonError, jsonSuccess, nextQuoteNumber, parseLineItems } from "@/modules/crm/lib/api";
-import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
+import { computeFinancials, jsonError, jsonSuccess, nextQuoteNumber, parseLineItems, requireCrmApiUser } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
   const body = await request.json();
   const parsed = quoteSchema.safeParse({
     ...body,
@@ -19,7 +23,7 @@ export async function POST(request: Request) {
     quote_number: await nextQuoteNumber(),
   };
 
-  const supabase = await createCrmServerClient();
+  const { supabase } = auth.session;
   const { data, error } = await supabase.schema("crm").from("quotes").insert(payload).select("*").single();
   if (error) {
     return jsonError(error.message, 500);

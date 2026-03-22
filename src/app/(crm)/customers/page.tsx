@@ -4,6 +4,8 @@ import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { listCustomers, listCustomFieldDefinitions } from "@/modules/crm/lib/data";
 
@@ -14,7 +16,8 @@ export default async function CustomersPage() {
   }
 
   await requireCrmUser();
-  const [customers, customFields] = await Promise.all([listCustomers(), listCustomFieldDefinitions()]);
+  const demoState = await getCrmDemoState();
+  const [customers, customFields] = await Promise.all([listCustomers(demoState.mode), listCustomFieldDefinitions()]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -24,9 +27,9 @@ export default async function CustomersPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <SectionCard title="Customer List">
+        <SectionCard title="Customer List" demoAnchor="customer-record">
           {customers.length === 0 ? (
-            <EmptyState message="No customers yet. Create the first customer using the form." />
+            <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("customers") : "No customers yet. Create the first customer using the form."} />
           ) : (
             <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
               {customers.map((customer) => (

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/modules/crm/lib/supabase-browser";
 
-export function LoginForm() {
+export function LoginForm({ fallbackNext }: { fallbackNext?: string | null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export function LoginForm() {
       return;
     }
 
-    const next = searchParams.get("next") || "/dashboard";
+    const next = searchParams.get("next") || fallbackNext || "/dashboard";
     router.push(next);
     router.refresh();
   }

@@ -50,8 +50,16 @@ export function AppointmentCreateForm({
         <option value="completed">Completed</option>
         <option value="cancelled">Cancelled</option>
       </select>
+      <select name="recurrence_rule" defaultValue="" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <option value="">Does not repeat</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="yearly">Yearly</option>
+      </select>
       <input name="starts_at" type="datetime-local" required className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       <input name="ends_at" type="datetime-local" required className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input name="reminder_offset_minutes" type="number" min="0" placeholder="Reminder minutes before" className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
     </ApiForm>
   );
 }

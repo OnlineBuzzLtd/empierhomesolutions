@@ -1,19 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiActionButton } from "@/modules/crm/components/forms/ApiActionButton";
+import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
 import { PaymentCreateForm } from "@/modules/crm/components/forms/PaymentCreateForm";
+import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
-import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
-import { getInvoiceDetail } from "@/modules/crm/lib/data";
+import { getInvoiceDetail, listAttachmentsForEntity } from "@/modules/crm/lib/data";
 import { invoiceStatusConfig } from "@/modules/crm/lib/status";
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireCrmUser();
+  const session = await requireCrmUser();
   const { id } = await params;
-  const detail = await getInvoiceDetail(id);
+  const [detail, attachments] = await Promise.all([getInvoiceDetail(id), listAttachmentsForEntity("invoice", id)]);
   if (!detail) {
     notFound();
   }
@@ -30,7 +32,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <span className="font-medium text-slate-900">{invoice.invoice_number}</span>
       </nav>
 
-      <SectionCard title={invoice.invoice_number} action={<StatusBadge config={invoiceStatusConfig[invoice.status]} />}>
+      <SectionCard title={invoice.invoice_number} action={<StatusBadge config={invoiceStatusConfig[invoice.status]} />} demoAnchor="invoice-record">
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
             <p className="text-sm font-semibold text-slate-900">{invoice.customer?.full_name}</p>
@@ -111,6 +113,17 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           <PaymentCreateForm customerId={invoice.customer_id} invoiceId={invoice.id} quoteId={invoice.quote_id} />
         </SectionCard>
       </div>
+
+      <SectionCard title={`Attachments (${attachments.length})`}>
+        <AttachmentList
+          attachments={attachments}
+          canDelete={userCanManageSettings(session.profile?.role)}
+          emptyMessage="No invoice attachments yet."
+        />
+        <div className="mt-4">
+          <AttachmentUploadForm entityType="invoice" entityId={invoice.id} />
+        </div>
+      </SectionCard>
     </div>
   );
 }

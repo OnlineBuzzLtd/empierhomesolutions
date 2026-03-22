@@ -20,6 +20,9 @@ const attributionSchema = z
 
 export const leadRequestSchema = z.object({
   name: z.string().min(2),
+  email: z.string().email().optional().or(z.literal("")).default(""),
+  house_name_number: z.string().min(1),
+  street: z.string().min(2),
   postcode: z.string().min(4),
   phone: z.string().min(10).max(15),
   issue: z.string().default(""),
@@ -71,11 +74,25 @@ function normalizePhone(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function buildAddressLine1(houseNameNumber: string, street: string) {
+  return [sanitizeText(houseNameNumber), sanitizeText(street)].filter(Boolean).join(" ");
+}
+
 export function sanitizeLeadPayload(lead: LeadRequest) {
   const normalizedIssue = lead.issue ? sanitizeText(lead.issue) : "";
+  const email = lead.email ? normalizeEmail(lead.email) : "";
+  const addressLine1 = buildAddressLine1(lead.house_name_number, lead.street);
 
   return {
     name: sanitizeText(lead.name),
+    email,
+    house_name_number: sanitizeText(lead.house_name_number),
+    street: sanitizeText(lead.street),
+    address_line1: addressLine1,
     postcode: sanitizeText(lead.postcode.toUpperCase()),
     phone: normalizePhone(lead.phone),
     issue: normalizedIssue || "Not provided",
@@ -108,7 +125,12 @@ function buildLeadNotes(cleanPayload: ReturnType<typeof sanitizeLeadPayload>) {
   const noteLines = [
     `Website lead type: ${cleanPayload.leadType}`,
     `Issue: ${cleanPayload.issue}`,
+    `Address: ${cleanPayload.address_line1}, ${cleanPayload.postcode}`,
   ];
+
+  if (cleanPayload.email) {
+    noteLines.push(`Email: ${cleanPayload.email}`);
+  }
 
   if (cleanPayload.metadata.service) {
     noteLines.push(`Landing service: ${cleanPayload.metadata.service}`);
@@ -153,7 +175,7 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
     admin
       .schema("crm")
       .from("customers")
-      .select("id, notes")
+      .select("id, notes, email, address_line1")
       .eq("phone", cleanPayload.phone)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -183,7 +205,9 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
       .from("customers")
       .insert({
         full_name: cleanPayload.name,
+        email: cleanPayload.email || null,
         phone: cleanPayload.phone,
+        address_line1: cleanPayload.address_line1,
         postcode: cleanPayload.postcode,
         source: "Website booking form",
         notes: leadNotes,
@@ -210,6 +234,8 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
       .from("customers")
       .update({
         full_name: cleanPayload.name,
+        email: cleanPayload.email || existingCustomer?.email || null,
+        address_line1: cleanPayload.address_line1 || existingCustomer?.address_line1 || null,
         postcode: cleanPayload.postcode,
         source: "Website booking form",
         notes: mergedNotes,

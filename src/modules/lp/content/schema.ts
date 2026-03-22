@@ -76,6 +76,13 @@ export const faqSchema = z.object({
   answer: z.string().min(8),
 });
 
+export const questionsAndAnswersSectionSchema = z.object({
+  id: z.string().min(2),
+  title: z.string().min(4),
+  summary: z.string().min(8),
+  faqs: z.array(faqSchema).min(1),
+});
+
 export const ctaSchema = z.object({
   callLabel: z.string().min(2),
   quoteLabel: z.string().min(2),
@@ -134,6 +141,16 @@ export const aboutTrustContentSchema = z.object({
   seo: seoSchema,
 });
 
+export const questionsAndAnswersContentSchema = z.object({
+  slug: z.literal("q-and-a"),
+  title: z.string().min(4),
+  description: z.string().min(8),
+  intro: z.string().min(16),
+  sections: z.array(questionsAndAnswersSectionSchema).min(1),
+  seo: seoSchema,
+});
+
 export type LpContentInput = z.infer<typeof lpContentSchema>;
 export type FinanceContentInput = z.infer<typeof financeContentSchema>;
 export type AboutTrustContentInput = z.infer<typeof aboutTrustContentSchema>;
+export type QuestionsAndAnswersContentInput = z.infer<typeof questionsAndAnswersContentSchema>;

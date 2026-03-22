@@ -20,7 +20,7 @@ test.describe("LP critical path", () => {
   test("form validation blocks empty submit", async ({ page }) => {
     await page.goto("/lp/boiler-repair/uxbridge");
     await waitForLeadForm(page);
-    await page.getByRole("button", { name: "Submit" }).click();
+    await page.getByRole("button", { name: "Book Now" }).click();
     await expect(page.getByText("Enter your name")).toBeVisible();
   });
 
@@ -29,10 +29,13 @@ test.describe("LP critical path", () => {
     await waitForLeadForm(page);
 
     await page.getByRole("textbox", { name: "Name" }).fill("Jane Smith");
+    await page.getByRole("textbox", { name: "Email (optional)" }).fill("jane@example.com");
+    await page.getByRole("textbox", { name: "House name / number" }).fill("12");
+    await page.getByRole("textbox", { name: "Street" }).fill("High Street");
     await page.getByRole("textbox", { name: "Postcode" }).fill("UB8 1AA");
     await page.getByRole("textbox", { name: "Phone" }).fill("07911123456");
     await page.getByRole("textbox", { name: "Issue" }).fill("Boiler has no heat and shows an error code.");
-    await page.getByRole("button", { name: "Submit" }).click();
+    await page.getByRole("button", { name: "Book Now" }).click();
 
     await expect(
       page.getByText("Thank you. Your request is in and our team will contact you shortly."),
@@ -44,12 +47,14 @@ test.describe("LP critical path", () => {
     await waitForLeadForm(page);
 
     await page.getByRole("textbox", { name: "Name" }).fill("John Smith");
+    await page.getByRole("textbox", { name: "House name / number" }).fill("12");
+    await page.getByRole("textbox", { name: "Street" }).fill("High Street");
     await page.getByRole("textbox", { name: "Postcode" }).fill("UB8 1AA");
     await page.getByRole("textbox", { name: "Phone" }).fill("07911123456");
     await page
       .getByRole("textbox", { name: "Issue" })
       .fill("No hot water and pressure keeps dropping every day.");
-    await page.getByRole("button", { name: "Submit" }).click();
+    await page.getByRole("button", { name: "Book Now" }).click();
 
     await expect(
       page.getByText("Thank you. Your request is in and our team will contact you shortly."),

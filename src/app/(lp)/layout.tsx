@@ -135,6 +135,12 @@ export default function LpLayout({ children }: { children: ReactNode }) {
                 About Us
                 <ChevronDown size={13} />
               </Link>
+              <Link
+                href="/q-and-a"
+                className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
+              >
+                Q&amp;A
+              </Link>
               <a
                 href="#lead-form"
                 className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"

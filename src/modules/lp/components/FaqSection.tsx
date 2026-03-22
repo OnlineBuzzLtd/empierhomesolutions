@@ -8,13 +8,19 @@ import { trackFaqExpand } from "@/modules/tracking/pushDataLayer";
 
 type FaqSectionProps = {
   faqs: FAQItem[];
+  title?: string;
+  subtitle?: string;
 };
 
-export function FaqSection({ faqs }: FaqSectionProps) {
+export function FaqSection({
+  faqs,
+  title = "FAQs",
+  subtitle = "Straight answers before you book.",
+}: FaqSectionProps) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <Section title="FAQs" subtitle="Straight answers before you book.">
+    <Section title={title} subtitle={subtitle}>
       <div className="space-y-2">
         {faqs.map((faq) => {
           const expanded = faq.id === openId;

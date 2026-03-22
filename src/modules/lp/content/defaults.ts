@@ -23,7 +23,7 @@ export const defaultLpContent: LpContentInput = {
   trust: {
     gasSafeNumber: "663578",
     ratingValue: 5,
-    ratingCount: 19,
+    ratingCount: 25,
     financeAvailable: true,
     guaranteeText: "12 month workmanship guarantee",
     brandLogos: [

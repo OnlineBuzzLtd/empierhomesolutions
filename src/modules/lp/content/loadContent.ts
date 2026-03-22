@@ -1,5 +1,10 @@
 import { businessDetails } from "@/lib/business";
-import { aboutTrustContentSchema, financeContentSchema, lpContentSchema } from "@/modules/lp/content/schema";
+import {
+  aboutTrustContentSchema,
+  financeContentSchema,
+  lpContentSchema,
+  questionsAndAnswersContentSchema,
+} from "@/modules/lp/content/schema";
 import { defaultLpContent } from "@/modules/lp/content/defaults";
 import {
   getLocationEntry,
@@ -7,10 +12,17 @@ import {
   type LocationEntry,
 } from "@/modules/lp/content/locationCatalog";
 import { applyTokenReplacement } from "@/modules/lp/dtr";
-import type { AboutTrustContent, FinanceContent, LpContent, ServiceSlug } from "@/modules/lp/types";
+import type {
+  AboutTrustContent,
+  FinanceContent,
+  LpContent,
+  QuestionsAndAnswersContent,
+  ServiceSlug,
+} from "@/modules/lp/types";
 
 import aboutTrustRaw from "@/modules/lp/content/about-trust.json";
 import financeRaw from "@/modules/lp/content/finance.json";
+import questionsAndAnswersRaw from "@/modules/lp/content/q-and-a.json";
 import hayesInstallRaw from "@/modules/lp/content/locations/hayes.boiler-installation.json";
 import hayesPowerFlushingRaw from "@/modules/lp/content/locations/hayes.power-flushing.json";
 import hayesRepairRaw from "@/modules/lp/content/locations/hayes.boiler-repair.json";
@@ -388,6 +400,11 @@ export function loadFinanceContent(): FinanceContent | null {
 
 export function loadAboutTrustContent(): AboutTrustContent | null {
   const parsed = aboutTrustContentSchema.safeParse(aboutTrustRaw);
+  return parsed.success ? parsed.data : null;
+}
+
+export function loadQuestionsAndAnswersContent(): QuestionsAndAnswersContent | null {
+  const parsed = questionsAndAnswersContentSchema.safeParse(questionsAndAnswersRaw);
   return parsed.success ? parsed.data : null;
 }
 

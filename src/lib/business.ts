@@ -13,7 +13,7 @@ export const businessDetails = {
   googleReviewUrl:
     "https://www.google.com/maps/place/Empire+Home+Solutions+(EHS)/@51.5765091,-0.6270429,9z/data=!3m1!4b1!4m6!3m5!1s0x44b089cf0d9af8c1:0xbe2639b07910f004!8m2!3d51.5765091!4d-0.6270429!16s%2Fg%2F11wy0ypyfk?entry=ttu&g_ep=EgoyMDI2MDIxOC4wIKXMDSoASAFQAw%3D%3D",
   googleRatingValue: 5.0,
-  googleReviewCount: 19,
+  googleReviewCount: 25,
   socials: {
     facebook: "https://www.facebook.com/profile.php?id=61574429807370",
     instagram: "https://www.instagram.com/empirehomesolutionsehs/",

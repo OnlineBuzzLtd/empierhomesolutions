@@ -1,0 +1,121 @@
+{
+  "slug": "q-and-a",
+  "title": "Common Customer Questions and Answers",
+  "description": "Straight answers on boiler installations, power flushing, boiler servicing, and gas engineers before you book.",
+  "intro": "Use this page to get quick answers to the questions homeowners ask most often before calling Empire Home Solutions. If you still need help, call us and we will talk through your property and the right next step.",
+  "sections": [
+    {
+      "id": "boiler-installations",
+      "title": "Boiler Installations",
+      "summary": "Questions about boiler cost, finance, grants, and choosing the right boiler for your home.",
+      "faqs": [
+        {
+          "id": "install-cost",
+          "question": "What does a new boiler installation usually cost?",
+          "answer": "Most boiler installations fall somewhere between around £2,000 and £5,000 depending on the boiler, controls, flue route, and whether it is a simple swap or a larger system change."
+        },
+        {
+          "id": "install-finance",
+          "question": "What is the most affordable way to get a new boiler?",
+          "answer": "The lowest-stress route is usually to choose an efficient boiler sized properly for the home and spread the cost where needed. Finance can help avoid delaying a replacement when the old boiler is unreliable."
+        },
+        {
+          "id": "install-grant",
+          "question": "Who may qualify for a boiler grant?",
+          "answer": "Grant eligibility depends on current government scheme rules, household circumstances, and the property’s energy profile. If there is a relevant route available, we can point homeowners in the right direction."
+        },
+        {
+          "id": "install-best",
+          "question": "Which boiler brand is best?",
+          "answer": "There is no single best boiler for every home. The right choice depends on hot water demand, property size, system setup, warranty preference, and budget. We usually narrow the choice to reliable manufacturers that suit the property."
+        }
+      ]
+    },
+    {
+      "id": "power-flushing",
+      "title": "Power Flushing",
+      "summary": "Questions about what power flushing does, when it helps, and what engineers need on the day.",
+      "faqs": [
+        {
+          "id": "powerflush-what",
+          "question": "What is power flushing?",
+          "answer": "Power flushing is a cleaning process that pushes water and treatment chemicals through the heating system to remove sludge, rust, and debris so radiators and the boiler can circulate heat more efficiently."
+        },
+        {
+          "id": "powerflush-worth",
+          "question": "Is a power flush worth doing?",
+          "answer": "It can be worthwhile when a system has cold spots, noisy pipework, dirty water, or slow warm-up times. On the right system it improves circulation and can help protect boiler components from sludge-related faults."
+        },
+        {
+          "id": "powerflush-new-boiler",
+          "question": "Do I need a system flush with a new boiler?",
+          "answer": "In many installations, yes. Cleaning the system before or during installation helps protect the new boiler and supports manufacturer warranty requirements."
+        },
+        {
+          "id": "powerflush-access",
+          "question": "Do engineers need access to every radiator for a power flush?",
+          "answer": "For the best result, yes. Full access helps the engineer clean the entire system properly rather than only part of it."
+        }
+      ]
+    },
+    {
+      "id": "gas-engineers",
+      "title": "Gas Engineers",
+      "summary": "Questions about engineer rates, qualifications, and what a Gas Safe engineer actually handles.",
+      "faqs": [
+        {
+          "id": "engineer-rate",
+          "question": "How much does a gas engineer normally charge?",
+          "answer": "Rates vary by area, urgency, and the type of work. The important thing is that pricing is explained clearly before work goes ahead, especially where diagnosis and parts are involved."
+        },
+        {
+          "id": "engineer-role",
+          "question": "What does a gas heating engineer do?",
+          "answer": "Gas heating engineers install, service, diagnose, and repair boilers, heating systems, and other gas appliances. Gas Safe registration is the key safety requirement for this work."
+        },
+        {
+          "id": "engineer-boilers",
+          "question": "Do gas engineers work on boilers and radiators?",
+          "answer": "Yes. Boiler faults, servicing, heating controls, radiator performance, circulation issues, and system checks all sit within normal heating engineer work."
+        },
+        {
+          "id": "engineer-choice",
+          "question": "How do I choose a good gas engineer?",
+          "answer": "Check Gas Safe registration, reviews, clarity on pricing, and whether the engineer regularly works on your boiler type and the job you actually need done."
+        }
+      ]
+    },
+    {
+      "id": "boiler-services",
+      "title": "Boiler Services",
+      "summary": "Questions about service intervals, visit length, and why regular servicing matters.",
+      "faqs": [
+        {
+          "id": "service-frequency",
+          "question": "How often should a boiler be serviced?",
+          "answer": "Once a year is the standard recommendation. Annual servicing helps keep the boiler safe, efficient, and aligned with most warranty requirements."
+        },
+        {
+          "id": "service-cost",
+          "question": "How much does a boiler service cost?",
+          "answer": "The exact price depends on boiler type and condition, but homeowners should expect a clear fixed service price before the appointment is booked."
+        },
+        {
+          "id": "service-skip",
+          "question": "What happens if a boiler is not serviced?",
+          "answer": "Skipping servicing can increase the risk of faults, wasted fuel, unsafe operation, and warranty problems if a manufacturer expects annual servicing records."
+        },
+        {
+          "id": "service-length",
+          "question": "How long does a boiler service normally take?",
+          "answer": "A standard domestic service is often around 30 to 60 minutes, although older appliances or fault-related checks can take longer."
+        }
+      ]
+    }
+  ],
+  "seo": {
+    "title": "Q&A | Empire Home Solutions",
+    "description": "Answers to common homeowner questions on boiler installations, power flushing, boiler servicing, and Gas Safe engineers.",
+    "addressRegion": "West London"
+  }
+}

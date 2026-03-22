@@ -11,6 +11,9 @@ import { pushDataLayer, trackFormEvent } from "@/modules/tracking/pushDataLayer"
 
 const quoteFormSchema = z.object({
   name: z.string().min(2, "Enter your name"),
+  email: z.string().email("Enter a valid email address").or(z.literal("")),
+  house_name_number: z.string().min(1, "Enter your house name or number"),
+  street: z.string().min(2, "Enter your street"),
   postcode: z.string().regex(/^[A-Za-z]{1,2}\d[A-Za-z\d]?\s?\d[A-Za-z]{2}$/i, "Enter a valid UK postcode"),
   phone: z.string().regex(/^[0-9+\s()-]{10,15}$/, "Enter a valid phone number"),
   issue: z.string().default(""),
@@ -60,6 +63,9 @@ export function QuoteForm({
     resolver: zodResolver(quoteFormSchema),
     defaultValues: {
       name: "",
+      email: "",
+      house_name_number: "",
+      street: "",
       postcode: "",
       phone: "",
       issue: "",
@@ -154,6 +160,34 @@ export function QuoteForm({
             onFocus={onFirstFocus}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[var(--ehs-brand-accent)] focus:ring-2 focus:ring-[var(--ehs-brand-accent)]/20"
             placeholder="Jane Smith"
+          />
+        </Field>
+
+        <Field label="Email (optional)" error={errors.email?.message}>
+          <input
+            {...register("email")}
+            type="email"
+            onFocus={onFirstFocus}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[var(--ehs-brand-accent)] focus:ring-2 focus:ring-[var(--ehs-brand-accent)]/20"
+            placeholder="jane@example.com"
+          />
+        </Field>
+
+        <Field label="House name / number" error={errors.house_name_number?.message}>
+          <input
+            {...register("house_name_number")}
+            onFocus={onFirstFocus}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[var(--ehs-brand-accent)] focus:ring-2 focus:ring-[var(--ehs-brand-accent)]/20"
+            placeholder="12"
+          />
+        </Field>
+
+        <Field label="Street" error={errors.street?.message}>
+          <input
+            {...register("street")}
+            onFocus={onFirstFocus}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[var(--ehs-brand-accent)] focus:ring-2 focus:ring-[var(--ehs-brand-accent)]/20"
+            placeholder="High Street"
           />
         </Field>
 

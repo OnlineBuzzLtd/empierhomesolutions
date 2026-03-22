@@ -129,3 +129,19 @@ export type AboutTrustContent = {
   insuranceStatement: string;
   seo: SeoContent;
 };
+
+export type QuestionsAndAnswersSection = {
+  id: string;
+  title: string;
+  summary: string;
+  faqs: FAQItem[];
+};
+
+export type QuestionsAndAnswersContent = {
+  slug: string;
+  title: string;
+  description: string;
+  intro: string;
+  sections: QuestionsAndAnswersSection[];
+  seo: SeoContent;
+};

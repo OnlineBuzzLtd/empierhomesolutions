@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadLpContent } from "@/modules/lp/content/loadContent";
+import { loadLpContent, loadQuestionsAndAnswersContent } from "@/modules/lp/content/loadContent";
 
 describe("loadLpContent", () => {
   it("loads and validates known LP content", () => {
@@ -51,5 +51,16 @@ describe("loadLpContent", () => {
     });
 
     expect(content?.keyword).toContain("boiler emergency");
+  });
+});
+
+describe("loadQuestionsAndAnswersContent", () => {
+  it("loads the standalone q-and-a content", () => {
+    const content = loadQuestionsAndAnswersContent();
+
+    expect(content).toBeTruthy();
+    expect(content?.slug).toBe("q-and-a");
+    expect(content?.sections.length).toBeGreaterThan(0);
+    expect(content?.sections[0]?.faqs.length).toBeGreaterThan(0);
   });
 });

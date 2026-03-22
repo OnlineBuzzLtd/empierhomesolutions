@@ -35,6 +35,9 @@ export function SiteFooter() {
             <Link href="/about-trust" className="hover:text-white">
               About & Trust
             </Link>
+            <Link href="/q-and-a" className="hover:text-white">
+              Q&amp;A
+            </Link>
             <Link href="/finance" className="hover:text-white">
               Finance
             </Link>

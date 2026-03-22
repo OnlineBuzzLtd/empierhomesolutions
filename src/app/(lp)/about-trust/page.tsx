@@ -137,6 +137,12 @@ export default function AboutTrustPage() {
                 >
                   Book Now
                 </Link>
+                <Link
+                  href="/q-and-a"
+                  className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-[var(--ehs-brand-dark)]"
+                >
+                  Q&amp;A
+                </Link>
                 <a
                   href={businessDetails.googleReviewUrl}
                   target="_blank"

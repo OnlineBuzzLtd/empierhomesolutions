@@ -11,19 +11,23 @@ import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { formatCurrency, formatDate, formatDateTime } from "@/modules/crm/lib/format";
-import { getJobDetail } from "@/modules/crm/lib/data";
+import { getJobDetail, listStaffDirectory } from "@/modules/crm/lib/data";
 import { invoiceStatusConfig, jobStatusConfig, quoteStatusConfig } from "@/modules/crm/lib/status";
+import { getAssignableEngineerNames } from "@/modules/crm/lib/staff";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireCrmUser();
   const { id } = await params;
-  const detail = await getJobDetail(id);
+  const [detail, staff] = await Promise.all([getJobDetail(id), listStaffDirectory()]);
   if (!detail) {
     notFound();
   }
 
   const { job, notes, expenses, payments, attachments, quote, invoice } = detail;
   const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const engineers = getAssignableEngineerNames(staff);
+  const assignedEngineerOptions =
+    job.assigned_engineer && !engineers.includes(job.assigned_engineer) ? [job.assigned_engineer, ...engineers] : engineers;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -58,7 +62,14 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               <option value="completed">Completed</option>
               <option value="invoiced">Invoiced</option>
             </select>
-            <input name="assigned_engineer" defaultValue={job.assigned_engineer ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <select name="assigned_engineer" defaultValue={job.assigned_engineer ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">Unassigned</option>
+              {assignedEngineerOptions.map((engineer) => (
+                <option key={engineer} value={engineer}>
+                  {engineer}
+                </option>
+              ))}
+            </select>
             <input name="scheduled_date" type="date" defaultValue={job.scheduled_date ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <input name="scheduled_time" type="time" defaultValue={job.scheduled_time ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <textarea name="description" defaultValue={job.description ?? ""} className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm" />

@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-03-25
+
+### Changed
+
+- Fixed CRM quote creation so numbering now calls the `crm.next_sequence` RPC correctly instead of falling through to `public`
+- Switched job engineer assignment from free text to staff-driven dropdowns using active `engineer` profiles in the current CRM mode
+- Normalized blank optional job fields to `null` before validation and persistence so empty selects/date fields no longer fail against UUID/date/time columns
+- Fixed CRM settings role saves to upsert `crm.user_profiles` on `user_id`, resolving duplicate-key failures when updating existing users
+- Hardened job, quote, and settings mutation routes to return JSON errors instead of uncaught server exceptions on malformed payloads
+
+### Added
+
+- CRM regression tests covering schema-scoped sequence allocation, blank optional job fields, and settings role upsert behavior
+
+### Verified
+
+- `npx vitest run tests/crm/api-routes.test.ts`
+- `npx vitest run tests/crm/helpers.test.ts`
+
 ## 2026-03-22
 
 ### Added

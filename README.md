@@ -91,6 +91,7 @@ CRM:
 - reporting summary and workload views
 - production-safe demo mode with seeded demo data and guided replay
 - Supabase migrations for schema, seed data, admin bootstrap, staff/reporting/catalog expansion, RLS hardening, demo mode, and API exposure
+- recent CRM stability fixes for quote numbering, job form null-handling, settings role saves, and engineer assignment dropdowns sourced from staff roles
 
 ## Supabase Notes
 
@@ -119,6 +120,7 @@ The current implementation uses:
 - Demo mode is read-only and uses dedicated demo-tagged records in the real backend.
 - The walkthrough now drills into seeded customer, job, quote, and invoice records instead of only list pages.
 - Use `npm run crm:demo:bootstrap` to ensure the demo dataset and demo auth-linked profiles exist.
+- Live mode and demo mode keep staff data separate. Engineer assignment dropdowns only show active staff profiles with the `engineer` role in the current mode.
 
 ## Docs
 

@@ -34,28 +34,39 @@ export function parseLineItems(value: unknown) {
   return value as LineItem[];
 }
 
+export function normalizeBlankFields<T extends Record<string, unknown>>(value: T, fields: Array<keyof T>) {
+  const normalized = { ...value };
+
+  for (const field of fields) {
+    if (normalized[field] === "") {
+      normalized[field] = null;
+    }
+  }
+
+  return normalized;
+}
+
 export function computeFinancials(lineItems: LineItem[], vatRate: number) {
   const subtotal = lineItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.unit_price), 0);
   const total = subtotal + subtotal * vatRate;
   return { subtotal, total };
 }
 
-export async function nextQuoteNumber() {
+async function nextCrmSequence(sequenceKey: string) {
   const supabase = await createCrmServerClient();
-  const { data, error } = await supabase.rpc("next_sequence", { p_sequence_key: "quote" });
+  const { data, error } = await supabase.schema("crm").rpc("next_sequence", { p_sequence_key: sequenceKey });
   if (error) {
     throw error;
   }
-  return buildQuoteNumber(Number(data));
+  return Number(data);
+}
+
+export async function nextQuoteNumber() {
+  return buildQuoteNumber(await nextCrmSequence("quote"));
 }
 
 export async function nextInvoiceNumber() {
-  const supabase = await createCrmServerClient();
-  const { data, error } = await supabase.rpc("next_sequence", { p_sequence_key: "invoice" });
-  if (error) {
-    throw error;
-  }
-  return buildInvoiceNumber(Number(data));
+  return buildInvoiceNumber(await nextCrmSequence("invoice"));
 }
 
 export async function requireCrmApiUser(allowedRoles?: CrmRole[]) {

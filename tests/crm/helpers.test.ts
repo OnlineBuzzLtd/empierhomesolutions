@@ -6,6 +6,7 @@ import { buildAssetReminderItems, expandAppointmentOccurrences } from "@/modules
 import { applyCrmModeFilter, crmDemoScenarioKey, crmDemoSteps, findCrmDemoStepIndex, isCrmDemoMutationBlocked } from "@/modules/crm/lib/demo";
 import { buildQuoteDraftFromTemplate, buildCatalogLineItem, parsePaymentTermsInput, summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
+import { getAssignableEngineerNames } from "@/modules/crm/lib/staff";
 import type { AddonState, Appointment, Attachment, CustomerAsset, QuoteTemplate } from "@/modules/crm/types";
 
 describe("crm attachment helpers", () => {
@@ -168,6 +169,19 @@ describe("crm ai hub helpers", () => {
     expect(resolveAiHubViewState(addon, "sales")).toBe("locked");
     expect(resolveAiHubViewState(addon, "management")).toBe("demo");
     expect(resolveAiHubViewState({ ...addon, enabled: true }, "sales")).toBe("enabled");
+  });
+});
+
+describe("crm staff helpers", () => {
+  it("returns only active engineer names for assignment", () => {
+    expect(
+      getAssignableEngineerNames([
+        { full_name: " Demo Engineer ", role: "engineer", active: true },
+        { full_name: "Demo Manager", role: "management", active: true },
+        { full_name: "Inactive Engineer", role: "engineer", active: false },
+        { full_name: "demo engineer", role: "engineer", active: true },
+      ]),
+    ).toEqual(["Demo Engineer"]);
   });
 });
 

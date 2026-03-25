@@ -7,11 +7,13 @@ export function JobCreateForm({
   customers,
   services,
   jobTypes,
+  engineers = [],
   customFields,
 }: {
   customers: Customer[];
   services: Service[];
   jobTypes: JobType[];
+  engineers: string[];
   customFields: CustomFieldDefinition[];
 }) {
   return (
@@ -49,7 +51,14 @@ export function JobCreateForm({
             </option>
           ))}
         </select>
-        <input name="assigned_engineer" placeholder="Assigned engineer" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <select name="assigned_engineer" defaultValue="" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="">Unassigned</option>
+          {engineers.map((engineer) => (
+            <option key={engineer} value={engineer}>
+              {engineer}
+            </option>
+          ))}
+        </select>
         <input name="scheduled_date" type="date" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         <input name="scheduled_time" type="time" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </div>

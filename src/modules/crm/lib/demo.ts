@@ -38,6 +38,7 @@ export type CrmDemoState = {
   active: boolean;
   mode: CrmMode;
   scenarioKey: DemoScenarioKey | null;
+  locked: boolean;
   pathname: string;
   steps: DemoStep[];
   currentStepIndex: number;
@@ -286,6 +287,18 @@ export const crmDemoSteps: DemoStep[] = [
 
 export function findCrmDemoStepIndex(pathname: string) {
   return crmDemoSteps.findIndex((step) => pathname === step.route || pathname.startsWith(`${step.route}/`));
+}
+
+export function resolveCrmDemoMode(options: { cookieValue?: string | null; isDemoUser?: boolean }) {
+  const locked = Boolean(options.isDemoUser);
+  const active = locked || options.cookieValue === crmDemoScenarioKey;
+
+  return {
+    active,
+    mode: active ? "demo" : "live",
+    scenarioKey: active ? crmDemoScenarioKey : null,
+    locked,
+  } satisfies Pick<CrmDemoState, "active" | "mode" | "scenarioKey" | "locked">;
 }
 
 type DemoQueryable = {

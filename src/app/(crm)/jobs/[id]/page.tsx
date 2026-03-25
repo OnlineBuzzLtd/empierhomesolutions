@@ -5,11 +5,14 @@ import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentU
 import { ExpenseCreateForm } from "@/modules/crm/components/forms/ExpenseCreateForm";
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
 import { PaymentCreateForm } from "@/modules/crm/components/forms/PaymentCreateForm";
+import { EngineerJobWorkspace } from "@/modules/crm/components/jobs/EngineerJobWorkspace";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { getAddonState, resolveEngineerAiAssistState } from "@/modules/crm/lib/addons";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency, formatDate, formatDateTime } from "@/modules/crm/lib/format";
 import { getJobDetail, listStaffDirectory } from "@/modules/crm/lib/data";
 import { invoiceStatusConfig, jobStatusConfig, quoteStatusConfig } from "@/modules/crm/lib/status";
@@ -18,7 +21,8 @@ import { getAssignableEngineerNames } from "@/modules/crm/lib/staff";
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireCrmUser();
   const { id } = await params;
-  const [detail, staff] = await Promise.all([getJobDetail(id), listStaffDirectory()]);
+  const demoState = await getCrmDemoState();
+  const [detail, staff, addon] = await Promise.all([getJobDetail(id, demoState.mode), listStaffDirectory(demoState.mode), getAddonState("ai_comms_hub")]);
   if (!detail) {
     notFound();
   }
@@ -28,6 +32,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const engineers = getAssignableEngineerNames(staff);
   const assignedEngineerOptions =
     job.assigned_engineer && !engineers.includes(job.assigned_engineer) ? [job.assigned_engineer, ...engineers] : engineers;
+  const isEngineer = session.profile?.role === "engineer";
+  const aiAssistState = resolveEngineerAiAssistState(addon, session.profile?.role, demoState.active);
+  const customerAddress = [job.customer?.address_line1, job.customer?.postcode].filter(Boolean).join(", ") || "Address not set";
+  const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddress)}`;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -42,15 +50,40 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       <SectionCard title={job.title} action={<StatusBadge config={jobStatusConfig[job.status]} />} demoAnchor="job-record">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">{job.description || "No description provided."}</p>
             <div className="grid gap-3 md:grid-cols-2">
               <p className="text-sm text-slate-700">Customer: {job.customer?.full_name ?? "Not set"}</p>
+              <p className="text-sm text-slate-700">Phone: {job.customer?.phone ?? "Not set"}</p>
+              <p className="text-sm text-slate-700">Address: {customerAddress}</p>
               <p className="text-sm text-slate-700">Engineer: {job.assigned_engineer || "Unassigned"}</p>
               <p className="text-sm text-slate-700">Service: {job.service?.name ?? "Not set"}</p>
               <p className="text-sm text-slate-700">Job type: {job.job_type?.name ?? "Not set"}</p>
               <p className="text-sm text-slate-700">Date: {job.scheduled_date ?? "TBC"}</p>
               <p className="text-sm text-slate-700">Time: {job.scheduled_time ?? "TBC"}</p>
             </div>
+            <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{job.description || "No job brief or access note provided."}</p>
+            {isEngineer ? (
+              <div className="flex flex-wrap gap-2">
+                {job.customer?.phone ? (
+                  <a href={`tel:${job.customer.phone.replace(/\s+/g, "")}`} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                    Call Customer
+                  </a>
+                ) : null}
+                <a
+                  href={directionsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Open Directions
+                </a>
+                <Link href="#job-notes" className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  Notes
+                </Link>
+                <Link href="#job-attachments" className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  Photos & Files
+                </Link>
+              </div>
+            ) : null}
           </div>
 
           <ApiForm endpoint={`/api/crm/jobs/${job.id}`} method="PATCH" submitLabel="Update Job" className="grid gap-3">
@@ -77,39 +110,77 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </SectionCard>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <SectionCard title="Quote">
-          {quote ? (
-            <div className="space-y-2 rounded-lg border border-slate-200 p-4">
-              <div className="flex items-center justify-between gap-4">
-                <Link href={`/quotes/${quote.id}`} className="text-sm font-semibold text-slate-900 hover:text-blue-700">
-                  {quote.quote_number}
-                </Link>
-                <StatusBadge config={quoteStatusConfig[quote.status]} />
-              </div>
-              <p className="text-sm text-slate-600">Total {formatCurrency(quote.total)}</p>
+      {isEngineer ? (
+        <EngineerJobWorkspace
+          jobId={job.id}
+          notes={notes}
+          attachments={attachments}
+          canDeleteAttachments={userCanManageSettings(session.profile?.role)}
+          aiAccess={aiAssistState}
+        />
+      ) : (
+        <div id="job-notes" className="grid gap-6 xl:grid-cols-2">
+          <SectionCard title={`Notes (${notes.length})`}>
+            {notes.length === 0 ? <EmptyState message="No notes yet." /> : null}
+            <ul className="space-y-3">
+              {notes.map((note) => (
+                <li key={note.id} className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-sm text-slate-800">{note.body}</p>
+                  <p className="mt-1 text-xs text-slate-500">{formatDateTime(note.created_at)}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4">
+              <NoteCreateForm entityType="job" entityId={job.id} />
             </div>
-          ) : (
-            <EmptyState message="No quote linked yet." />
-          )}
-        </SectionCard>
+          </SectionCard>
 
-        <SectionCard title="Invoice">
-          {invoice ? (
-            <div className="space-y-2 rounded-lg border border-slate-200 p-4">
-              <div className="flex items-center justify-between gap-4">
-                <Link href={`/invoices/${invoice.id}`} className="text-sm font-semibold text-slate-900 hover:text-blue-700">
-                  {invoice.invoice_number}
-                </Link>
-                <StatusBadge config={invoiceStatusConfig[invoice.status]} />
+          <SectionCard title={`Attachments (${attachments.length})`}>
+            <div id="job-attachments">
+              <AttachmentList attachments={attachments} canDelete={userCanManageSettings(session.profile?.role)} />
+              <div className="mt-4">
+                <AttachmentUploadForm entityType="job" entityId={job.id} />
               </div>
-              <p className="text-sm text-slate-600">Due {formatDate(invoice.due_date)}</p>
             </div>
-          ) : (
-            <EmptyState message="No invoice linked yet." />
-          )}
-        </SectionCard>
-      </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {!isEngineer ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <SectionCard title="Quote">
+            {quote ? (
+              <div className="space-y-2 rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <Link href={`/quotes/${quote.id}`} className="text-sm font-semibold text-slate-900 hover:text-blue-700">
+                    {quote.quote_number}
+                  </Link>
+                  <StatusBadge config={quoteStatusConfig[quote.status]} />
+                </div>
+                <p className="text-sm text-slate-600">Total {formatCurrency(quote.total)}</p>
+              </div>
+            ) : (
+              <EmptyState message="No quote linked yet." />
+            )}
+          </SectionCard>
+
+          <SectionCard title="Invoice">
+            {invoice ? (
+              <div className="space-y-2 rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <Link href={`/invoices/${invoice.id}`} className="text-sm font-semibold text-slate-900 hover:text-blue-700">
+                    {invoice.invoice_number}
+                  </Link>
+                  <StatusBadge config={invoiceStatusConfig[invoice.status]} />
+                </div>
+                <p className="text-sm text-slate-600">Due {formatDate(invoice.due_date)}</p>
+              </div>
+            ) : (
+              <EmptyState message="No invoice linked yet." />
+            )}
+          </SectionCard>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SectionCard title={`Expenses (${expenses.length})`}>
@@ -152,29 +223,41 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         </SectionCard>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <SectionCard title={`Notes (${notes.length})`}>
-          {notes.length === 0 ? <EmptyState message="No notes yet." /> : null}
-          <ul className="space-y-3">
-            {notes.map((note) => (
-              <li key={note.id} className="rounded-lg bg-slate-50 p-3">
-                <p className="text-sm text-slate-800">{note.body}</p>
-                <p className="mt-1 text-xs text-slate-500">{formatDateTime(note.created_at)}</p>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4">
-            <NoteCreateForm entityType="job" entityId={job.id} />
-          </div>
-        </SectionCard>
+      {isEngineer ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <SectionCard title="Quote">
+            {quote ? (
+              <div className="space-y-2 rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <Link href={`/quotes/${quote.id}`} className="text-sm font-semibold text-slate-900 hover:text-blue-700">
+                    {quote.quote_number}
+                  </Link>
+                  <StatusBadge config={quoteStatusConfig[quote.status]} />
+                </div>
+                <p className="text-sm text-slate-600">Total {formatCurrency(quote.total)}</p>
+              </div>
+            ) : (
+              <EmptyState message="No quote linked yet." />
+            )}
+          </SectionCard>
 
-        <SectionCard title={`Attachments (${attachments.length})`}>
-          <AttachmentList attachments={attachments} canDelete={userCanManageSettings(session.profile?.role)} />
-          <div className="mt-4">
-            <AttachmentUploadForm entityType="job" entityId={job.id} />
-          </div>
-        </SectionCard>
-      </div>
+          <SectionCard title="Invoice">
+            {invoice ? (
+              <div className="space-y-2 rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <Link href={`/invoices/${invoice.id}`} className="text-sm font-semibold text-slate-900 hover:text-blue-700">
+                    {invoice.invoice_number}
+                  </Link>
+                  <StatusBadge config={invoiceStatusConfig[invoice.status]} />
+                </div>
+                <p className="text-sm text-slate-600">Due {formatDate(invoice.due_date)}</p>
+              </div>
+            ) : (
+              <EmptyState message="No invoice linked yet." />
+            )}
+          </SectionCard>
+        </div>
+      ) : null}
     </div>
   );
 }

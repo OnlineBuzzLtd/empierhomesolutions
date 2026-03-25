@@ -1,20 +1,23 @@
 import { cookies, headers } from "next/headers";
-import { CrmDemoState, crmDemoCookieName, crmDemoScenarioKey, crmDemoSteps, findCrmDemoStepIndex } from "@/modules/crm/lib/demo";
+import { getCrmSession } from "@/modules/crm/lib/auth";
+import { CrmDemoState, crmDemoCookieName, crmDemoSteps, findCrmDemoStepIndex, resolveCrmDemoMode } from "@/modules/crm/lib/demo";
 import { resolveCrmDemoSteps } from "@/modules/crm/lib/demo-routes";
 
 export async function getCrmDemoState(): Promise<CrmDemoState> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const cookieValue = cookieStore.get(crmDemoCookieName)?.value;
-  const active = cookieValue === crmDemoScenarioKey;
+  const session = await getCrmSession();
+  const resolvedMode = resolveCrmDemoMode({
+    cookieValue,
+    isDemoUser: session.profile?.is_demo,
+  });
   const pathname = headerStore.get("x-crm-pathname") ?? "";
-  const steps = await resolveCrmDemoSteps(crmDemoSteps, active);
-  const currentStepIndex = active ? findCrmDemoStepIndex(pathname) : -1;
+  const steps = await resolveCrmDemoSteps(crmDemoSteps, resolvedMode.active);
+  const currentStepIndex = resolvedMode.active ? findCrmDemoStepIndex(pathname) : -1;
 
   return {
-    active,
-    mode: active ? "demo" : "live",
-    scenarioKey: active ? crmDemoScenarioKey : null,
+    ...resolvedMode,
     pathname,
     steps,
     currentStepIndex,

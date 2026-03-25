@@ -463,4 +463,103 @@ describe("crm api routes", () => {
     expect(response.headers.get("set-cookie")).toContain("crm_demo_mode=");
     expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
+
+  it("blocks engineer ai assist when the add-on is not available", async () => {
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      parseJsonBody: vi.fn().mockResolvedValue({ success: true, data: { action: "summary" } }),
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          profile: { role: "engineer" },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/demo-state", () => ({
+      getCrmDemoState: vi.fn().mockResolvedValue({ active: false, mode: "live" }),
+    }));
+    vi.doMock("@/modules/crm/lib/addons", () => ({
+      getAddonState: vi.fn().mockResolvedValue({ enabled: false, demo_enabled: false }),
+      resolveEngineerAiAssistState: vi.fn().mockReturnValue("locked"),
+    }));
+    vi.doMock("@/modules/crm/lib/validation", () => ({
+      engineerAiAssistRequestSchema: {},
+    }));
+
+    const route = await import("@/app/api/crm/jobs/[id]/ai-assist/route");
+    expect(route.POST).toBeTypeOf("function");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "summary" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "job-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toContain("AI Assist");
+  });
+
+  it("returns an engineer ai draft for the requested action", async () => {
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      parseJsonBody: vi.fn().mockResolvedValue({ success: true, data: { action: "arrival_note_draft" } }),
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          profile: { role: "engineer" },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/demo-state", () => ({
+      getCrmDemoState: vi.fn().mockResolvedValue({ active: true, mode: "demo" }),
+    }));
+    vi.doMock("@/modules/crm/lib/addons", () => ({
+      getAddonState: vi.fn().mockResolvedValue({ enabled: false, demo_enabled: true }),
+      resolveEngineerAiAssistState: vi.fn().mockReturnValue("demo"),
+    }));
+    vi.doMock("@/modules/crm/lib/data", () => ({
+      getJobDetail: vi.fn().mockResolvedValue({
+        job: { id: "job-1", service_id: "svc-1", job_type_id: "type-1", status: "booked" },
+        notes: [],
+        attachments: [],
+        quote: null,
+        invoice: null,
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/rules", () => ({
+      validateRequiredDocuments: vi.fn().mockResolvedValue({ valid: false, missing: ["certificate"] }),
+    }));
+    vi.doMock("@/modules/crm/lib/engineer-ai", () => ({
+      buildEngineerAiAssistDraft: vi.fn().mockReturnValue({
+        action: "arrival_note_draft",
+        title: "Arrival note draft",
+        summary: "Structured arrival note ready to review and save.",
+        body: "Arrived on site.",
+        note_body: "Arrived on site.",
+        checks: ["Required documents missing: certificate"],
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/validation", () => ({
+      engineerAiAssistRequestSchema: {},
+    }));
+
+    const route = await import("@/app/api/crm/jobs/[id]/ai-assist/route");
+    expect(route.POST).toBeTypeOf("function");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "arrival_note_draft" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "job-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.draft.title).toBe("Arrival note draft");
+    expect(body.access).toBe("demo");
+  });
 });

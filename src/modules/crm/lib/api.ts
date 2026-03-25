@@ -35,15 +35,16 @@ export function parseLineItems(value: unknown) {
 }
 
 export function normalizeBlankFields<T extends Record<string, unknown>>(value: T, fields: Array<keyof T>) {
-  const normalized = { ...value };
+  const normalized: Record<string, unknown> = { ...value };
 
   for (const field of fields) {
-    if (normalized[field] === "") {
-      normalized[field] = null;
+    const key = String(field);
+    if (normalized[key] === "") {
+      normalized[key] = null;
     }
   }
 
-  return normalized;
+  return normalized as T;
 }
 
 export function computeFinancials(lineItems: LineItem[], vatRate: number) {

@@ -29,16 +29,27 @@ const baseNavItems = [
   { href: "/staff", label: "Staff", icon: "🪪" },
 ];
 
+const engineerNavItems = [
+  { href: "/dashboard", label: "Dashboard", icon: "⊞" },
+  { href: "/jobs", label: "Jobs", icon: "🔧" },
+  { href: "/calendar", label: "Calendar", icon: "🗓" },
+];
+
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const pathname = requestHeaders.get("x-crm-pathname") ?? "";
   const [session, aiHubAddon] = await Promise.all([getCrmSession(), getAddonState("ai_comms_hub")]);
   const demoState = await getCrmDemoState();
   const setup = getCrmSetupState();
-  const canManageDemo = userCanManageSettings(session.profile?.role);
-  const navItems = userCanManageSettings(session.profile?.role)
-    ? [...baseNavItems, { href: "/reports", label: "Reports", icon: "📈" }, { href: "/settings", label: "Settings", icon: "⚙️" }]
-    : baseNavItems;
+  const canManageDemo = userCanManageSettings(session.profile?.role) && !session.profile?.is_demo;
+  const isEngineer = session.profile?.role === "engineer";
+  const navItems = isEngineer
+    ? engineerNavItems
+    : userCanManageSettings(session.profile?.role)
+      ? [...baseNavItems, { href: "/reports", label: "Reports", icon: "📈" }, { href: "/settings", label: "Settings", icon: "⚙️" }]
+      : baseNavItems;
+  const modeBadgeClassName = demoState.active ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
+  const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
 
   if (setup.configured && pathname && pathname !== "/login" && !session.user) {
     redirect(`/login?next=${encodeURIComponent(pathname)}`);
@@ -84,7 +95,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
               <p className="text-xs text-slate-500">Logged in as</p>
               <p className="mt-1 text-sm font-semibold text-white">{session.profile?.full_name ?? session.user.email}</p>
               <p className="text-xs capitalize text-slate-400">{session.profile?.role ?? "user"}</p>
-              {demoState.active ? <p className="mt-2 text-xs font-medium uppercase tracking-wide text-amber-300">Demo mode active</p> : null}
+              <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${demoState.active ? "bg-amber-400/20 text-amber-300" : "bg-slate-800 text-slate-300"}`}>
+                {modeBadgeLabel}
+              </p>
+              {demoState.locked ? <p className="mt-2 text-xs text-slate-400">This login is pinned to demo records only.</p> : null}
             </div>
           </aside>
 
@@ -93,7 +107,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
               <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-8">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Empire CRM</p>
-                  <p className="text-xs text-slate-500">{session.profile?.full_name ?? session.user.email}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-xs text-slate-500">{session.profile?.full_name ?? session.user.email}</p>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${modeBadgeClassName}`}>
+                      {modeBadgeLabel}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="hidden gap-1 lg:flex">
@@ -116,7 +135,45 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
               </div>
             </header>
 
-            <main className="flex-1 px-4 py-6 lg:px-8">{children}</main>
+            <main className={`flex-1 px-4 py-6 lg:px-8 ${isEngineer ? "pb-24 lg:pb-6" : ""}`}>
+              <div className="mx-auto w-full max-w-7xl">
+                {demoState.active ? (
+                  <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    {demoState.locked
+                      ? "Demo account: you are viewing demo CRM records only."
+                      : "Demo data mode is active. Changes here apply to the demo walkthrough only."}
+                  </div>
+                ) : null}
+              </div>
+              {children}
+            </main>
+            {isEngineer ? (
+              <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+                <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold">
+                  <Link
+                    href="/dashboard"
+                    className={`rounded-full px-3 py-2 ${pathname === "/dashboard" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link href="/dashboard#today-route" className="rounded-full border border-slate-200 px-3 py-2 text-slate-700">
+                    Today
+                  </Link>
+                  <Link
+                    href="/jobs"
+                    className={`rounded-full px-3 py-2 ${pathname.startsWith("/jobs") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
+                  >
+                    Jobs
+                  </Link>
+                  <Link
+                    href="/calendar"
+                    className={`rounded-full px-3 py-2 ${pathname.startsWith("/calendar") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
+                  >
+                    Calendar
+                  </Link>
+                </div>
+              </nav>
+            ) : null}
             <DemoPanel />
           </div>
         </div>

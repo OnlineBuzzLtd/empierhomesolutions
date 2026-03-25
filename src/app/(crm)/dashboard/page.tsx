@@ -1,15 +1,16 @@
 import Link from "next/link";
+import { EngineerDashboard } from "@/modules/crm/components/dashboard/EngineerDashboard";
 import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
 import { getAddonState, resolveAiHubViewState } from "@/modules/crm/lib/addons";
 import { getAiHubProvider } from "@/modules/crm/lib/ai-hub";
-import { getDashboardData } from "@/modules/crm/lib/data";
+import { getDashboardData, getEngineerDashboardData } from "@/modules/crm/lib/data";
 import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency } from "@/modules/crm/lib/format";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
-import { getCrmSession, requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 
 export default async function DashboardPage() {
@@ -20,14 +21,15 @@ export default async function DashboardPage() {
 
   const session = await requireCrmUser();
   const demoState = await getCrmDemoState();
+
+  if (session.profile?.role === "engineer") {
+    const data = await getEngineerDashboardData(session.profile.full_name, demoState.mode);
+    return <EngineerDashboard data={data} engineerName={session.profile.full_name} />;
+  }
+
   const provider = getAiHubProvider();
-  const [data, addon, aiMetrics, fullSession] = await Promise.all([
-    getDashboardData(demoState.mode),
-    getAddonState("ai_comms_hub"),
-    provider.getAggregateMetrics(),
-    getCrmSession(),
-  ]);
-  const aiHubViewState = resolveAiHubViewState(addon, fullSession.profile?.role);
+  const [data, addon, aiMetrics] = await Promise.all([getDashboardData(demoState.mode), getAddonState("ai_comms_hub"), provider.getAggregateMetrics()]);
+  const aiHubViewState = resolveAiHubViewState(addon, session.profile?.role);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">

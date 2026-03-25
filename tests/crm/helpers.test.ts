@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { groupAttachmentsByBucket, isImageAttachment, normalizeAttachmentType } from "@/modules/crm/lib/attachments";
-import { resolveAiHubViewState } from "@/modules/crm/lib/addons";
+import { resolveAiHubViewState, resolveEngineerAiAssistState } from "@/modules/crm/lib/addons";
 import { buildAiHubAggregateMetrics } from "@/modules/crm/lib/ai-hub";
 import { buildAssetReminderItems, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
-import { applyCrmModeFilter, crmDemoScenarioKey, crmDemoSteps, findCrmDemoStepIndex, isCrmDemoMutationBlocked } from "@/modules/crm/lib/demo";
+import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
+import { applyCrmModeFilter, crmDemoScenarioKey, crmDemoSteps, findCrmDemoStepIndex, isCrmDemoMutationBlocked, resolveCrmDemoMode } from "@/modules/crm/lib/demo";
+import { buildEngineerAiAssistDraft } from "@/modules/crm/lib/engineer-ai";
 import { buildQuoteDraftFromTemplate, buildCatalogLineItem, parsePaymentTermsInput, summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
 import { getAssignableEngineerNames } from "@/modules/crm/lib/staff";
-import type { AddonState, Appointment, Attachment, CustomerAsset, QuoteTemplate } from "@/modules/crm/types";
+import type { AddonState, Appointment, Attachment, CustomerAsset, EngineerDashboardJob, JobWithRelations, Note, QuoteTemplate } from "@/modules/crm/types";
 
 describe("crm attachment helpers", () => {
   it("groups attachments into user-facing buckets", () => {
@@ -169,6 +171,9 @@ describe("crm ai hub helpers", () => {
     expect(resolveAiHubViewState(addon, "sales")).toBe("locked");
     expect(resolveAiHubViewState(addon, "management")).toBe("demo");
     expect(resolveAiHubViewState({ ...addon, enabled: true }, "sales")).toBe("enabled");
+    expect(resolveEngineerAiAssistState(addon, "engineer", false)).toBe("locked");
+    expect(resolveEngineerAiAssistState(addon, "engineer", true)).toBe("demo");
+    expect(resolveEngineerAiAssistState({ ...addon, enabled: true }, "engineer", false)).toBe("enabled");
   });
 });
 
@@ -182,6 +187,220 @@ describe("crm staff helpers", () => {
         { full_name: "demo engineer", role: "engineer", active: true },
       ]),
     ).toEqual(["Demo Engineer"]);
+  });
+});
+
+describe("crm demo mode helpers", () => {
+  it("locks demo users into demo data even without a cookie", () => {
+    expect(resolveCrmDemoMode({ cookieValue: null, isDemoUser: true })).toEqual({
+      active: true,
+      mode: "demo",
+      scenarioKey: crmDemoScenarioKey,
+      locked: true,
+    });
+  });
+
+  it("keeps real users in live mode unless the demo cookie is set", () => {
+    expect(resolveCrmDemoMode({ cookieValue: null, isDemoUser: false })).toEqual({
+      active: false,
+      mode: "live",
+      scenarioKey: null,
+      locked: false,
+    });
+
+    expect(resolveCrmDemoMode({ cookieValue: crmDemoScenarioKey, isDemoUser: false })).toEqual({
+      active: true,
+      mode: "demo",
+      scenarioKey: crmDemoScenarioKey,
+      locked: false,
+    });
+  });
+});
+
+describe("crm dashboard helpers", () => {
+  it("prioritizes overdue and due-today assigned jobs for engineer dashboards", () => {
+    const jobs = [
+      {
+        id: "job-overdue",
+        customer_id: "cust-1",
+        lead_id: null,
+        service_id: null,
+        job_type_id: null,
+        title: "Overdue boiler repair",
+        description: null,
+        scheduled_date: "2026-03-24",
+        scheduled_time: "08:30:00",
+        duration_hours: null,
+        status: "booked",
+        assigned_engineer: "Demo Engineer",
+        created_by: null,
+        created_at: "2026-03-24T08:00:00.000Z",
+        updated_at: "2026-03-24T08:00:00.000Z",
+        latestNote: null,
+        attachmentCount: 0,
+        hasQuote: false,
+        hasInvoice: false,
+        missingNote: true,
+        missingPhoto: true,
+        missingRequiredDocument: true,
+        overdue: true,
+      },
+      {
+        id: "job-today",
+        customer_id: "cust-2",
+        lead_id: null,
+        service_id: null,
+        job_type_id: null,
+        title: "Today install",
+        description: null,
+        scheduled_date: "2026-03-25",
+        scheduled_time: "11:00:00",
+        duration_hours: null,
+        status: "booked",
+        assigned_engineer: "Demo Engineer",
+        created_by: null,
+        created_at: "2026-03-25T07:30:00.000Z",
+        updated_at: "2026-03-25T07:30:00.000Z",
+        latestNote: { body: "Customer asked to ring on arrival", created_at: "2026-03-25T07:45:00.000Z" },
+        attachmentCount: 1,
+        hasQuote: true,
+        hasInvoice: false,
+        missingNote: false,
+        missingPhoto: false,
+        missingRequiredDocument: false,
+        overdue: false,
+      },
+    ] satisfies EngineerDashboardJob[];
+
+    const summary = summarizeEngineerDashboardJobs(jobs, "2026-03-25");
+
+    expect(summary.nextAssignedJob?.id).toBe("job-overdue");
+    expect(summary.todaysAssignedJobs.map((job) => job.id)).toEqual(["job-today"]);
+    expect(summary.overdueAssignedJobs.map((job) => job.id)).toEqual(["job-overdue"]);
+    expect(summary.fieldTaskCounts).toEqual({
+      missingNotes: 1,
+      missingPhotos: 1,
+      missingRequiredDocuments: 1,
+      overdueJobs: 1,
+    });
+  });
+
+  it("falls back to the next upcoming assigned job when nothing is due today", () => {
+    const jobs = [
+      {
+        id: "job-upcoming",
+        customer_id: "cust-3",
+        lead_id: null,
+        service_id: null,
+        job_type_id: null,
+        title: "Upcoming service visit",
+        description: null,
+        scheduled_date: "2026-03-27",
+        scheduled_time: "09:30:00",
+        duration_hours: null,
+        status: "booked",
+        assigned_engineer: "Demo Engineer",
+        created_by: null,
+        created_at: "2026-03-25T09:00:00.000Z",
+        updated_at: "2026-03-25T09:00:00.000Z",
+        latestNote: null,
+        attachmentCount: 0,
+        hasQuote: false,
+        hasInvoice: false,
+        missingNote: true,
+        missingPhoto: true,
+        missingRequiredDocument: false,
+        overdue: false,
+      },
+    ] satisfies EngineerDashboardJob[];
+
+    const summary = summarizeEngineerDashboardJobs(jobs, "2026-03-25");
+
+    expect(summary.nextAssignedJob?.id).toBe("job-upcoming");
+    expect(summary.todaysAssignedJobs).toEqual([]);
+    expect(summary.readyJobs).toEqual([]);
+    expect(summary.upcomingAssignedJobs.map((job) => job.id)).toEqual(["job-upcoming"]);
+  });
+});
+
+describe("crm engineer ai helpers", () => {
+  it("builds note-ready drafts and evidence checks from job context", () => {
+    const job: JobWithRelations = {
+      id: "job-1",
+      customer_id: "cust-1",
+      lead_id: null,
+      service_id: "svc-1",
+      job_type_id: "type-1",
+      title: "Boiler service",
+      description: "Investigate low pressure and service the existing boiler.",
+      scheduled_date: "2026-03-25",
+      scheduled_time: "09:00:00",
+      duration_hours: 2,
+      status: "booked",
+      assigned_engineer: "Demo Engineer",
+      created_by: null,
+      created_at: "2026-03-25T08:00:00.000Z",
+      updated_at: "2026-03-25T08:00:00.000Z",
+      customer: {
+        id: "cust-1",
+        full_name: "Sarah Thompson",
+        phone: "07700 900123",
+        address_line1: "18 Ash Grove",
+        postcode: "LE5 2AB",
+      },
+      service: { id: "svc-1", name: "Boilers" },
+      job_type: { id: "type-1", name: "Service" },
+    };
+    const notes: Note[] = [
+      {
+        id: "note-1",
+        entity_type: "job",
+        entity_id: "job-1",
+        body: "Customer asked for a call on arrival.",
+        created_by: null,
+        created_at: "2026-03-24T18:00:00.000Z",
+      },
+    ];
+    const attachments: Attachment[] = [
+      {
+        id: "att-1",
+        entity_type: "job",
+        entity_id: "job-1",
+        file_name: "before.jpg",
+        file_url: "/demo/before.jpg",
+        file_type: "photo",
+        created_by: null,
+        created_at: "2026-03-24T18:05:00.000Z",
+      },
+    ];
+
+    const completionDraft = buildEngineerAiAssistDraft(
+      {
+        job,
+        notes,
+        attachments,
+        quote: null,
+        invoice: null,
+        missingDocuments: ["certificate"],
+      },
+      "completion_note_draft",
+    );
+    const evidenceDraft = buildEngineerAiAssistDraft(
+      {
+        job,
+        notes,
+        attachments,
+        quote: null,
+        invoice: null,
+        missingDocuments: ["certificate"],
+      },
+      "missing_evidence_check",
+    );
+
+    expect(completionDraft.note_body).toContain("Work completed on Boiler service");
+    expect(completionDraft.body).toContain("Outstanding documents: certificate.");
+    expect(evidenceDraft.note_body).toBeNull();
+    expect(evidenceDraft.checks).toContain("Required documents missing: certificate");
   });
 });
 

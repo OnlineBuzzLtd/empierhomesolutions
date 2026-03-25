@@ -1,9 +1,10 @@
 import { addDays, endOfDay, isAfter, parseISO, startOfDay } from "date-fns";
-import type { Appointment, Attachment, CalendarItem, Customer, CustomerAsset, CustomerWithCounts, CustomFieldDefinition, DashboardData, Expense, Invoice, InvoiceWithRelations, JobType, JobWithRelations, LeadWithRelations, Note, Payment, Product, Quote, QuoteTemplate, QuoteWithRelations, ReportsSummary, RequiredDocumentRule, Service, StaffDirectoryEntry, Supplier, UserCertification, UserProfile } from "@/modules/crm/types";
+import type { Appointment, Attachment, CalendarItem, Customer, CustomerAsset, CustomerWithCounts, CustomFieldDefinition, DashboardData, EngineerDashboardData, EngineerDashboardJob, Expense, Invoice, InvoiceWithRelations, JobType, JobWithRelations, LeadWithRelations, Note, Payment, Product, Quote, QuoteTemplate, QuoteWithRelations, ReportsSummary, RequiredDocumentRule, Service, StaffDirectoryEntry, Supplier, UserCertification, UserProfile } from "@/modules/crm/types";
 import { createCrmServerClient, createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { applyCrmModeFilter, crmDemoScenarioKey } from "@/modules/crm/lib/demo";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { buildAssetReminderItems, buildLeadFollowUpItem, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
+import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import type { CrmMode } from "@/modules/crm/lib/demo";
@@ -16,6 +17,22 @@ function emptyDashboard(): DashboardData {
     newLeadCount: 0,
     recentCustomers: [],
     activeJobs: [],
+  };
+}
+
+function emptyEngineerDashboard(): EngineerDashboardData {
+  return {
+    nextAssignedJob: null,
+    todaysAssignedJobs: [],
+    overdueAssignedJobs: [],
+    readyJobs: [],
+    upcomingAssignedJobs: [],
+    fieldTaskCounts: {
+      missingNotes: 0,
+      missingPhotos: 0,
+      missingRequiredDocuments: 0,
+      overdueJobs: 0,
+    },
   };
 }
 
@@ -116,12 +133,12 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   const todaysJobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(todaysJobsQuery, context.mode, context.scenarioKey);
   const activeJobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(activeJobsQuery, context.mode, context.scenarioKey);
   const invoicesQuery = supabase.schema("crm").from("invoices").select("total, status");
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
@@ -149,6 +166,94 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
     recentCustomers: (recentCustomers ?? []) as Customer[],
     activeJobs: (activeJobs ?? []) as JobWithRelations[],
   };
+}
+
+export async function getEngineerDashboardData(engineerName: string, mode?: CrmMode): Promise<EngineerDashboardData> {
+  if (!getCrmEnv().enabled || engineerName.trim().length === 0) {
+    return emptyEngineerDashboard();
+  }
+
+  const context = await getCrmModeContext(mode);
+  const supabase = await createCrmServerClient();
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const jobsQuery = supabase
+    .schema("crm")
+    .from("jobs")
+    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
+  filterByMode(jobsQuery, context.mode, context.scenarioKey);
+  const { data: jobs } = await jobsQuery
+    .ilike("assigned_engineer", engineerName.trim())
+    .order("scheduled_date", { ascending: true, nullsFirst: false })
+    .order("scheduled_time", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  const assignedJobs = (jobs ?? []) as JobWithRelations[];
+  if (assignedJobs.length === 0) {
+    return emptyEngineerDashboard();
+  }
+
+  const jobIds = assignedJobs.map((job) => job.id);
+  const notesQuery = supabase.schema("crm").from("notes").select("entity_id, body, created_at");
+  filterByMode(notesQuery, context.mode, context.scenarioKey);
+  const attachmentsQuery = supabase.schema("crm").from("attachments").select("entity_id, file_type");
+  filterByMode(attachmentsQuery, context.mode, context.scenarioKey);
+  const quotesQuery = supabase.schema("crm").from("quotes").select("job_id");
+  filterByMode(quotesQuery, context.mode, context.scenarioKey);
+  const invoicesQuery = supabase.schema("crm").from("invoices").select("job_id");
+  filterByMode(invoicesQuery, context.mode, context.scenarioKey);
+  const rulesQuery = supabase.schema("crm").from("required_document_rules").select("*").eq("entity_type", "job").eq("active", true);
+
+  const [{ data: notes }, { data: attachments }, { data: quotes }, { data: invoices }, { data: rules }] = await Promise.all([
+    notesQuery.eq("entity_type", "job").in("entity_id", jobIds).order("created_at", { ascending: false }),
+    attachmentsQuery.eq("entity_type", "job").in("entity_id", jobIds),
+    quotesQuery.in("job_id", jobIds),
+    invoicesQuery.in("job_id", jobIds),
+    rulesQuery,
+  ]);
+
+  const latestNoteByJobId = new Map<string, EngineerDashboardJob["latestNote"]>();
+  for (const note of (notes ?? []) as Array<Pick<Note, "body" | "created_at"> & { entity_id: string }>) {
+    if (!latestNoteByJobId.has(note.entity_id)) {
+      latestNoteByJobId.set(note.entity_id, { body: note.body, created_at: note.created_at });
+    }
+  }
+
+  const attachmentsByJobId = new Map<string, string[]>();
+  for (const attachment of (attachments ?? []) as Array<Pick<Attachment, "file_type"> & { entity_id: string }>) {
+    const current = attachmentsByJobId.get(attachment.entity_id) ?? [];
+    current.push(attachment.file_type);
+    attachmentsByJobId.set(attachment.entity_id, current);
+  }
+
+  const quoteJobIds = new Set((quotes ?? []).map((quote) => quote.job_id));
+  const invoiceJobIds = new Set((invoices ?? []).map((invoice) => invoice.job_id));
+  const activeRules = (rules ?? []) as RequiredDocumentRule[];
+
+  const enrichedJobs: EngineerDashboardJob[] = assignedJobs.map((job) => {
+    const latestNote = latestNoteByJobId.get(job.id) ?? null;
+    const attachmentTypes = attachmentsByJobId.get(job.id) ?? [];
+    const availableTypes = new Set(attachmentTypes);
+    const matchingRules = activeRules.filter((rule) => {
+      const matchesService = !rule.service_id || rule.service_id === job.service_id;
+      const matchesJobType = !rule.job_type_id || rule.job_type_id === job.job_type_id;
+      const matchesStage = !rule.pipeline_stage || rule.pipeline_stage === job.status;
+      return matchesService && matchesJobType && matchesStage && rule.required;
+    });
+
+    return {
+      ...job,
+      latestNote,
+      attachmentCount: attachmentTypes.length,
+      hasQuote: quoteJobIds.has(job.id),
+      hasInvoice: invoiceJobIds.has(job.id),
+      missingNote: latestNote === null,
+      missingPhoto: !availableTypes.has("photo"),
+      missingRequiredDocument: matchingRules.some((rule) => !availableTypes.has(rule.document_type)),
+      overdue: Boolean(job.scheduled_date && job.scheduled_date < todayDate && ["enquiry", "booked", "in_progress"].includes(job.status)),
+    };
+  });
+
+  return summarizeEngineerDashboardJobs(enrichedJobs, todayDate);
 }
 
 export async function listLeads(mode?: CrmMode) {
@@ -213,7 +318,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   const jobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);
@@ -255,7 +360,7 @@ export async function listJobs(mode?: CrmMode) {
   const jobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   const { data } = await jobsQuery.order("scheduled_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
   return (data ?? []) as JobWithRelations[];
@@ -271,7 +376,7 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   const jobQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(jobQuery, context.mode, context.scenarioKey);
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);

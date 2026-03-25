@@ -50,6 +50,16 @@ export type CertificationCategory = (typeof certificationCategories)[number];
 export const crmAddonKeys = ["ai_comms_hub"] as const;
 export type CrmAddonKey = (typeof crmAddonKeys)[number];
 
+export const engineerAiAssistActions = [
+  "summary",
+  "arrival_note_draft",
+  "completion_note_draft",
+  "customer_update_draft",
+  "missing_evidence_check",
+] as const;
+export type EngineerAiAssistAction = (typeof engineerAiAssistActions)[number];
+export type EngineerAiAssistState = "locked" | "demo" | "enabled";
+
 export const aiConversationChannels = ["sms", "whatsapp", "web_chat", "voice"] as const;
 export type AiConversationChannel = (typeof aiConversationChannels)[number];
 
@@ -458,6 +468,15 @@ export type AiConversation = AiScenario & {
   impacts: AiCrmImpact[];
 };
 
+export type EngineerAiAssistDraft = {
+  action: EngineerAiAssistAction;
+  title: string;
+  summary: string;
+  body: string;
+  note_body: string | null;
+  checks: string[];
+};
+
 export type CustomFieldValue = {
   id: string;
   field_definition_id: string;
@@ -527,7 +546,7 @@ export type LeadWithRelations = Lead & {
 };
 
 export type JobWithRelations = Job & {
-  customer?: Pick<Customer, "id" | "full_name" | "phone" | "postcode"> | null;
+  customer?: Pick<Customer, "id" | "full_name" | "phone" | "address_line1" | "postcode"> | null;
   service?: Pick<Service, "id" | "name"> | null;
   job_type?: Pick<JobType, "id" | "name"> | null;
 };
@@ -549,4 +568,31 @@ export type DashboardData = {
   newLeadCount: number;
   recentCustomers: Customer[];
   activeJobs: JobWithRelations[];
+};
+
+export type EngineerDashboardJob = JobWithRelations & {
+  latestNote: Pick<Note, "body" | "created_at"> | null;
+  attachmentCount: number;
+  hasQuote: boolean;
+  hasInvoice: boolean;
+  missingNote: boolean;
+  missingPhoto: boolean;
+  missingRequiredDocument: boolean;
+  overdue: boolean;
+};
+
+export type EngineerFieldTaskCounts = {
+  missingNotes: number;
+  missingPhotos: number;
+  missingRequiredDocuments: number;
+  overdueJobs: number;
+};
+
+export type EngineerDashboardData = {
+  nextAssignedJob: EngineerDashboardJob | null;
+  todaysAssignedJobs: EngineerDashboardJob[];
+  overdueAssignedJobs: EngineerDashboardJob[];
+  readyJobs: EngineerDashboardJob[];
+  upcomingAssignedJobs: EngineerDashboardJob[];
+  fieldTaskCounts: EngineerFieldTaskCounts;
 };

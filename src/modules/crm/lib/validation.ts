@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, expenseCategories, invoiceStatuses, jobStatuses, leadStatuses, paymentStatuses, paymentTypes, quoteStatuses, supportedEntityTypes } from "@/modules/crm/types";
+import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, engineerAiAssistActions, expenseCategories, invoiceStatuses, jobStatuses, leadStatuses, paymentStatuses, paymentTypes, quoteStatuses, supportedEntityTypes } from "@/modules/crm/types";
 
 export const lineItemSchema = z.object({
   description: z.string().min(2),
@@ -53,6 +53,10 @@ export const noteSchema = z.object({
   entity_type: z.enum(["customer", "job", "lead"]),
   entity_id: z.string().uuid(),
   body: z.string().min(2),
+});
+
+export const engineerAiAssistRequestSchema = z.object({
+  action: z.enum(engineerAiAssistActions),
 });
 
 export const quoteSchema = z.object({

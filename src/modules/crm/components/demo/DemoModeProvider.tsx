@@ -8,6 +8,7 @@ const DemoModeContext = createContext<CrmDemoState>({
   active: false,
   mode: "live",
   scenarioKey: null,
+  locked: false,
   pathname: "",
   steps: [],
   currentStepIndex: -1,

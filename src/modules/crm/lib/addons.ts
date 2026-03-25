@@ -1,4 +1,4 @@
-import type { AddonState, CrmAddonKey, CrmRole } from "@/modules/crm/types";
+import type { AddonState, CrmAddonKey, CrmRole, EngineerAiAssistState } from "@/modules/crm/types";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { userCanManageSettings } from "@/modules/crm/lib/auth";
@@ -47,6 +47,22 @@ export function resolveAiHubViewState(addon: AddonState, role: CrmRole | null | 
   }
 
   if (addon.demo_enabled && userCanManageSettings(role)) {
+    return "demo";
+  }
+
+  return "locked";
+}
+
+export function resolveEngineerAiAssistState(
+  addon: AddonState,
+  role: CrmRole | null | undefined,
+  demoModeActive: boolean,
+): EngineerAiAssistState {
+  if (addon.enabled) {
+    return "enabled";
+  }
+
+  if (role === "engineer" && addon.demo_enabled && demoModeActive) {
     return "demo";
   }
 

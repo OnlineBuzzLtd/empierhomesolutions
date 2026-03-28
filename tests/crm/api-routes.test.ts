@@ -31,6 +31,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
+      parseIdList: vi.fn().mockReturnValue([]),
       requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase } }),
     }));
 
@@ -58,6 +59,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
+      parseIdList: vi.fn().mockReturnValue([]),
       requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase } }),
     }));
     vi.doMock("@/modules/crm/lib/rules", () => ({
@@ -89,6 +91,62 @@ describe("crm api routes", () => {
     expect(body.error).toContain("certificate");
   });
 
+  it("blocks job completion when compliance records are still open", async () => {
+    const single = vi.fn().mockResolvedValue({ data: { service_id: "svc-1", job_type_id: "job-1", status: "booked" }, error: null });
+    const jobsEq = vi.fn().mockReturnValue({ single });
+    const jobsSelect = vi.fn().mockReturnValue({ eq: jobsEq });
+
+    const hazardsEq = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ id: "haz-1" }], error: null }) });
+    const hazardsSelect = vi.fn().mockReturnValue({ eq: hazardsEq });
+    const checklistsEq = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    const checklistsSelect = vi.fn().mockReturnValue({ eq: checklistsEq });
+    const certificatesEq = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    const certificatesSelect = vi.fn().mockReturnValue({ eq: certificatesEq });
+
+    const from = vi.fn((table: string) => {
+      if (table === "jobs") return { select: jobsSelect };
+      if (table === "job_hazards") return { select: hazardsSelect };
+      if (table === "job_checklists") return { select: checklistsSelect };
+      if (table === "job_certificates") return { select: certificatesSelect };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      parseIdList: vi.fn().mockReturnValue([]),
+      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
+    }));
+    vi.doMock("@/modules/crm/lib/rules", () => ({
+      validateRequiredProgression: vi.fn().mockResolvedValue({
+        valid: true,
+        missingFields: [],
+        missingDocuments: [],
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/custom-fields", () => ({
+      extractCustomFieldValues: vi.fn().mockReturnValue([]),
+      upsertCustomFieldValues: vi.fn(),
+    }));
+
+    const route = await import("@/app/api/crm/jobs/[id]/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "completed" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "job-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("unresolved hazards");
+  });
+
   it("normalizes blank optional job fields before insert", async () => {
     const single = vi.fn().mockResolvedValue({
       data: {
@@ -102,8 +160,18 @@ describe("crm api routes", () => {
       },
       error: null,
     });
+    const jobAssigneeDeleteEq = vi.fn().mockResolvedValue({ error: null });
+    const jobAssigneeDelete = vi.fn().mockReturnValue({ eq: jobAssigneeDeleteEq });
     const insert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single }) });
-    const from = vi.fn().mockReturnValue({ insert });
+    const from = vi.fn((table: string) => {
+      if (table === "jobs") {
+        return { insert };
+      }
+      if (table === "job_assignees") {
+        return { delete: jobAssigneeDelete };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
     const schema = vi.fn().mockReturnValue({ from });
     const supabase = { schema };
 
@@ -118,10 +186,12 @@ describe("crm api routes", () => {
         scheduled_time: null,
         assigned_engineer: null,
       })),
+      parseIdList: vi.fn().mockReturnValue([]),
       requireCrmApiUser: vi.fn().mockResolvedValue({
         session: {
           supabase,
           user: { id: "user-1" },
+          tenant: { id: "tenant-1" },
         },
       }),
     }));
@@ -154,18 +224,105 @@ describe("crm api routes", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(insert).toHaveBeenCalledWith({
-      customer_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-      title: "Boiler Install",
-      service_id: null,
-      job_type_id: null,
-      status: "enquiry",
-      scheduled_date: null,
-      scheduled_time: null,
-      assigned_engineer: null,
-      created_by: "user-1",
-    });
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        title: "Boiler Install",
+        service_id: null,
+        job_type_id: null,
+        status: "enquiry",
+        scheduled_date: null,
+        scheduled_time: null,
+        assigned_engineer: null,
+        created_by: "user-1",
+      }),
+    );
     expect(body.job.id).toBe("job-1");
+  });
+
+  it("creates a job phase and defaults the sort order after the latest phase", async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: { id: "phase-2", job_id: "job-1", name: "Install", sort_order: 2, status: "planned" },
+      error: null,
+    });
+    const insert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single }) });
+    const limit = vi.fn().mockResolvedValue({ data: [{ sort_order: 1 }], error: null });
+    const order = vi.fn().mockReturnValue({ limit });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    const from = vi.fn((table: string) => {
+      if (table === "job_phases") {
+        return { select, insert };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+        },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/jobs/[id]/phases/route");
+    expect(route.POST).toBeTypeOf("function");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ name: "Install", status: "planned" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "job-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(insert).toHaveBeenCalledWith({
+      tenant_id: "tenant-1",
+      job_id: "job-1",
+      name: "Install",
+      description: null,
+      status: "planned",
+      sort_order: 2,
+      target_date: null,
+    });
+    expect(body.phase.id).toBe("phase-2");
+  });
+
+  it("blocks non-managers from approving job variations", async () => {
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase: {},
+          profile: { role: "sales" },
+        },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/jobs/[id]/variations/[variationId]/route");
+    expect(route.PATCH).toBeTypeOf("function");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "approved" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "job-1", variationId: "var-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toContain("Only managers");
   });
 
   it("converts a quote into an invoice", async () => {
@@ -322,6 +479,143 @@ describe("crm api routes", () => {
     expect(body.error).toBe("Could not allocate quote number.");
   });
 
+  it("records quote acceptance and advances the quote status", async () => {
+    const quoteSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "quote-1",
+        document_type: "quote",
+        line_items: [{ description: "Boiler", qty: 1, unit_price: 100 }],
+        subtotal: 100,
+        vat_rate: 0.2,
+        vat_category: "standard_20",
+        total: 120,
+        valid_until: "2026-04-01",
+        current_version_number: 1,
+      },
+      error: null,
+    });
+    const quoteUpdateSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "quote-1",
+        document_type: "quote",
+        line_items: [{ description: "Boiler", qty: 1, unit_price: 100 }],
+        subtotal: 100,
+        vat_rate: 0.2,
+        vat_category: "standard_20",
+        total: 120,
+        valid_until: "2026-04-01",
+        current_version_number: 2,
+      },
+      error: null,
+    });
+    const acceptanceSingle = vi.fn().mockResolvedValue({ data: { id: "accept-1" }, error: null });
+    const quoteUpdateEq = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: quoteUpdateSingle }) });
+    const quoteSelectEq = vi.fn().mockReturnValue({ single: quoteSingle });
+    const acceptanceUpsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: acceptanceSingle }) });
+    const from = vi.fn((table: string) => {
+      if (table === "quotes") {
+        return { select: vi.fn().mockReturnValue({ eq: quoteSelectEq }), update: vi.fn().mockReturnValue({ eq: quoteUpdateEq }) };
+      }
+      if (table === "quote_acceptances") {
+        return { upsert: acceptanceUpsert };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+          user: { id: "user-1" },
+        },
+      }),
+    }));
+    const snapshotQuoteVersion = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("@/modules/crm/lib/quotes", () => ({ snapshotQuoteVersion }));
+
+    const route = await import("@/app/api/crm/quotes/[id]/accept/route");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ accepted_by_name: "Sarah", acceptance_method: "Phone" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "quote-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(acceptanceUpsert).toHaveBeenCalled();
+    expect(snapshotQuoteVersion).toHaveBeenCalled();
+    expect(body.acceptance.id).toBe("accept-1");
+  });
+
+  it("generates an invoice from a planned invoice schedule", async () => {
+    const scheduleSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "sched-1",
+        label: "Deposit",
+        payment_type: "deposit",
+        percentage: 25,
+        fixed_amount: null,
+        due_offset_days: 7,
+        invoice_id: null,
+        quote: {
+          id: "quote-1",
+          job_id: "job-1",
+          customer_id: "cust-1",
+          subtotal: 1000,
+          vat_rate: 0.2,
+          vat_category: "standard_20",
+        },
+      },
+      error: null,
+    });
+    const invoiceSingle = vi.fn().mockResolvedValue({ data: { id: "inv-1", invoice_number: "INV-2026-0002" }, error: null });
+    const scheduleUpdateSingle = vi.fn().mockResolvedValue({ data: { id: "sched-1", invoice_id: "inv-1", status: "invoiced" }, error: null });
+    const from = vi.fn((table: string) => {
+      if (table === "invoice_schedules") {
+        return {
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: scheduleSingle }) }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: scheduleUpdateSingle }) }) }),
+        };
+      }
+      if (table === "invoices") {
+        return { insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: invoiceSingle }) }) };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      nextInvoiceNumber: vi.fn().mockResolvedValue("INV-2026-0002"),
+      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase } }),
+    }));
+    vi.doMock("@/modules/crm/lib/quotes", () => ({
+      calculateInvoiceScheduleAmount: vi.fn().mockReturnValue({ subtotal: 250, total: 300 }),
+      buildInvoiceScheduleLineItem: vi.fn().mockReturnValue([{ description: "Deposit (deposit)", qty: 1, unit_price: 250 }]),
+    }));
+
+    const route = await import("@/app/api/crm/invoice-schedules/[id]/generate/route");
+    const response = (await route.POST!(new Request("http://localhost", { method: "POST" }), {
+      params: Promise.resolve({ id: "sched-1" }),
+    })) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.invoice.invoice_number).toBe("INV-2026-0002");
+    expect(body.schedule.status).toBe("invoiced");
+  });
+
   it("returns a signed attachment URL", async () => {
     const single = vi.fn().mockResolvedValue({
       data: { id: "att-1", file_url: "quote/q1/test.pdf", file_name: "test.pdf", file_type: "pdf" },
@@ -367,6 +661,7 @@ describe("crm api routes", () => {
     const single = vi.fn().mockResolvedValue({
       data: {
         id: "profile-1",
+        tenant_id: "tenant-1",
         user_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
         full_name: "Shaz Iqbal",
         role: "engineer",
@@ -374,8 +669,19 @@ describe("crm api routes", () => {
       error: null,
     });
     const select = vi.fn().mockReturnValue({ single });
-    const upsert = vi.fn().mockReturnValue({ select });
-    const from = vi.fn().mockReturnValue({ upsert });
+    const profileUpsert = vi.fn().mockReturnValue({ select });
+    const membershipUpsert = vi.fn().mockResolvedValue({ error: null });
+    const from = vi.fn((table: string) => {
+      if (table === "user_profiles") {
+        return { upsert: profileUpsert };
+      }
+
+      if (table === "tenant_memberships") {
+        return { upsert: membershipUpsert };
+      }
+
+      throw new Error(`Unexpected table ${table}`);
+    });
     const schema = vi.fn().mockReturnValue({ from });
     const supabase = { schema };
 
@@ -383,7 +689,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
-      requireManagerCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase } }),
+      requireManagerCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
     }));
 
     const route = await import("@/app/api/crm/settings/users/route");
@@ -402,16 +708,104 @@ describe("crm api routes", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(upsert).toHaveBeenCalledWith(
+    expect(profileUpsert).toHaveBeenCalledWith(
       {
+        tenant_id: "tenant-1",
         user_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
         role: "engineer",
         full_name: "Shaz Iqbal",
         phone: null,
       },
-      { onConflict: "user_id" },
+      { onConflict: "tenant_id,user_id" },
+    );
+    expect(membershipUpsert).toHaveBeenCalledWith(
+      {
+        tenant_id: "tenant-1",
+        user_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        role: "engineer",
+        active: true,
+      },
+      { onConflict: "tenant_id,user_id" },
     );
     expect(body.profile.role).toBe("engineer");
+  });
+
+  it("creates a new tenant through the public signup route", async () => {
+    const setCookie = vi.fn();
+    const createUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "user-1",
+          email: "owner@example.com",
+          user_metadata: { full_name: "Owner User" },
+        },
+      },
+      error: null,
+    });
+    const deleteUser = vi.fn().mockResolvedValue({ error: null });
+    const createTenantWorkspace = vi.fn().mockResolvedValue({
+      tenant: { id: "tenant-2", slug: "acme-heating", name: "Acme Heating", status: "active" },
+      warnings: [],
+    });
+
+    vi.doMock("next/headers", () => ({
+      cookies: vi.fn().mockResolvedValue({
+        set: setCookie,
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({
+        auth: {
+          admin: {
+            createUser,
+            deleteUser,
+          },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/tenants", () => ({
+      createTenantWorkspace,
+    }));
+
+    const route = await import("@/app/api/crm/onboarding/signup/route");
+    expect(route.POST).toBeTypeOf("function");
+    const response = (await route.POST(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({
+          business_name: "Acme Heating",
+          slug: "acme-heating",
+          full_name: "Owner User",
+          email: "owner@example.com",
+          password: "password123",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(createUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "owner@example.com",
+        email_confirm: true,
+      }),
+    );
+    expect(createTenantWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        name: "Acme Heating",
+        slug: "acme-heating",
+        clone_from_source: true,
+      }),
+    );
+    expect(setCookie).toHaveBeenCalled();
+    expect(body.tenant.slug).toBe("acme-heating");
   });
 
   it("allows managers to start demo mode and sets the demo cookie", async () => {

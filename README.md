@@ -3,7 +3,22 @@
 Next.js application for:
 
 - paid landing pages under `/lp`, `/finance`, and `/about-trust`
-- an internal Supabase-backed CRM under `/login`, `/dashboard`, and related CRM routes
+- a Supabase-backed multi-tenant CRM SaaS under `/login`, `/signup`, `/dashboard`, and related CRM routes
+
+## CRM Scope
+
+The CRM is no longer a single-business Empire-only workspace. It now supports:
+
+- multi-tenant tenancy with Empire Home Solutions preserved as tenant one
+- tenant-scoped auth, memberships, branding, settings, numbering, storage paths, and workspace switching
+- public workspace signup plus admin-assisted tenant creation
+- structured customer sites and site contacts
+- multi-engineer job assignment
+- job phases and variations
+- quote vs estimate workflows with version history and acceptance capture
+- staged invoice schedules, invoice generation, and payment tracking
+- hazards, checklists, certificates, purchase orders, and supplier reconciliation
+- demo bootstrap and live smoke coverage against the linked backend
 
 ## Local Setup
 
@@ -57,6 +72,7 @@ Public pages:
 CRM:
 
 - `http://localhost:3000/login`
+- `http://localhost:3000/signup`
 - `http://localhost:3000/dashboard`
 - `http://localhost:3000/leads`
 - `http://localhost:3000/customers`
@@ -80,18 +96,18 @@ Landing pages:
 
 CRM:
 
-- Supabase auth-backed login flow
-- protected CRM route group and session-aware layout
+- multi-tenant auth-backed login and public signup flow
+- protected CRM route group and tenant-aware session/layout resolution
 - dashboard, leads, customers, jobs, calendar, quotes, invoices, staff, reports, and settings screens
-- API routes for CRM CRUD, reporting, staff, catalog, demo mode, and attachment flows
+- API routes for CRM CRUD, reporting, staff, catalog, onboarding, demo mode, and attachment flows
 - dynamic custom fields and required document rule support
 - private storage support for CRM attachments
 - signed attachment access and grouped private file handling
 - staff directory and certification tracking
 - reporting summary and workload views
 - production-safe demo mode with seeded demo data and guided replay
-- Supabase migrations for schema, seed data, admin bootstrap, staff/reporting/catalog expansion, RLS hardening, demo mode, and API exposure
-- recent CRM stability fixes for quote numbering, job form null-handling, settings role saves, and engineer assignment dropdowns sourced from staff roles
+- Supabase migrations for tenancy, sites/site contacts, job assignees, phases, variations, quote versions, quote acceptance, invoice schedules, compliance workflows, supplier control, and RLS hardening
+- live smoke coverage for route protection, role permissions, feature workflows, demo bootstrap, and tenant isolation
 
 ## Supabase Notes
 
@@ -102,6 +118,12 @@ The current implementation uses:
 - publishable key in browser/server session clients
 - service role key for admin-only server operations such as storage
 - row-level security policies on CRM tables
+- tenant-scoped helpers and policies for cross-workspace isolation
+
+Empire Home Solutions is the seeded first tenant. New workspaces can be created from:
+
+- `http://localhost:3000/signup`
+- `http://localhost:3000/settings` as a management/admin user
 
 ## Scripts
 
@@ -111,6 +133,7 @@ The current implementation uses:
 - `npm run build`
 - `npm run crm:smoke:routes`
 - `npm run crm:smoke:remote`
+- `npm run crm:smoke:features`
 - `npm run crm:demo:bootstrap`
 - `npm run crm:smoke:demo`
 
@@ -125,6 +148,7 @@ The current implementation uses:
 ## Docs
 
 - `docs/crm-prd.md`
+- `docs/crm-saas-fergus-launch-prd.md`
 - `docs/crm-prod-readiness.md`
 - `docs/paid-lp-foundation-task-list.md`
 - `docs/reporting-dashboard-spec.md`

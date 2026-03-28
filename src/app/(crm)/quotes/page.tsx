@@ -54,7 +54,7 @@ export default async function QuotesPage({
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{quote.quote_number}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {quote.customer?.full_name ?? "Customer"} · {quote.job?.title ?? "Job"} · Valid until {formatDate(quote.valid_until)}
+                      {(quote.document_type === "estimate" ? "Estimate" : "Quote")} · {quote.customer?.full_name ?? "Customer"} · {quote.job?.title ?? "Job"} · v{quote.current_version_number} · Valid until {formatDate(quote.valid_until)}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">

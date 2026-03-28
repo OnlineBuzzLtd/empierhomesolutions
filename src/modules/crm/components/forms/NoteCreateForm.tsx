@@ -1,28 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 
 export function NoteCreateForm({
   entityType,
   entityId,
   initialBody,
-  bodyVersion,
   textareaId,
   onClearDraft,
 }: {
   entityType: "customer" | "job" | "lead";
   entityId: string;
   initialBody?: string;
-  bodyVersion?: string | number;
   textareaId?: string;
   onClearDraft?: () => void;
 }) {
   const [body, setBody] = useState(initialBody ?? "");
-
-  useEffect(() => {
-    setBody(initialBody ?? "");
-  }, [initialBody, bodyVersion]);
 
   return (
     <ApiForm

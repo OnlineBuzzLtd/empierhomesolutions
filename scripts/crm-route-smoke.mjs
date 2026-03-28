@@ -10,7 +10,12 @@ const publicChecks = [
   {
     path: "/login",
     expectedStatus: 200,
-    mustContain: ["Home Solutions CRM", "Sign In"],
+    mustContain: ["Sign in to your workspace", "Sign In"],
+  },
+  {
+    path: "/signup",
+    expectedStatus: 200,
+    mustContain: ["Create your workspace", "Create Workspace"],
   },
 ];
 

@@ -22,22 +22,34 @@ export async function POST(request: Request) {
       return auth.error;
     }
 
-    const { supabase } = auth.session;
+    const { supabase, tenant } = auth.session;
     const payload = {
+      tenant_id: tenant.id,
       user_id: parsed.data.user_id,
       role: parsed.data.role,
       full_name: parsed.data.full_name ?? "Team Member",
       phone: parsed.data.phone ?? null,
     };
 
-    const { data, error } = await supabase
-      .schema("crm")
-      .from("user_profiles")
-      .upsert(payload, { onConflict: "user_id" })
-      .select("*")
-      .single();
-    if (error) {
-      return jsonError(error.message, 500);
+    const [{ data, error }, { error: membershipError }] = await Promise.all([
+      supabase
+        .schema("crm")
+        .from("user_profiles")
+        .upsert(payload, { onConflict: "tenant_id,user_id" })
+        .select("*")
+        .single(),
+      supabase.schema("crm").from("tenant_memberships").upsert(
+        {
+          tenant_id: tenant.id,
+          user_id: parsed.data.user_id,
+          role: parsed.data.role,
+          active: true,
+        },
+        { onConflict: "tenant_id,user_id" },
+      ),
+    ]);
+    if (error || membershipError) {
+      return jsonError(error?.message ?? membershipError?.message ?? "Failed to save tenant user role.", 500);
     }
 
     return jsonSuccess({ profile: data });

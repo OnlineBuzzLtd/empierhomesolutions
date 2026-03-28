@@ -10,12 +10,19 @@ import { getAddonState } from "@/modules/crm/lib/addons";
 import { getCrmSession, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { LogoutButton } from "@/modules/crm/components/layout/LogoutButton";
+import { TenantSwitcher } from "@/modules/crm/components/layout/TenantSwitcher";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 
-export const metadata: Metadata = {
-  title: "Empire CRM",
-  description: "Internal CRM for Empire Home Solutions",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await getCrmSession();
+  const displayName = session.branding?.crm_display_name ?? (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
+  const businessName = session.branding?.business_name ?? session.tenant?.name ?? "your business";
+
+  return {
+    title: displayName,
+    description: `Internal CRM for ${businessName}`,
+  };
+}
 
 const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: "⊞" },
@@ -50,6 +57,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       : baseNavItems;
   const modeBadgeClassName = demoState.active ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
   const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
+  const crmDisplayName = session.branding?.crm_display_name ?? (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
+  const businessName = session.branding?.business_name ?? session.tenant?.name ?? "CRM";
+  const tenantOptions = session.memberships.map((membership) => ({
+    id: membership.tenant_id,
+    name: membership.tenant?.name ?? membership.tenant_id,
+  }));
 
   if (setup.configured && pathname && pathname !== "/login" && !session.user) {
     redirect(`/login?next=${encodeURIComponent(pathname)}`);
@@ -71,8 +84,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <div className="flex min-h-screen">
           <aside className="hidden w-64 shrink-0 flex-col bg-slate-900 text-white lg:flex">
             <div className="border-b border-slate-800 px-5 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">Empire</p>
-              <p className="mt-1 text-lg font-bold">Home Solutions CRM</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">{businessName}</p>
+              <p className="mt-1 text-lg font-bold">{crmDisplayName}</p>
             </div>
             <nav className="flex-1 space-y-1 px-3 py-4">
               {navItems.map((item) => (
@@ -106,7 +119,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             <header className="border-b border-slate-200 bg-white">
               <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-8">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Empire CRM</p>
+                  <p className="text-sm font-semibold text-slate-900">{crmDisplayName}</p>
                   <div className="mt-1 flex items-center gap-2">
                     <p className="text-xs text-slate-500">{session.profile?.full_name ?? session.user.email}</p>
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${modeBadgeClassName}`}>
@@ -115,6 +128,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {session.tenant && tenantOptions.length > 1 ? <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} /> : null}
                   <div className="hidden gap-1 lg:flex">
                     {navItems.map((item) => (
                       <Link key={item.href} href={item.href} className="rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">

@@ -223,6 +223,8 @@ describe("crm dashboard helpers", () => {
       {
         id: "job-overdue",
         customer_id: "cust-1",
+        site_id: null,
+        site_contact_id: null,
         lead_id: null,
         service_id: null,
         job_type_id: null,
@@ -248,6 +250,8 @@ describe("crm dashboard helpers", () => {
       {
         id: "job-today",
         customer_id: "cust-2",
+        site_id: null,
+        site_contact_id: null,
         lead_id: null,
         service_id: null,
         job_type_id: null,
@@ -290,6 +294,8 @@ describe("crm dashboard helpers", () => {
       {
         id: "job-upcoming",
         customer_id: "cust-3",
+        site_id: null,
+        site_contact_id: null,
         lead_id: null,
         service_id: null,
         job_type_id: null,
@@ -328,6 +334,8 @@ describe("crm engineer ai helpers", () => {
     const job: JobWithRelations = {
       id: "job-1",
       customer_id: "cust-1",
+      site_id: null,
+      site_contact_id: null,
       lead_id: null,
       service_id: "svc-1",
       job_type_id: "type-1",

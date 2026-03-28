@@ -12,6 +12,7 @@ import { requireSettingsAccess } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
+import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { listCustomFieldDefinitions, listJobTypes, listProducts, listQuoteTemplates, listRequiredDocumentRules, listServices, listSuppliers, listUserProfiles } from "@/modules/crm/lib/data";
 
 export default async function SettingsPage() {
@@ -26,7 +27,9 @@ export default async function SettingsPage() {
   }
 
   const demoState = await getCrmDemoState();
-  const [users, services, jobTypes, customFields, rules, suppliers, products, quoteTemplates] = await Promise.all([
+  const supabase = await createCrmServerClient();
+  const [{ data: tenantSettings }, users, services, jobTypes, customFields, rules, suppliers, products, quoteTemplates] = await Promise.all([
+    supabase.schema("crm").from("tenant_settings").select("*").eq("tenant_id", session.tenant!.id).maybeSingle(),
     listUserProfiles(demoState.mode),
     listServices(),
     listJobTypes(),
@@ -46,6 +49,42 @@ export default async function SettingsPage() {
 
       <DemoAnchor name="settings-config">
         <div className="grid gap-6 xl:grid-cols-2">
+        <SectionCard title="Workspace Profile">
+          <ApiForm endpoint="/api/crm/settings/tenant" submitLabel="Save Workspace" className="grid gap-3 md:grid-cols-2">
+            <input name="business_name" required defaultValue={session.branding?.business_name ?? session.tenant?.name ?? ""} placeholder="Business name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="crm_display_name" defaultValue={session.branding?.crm_display_name ?? ""} placeholder="CRM display name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="primary_phone" defaultValue={session.branding?.primary_phone ?? ""} placeholder="Primary phone" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="support_email" type="email" defaultValue={session.branding?.support_email ?? ""} placeholder="Support email" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="website_url" defaultValue={session.branding?.website_url ?? ""} placeholder="Website URL" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="logo_url" defaultValue={session.branding?.logo_url ?? ""} placeholder="Logo URL" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="accent_color" defaultValue={session.branding?.accent_color ?? ""} placeholder="Accent color (#0f172a)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="legal_name" defaultValue={String(tenantSettings?.legal_name ?? "")} placeholder="Legal name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="vat_registration_number" defaultValue={String(tenantSettings?.vat_registration_number ?? "")} placeholder="VAT registration number" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="gas_safe_number" defaultValue={String(tenantSettings?.gas_safe_number ?? "")} placeholder="Gas Safe number" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="quote_footer" defaultValue={String(tenantSettings?.quote_footer ?? "")} placeholder="Quote footer" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="invoice_footer" defaultValue={String(tenantSettings?.invoice_footer ?? "")} placeholder="Invoice footer" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="certificate_footer" defaultValue={String(tenantSettings?.certificate_footer ?? "")} placeholder="Certificate footer" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+          </ApiForm>
+          <p className="mt-3 text-xs text-slate-500">These settings are owned by the current tenant and replace hardcoded Empire branding in the CRM shell and future documents.</p>
+        </SectionCard>
+
+        <SectionCard title="Create New Tenant">
+          <ApiForm endpoint="/api/crm/settings/tenants" submitLabel="Create Tenant" className="grid gap-3 md:grid-cols-2">
+            <input name="name" required placeholder="Business name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="slug" required placeholder="business-slug" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="business_name" placeholder="Branded business name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="crm_display_name" placeholder="CRM display name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="primary_phone" placeholder="Primary phone" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="support_email" type="email" placeholder="Support email" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="accent_color" placeholder="Accent color" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="legal_name" placeholder="Legal name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="vat_registration_number" placeholder="VAT number" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="gas_safe_number" placeholder="Gas Safe number" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input type="hidden" name="clone_from_current" value="true" />
+          </ApiForm>
+          <p className="mt-3 text-xs text-slate-500">This creates a new workspace, assigns the current user as owner, and clones the current tenant&apos;s configuration baseline for services, job types, fields, rules, suppliers, products, templates, and add-ons.</p>
+        </SectionCard>
+
         <SectionCard title="User Roles">
           {users.length === 0 ? <EmptyState message="No user profiles yet." /> : null}
           <div className="space-y-3">

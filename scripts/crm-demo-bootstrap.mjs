@@ -4,6 +4,7 @@ import { requireCrmScriptConfig } from "./crm-env.mjs";
 
 const DEMO_SCENARIO_KEY = "core-walkthrough";
 const DEMO_PASSWORD = process.env.CRM_DEMO_USER_PASSWORD ?? "Replace-Me-In-Production-2026!";
+const DEMO_TENANT_ID = "11111111-1111-4111-8111-111111111111";
 
 const DEMO_IDS = {
   lead: "11111111-1111-4111-8111-111111111112",
@@ -226,6 +227,7 @@ async function ensureDemoUser(userConfig) {
 
   const certificationPayload = {
     ...userConfig.certification,
+    tenant_id: profile.tenant_id,
     user_profile_id: profile.id,
     is_demo: true,
     demo_scenario_key: DEMO_SCENARIO_KEY,
@@ -260,6 +262,7 @@ async function uploadDemoFiles() {
 async function upsertAttachmentRows(managerUserId) {
   const rows = DEMO_ATTACHMENTS.map(({ id, entity_type, entity_id, file_name, file_url, file_type }) => ({
     id,
+    tenant_id: DEMO_TENANT_ID,
     entity_type,
     entity_id,
     file_name,

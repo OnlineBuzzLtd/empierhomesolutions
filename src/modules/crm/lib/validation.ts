@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, engineerAiAssistActions, expenseCategories, invoiceStatuses, jobStatuses, leadStatuses, paymentStatuses, paymentTypes, quoteStatuses, supportedEntityTypes } from "@/modules/crm/types";
+import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, engineerAiAssistActions, expenseCategories, invoiceStatuses, jobCertificateStatuses, jobChecklistStatuses, jobHazardStatuses, jobPhaseStatuses, jobStatuses, jobVariationStatuses, leadStatuses, paymentStatuses, paymentTypes, purchaseOrderStatuses, quoteDocumentTypes, quoteStatuses, supplierReconciliationEntryTypes, supplierReconciliationStatuses, supportedEntityTypes } from "@/modules/crm/types";
 
 export const lineItemSchema = z.object({
   description: z.string().min(2),
@@ -37,6 +37,8 @@ export const leadSchema = z.object({
 
 export const jobSchema = z.object({
   customer_id: z.string().uuid(),
+  site_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  site_contact_id: z.string().uuid().optional().or(z.literal("")).nullable(),
   lead_id: z.string().uuid().optional().or(z.literal("")).nullable(),
   service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
   job_type_id: z.string().uuid().optional().or(z.literal("")).nullable(),
@@ -47,12 +49,48 @@ export const jobSchema = z.object({
   duration_hours: z.coerce.number().nonnegative().optional().nullable(),
   status: z.enum(jobStatuses),
   assigned_engineer: z.string().optional().nullable(),
+  assigned_engineer_ids: z.array(z.string().uuid()).optional().default([]),
 });
 
 export const noteSchema = z.object({
   entity_type: z.enum(["customer", "job", "lead"]),
   entity_id: z.string().uuid(),
   body: z.string().min(2),
+});
+
+export const jobPhaseSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().optional().nullable(),
+  status: z.enum(jobPhaseStatuses).default("planned"),
+  sort_order: z.coerce.number().int().nonnegative().optional().nullable(),
+  target_date: z.string().optional().nullable(),
+});
+
+export const jobVariationSchema = z.object({
+  title: z.string().min(2),
+  description: z.string().optional().nullable(),
+  estimated_value: z.coerce.number().nonnegative(),
+  status: z.enum(jobVariationStatuses).default("draft"),
+});
+
+export const jobHazardSchema = z.object({
+  title: z.string().min(2),
+  description: z.string().optional().nullable(),
+  status: z.enum(jobHazardStatuses).default("active"),
+});
+
+export const jobChecklistSchema = z.object({
+  title: z.string().min(2),
+  notes: z.string().optional().nullable(),
+  status: z.enum(jobChecklistStatuses).default("required"),
+});
+
+export const jobCertificateSchema = z.object({
+  title: z.string().min(2),
+  certificate_number: z.string().optional().nullable(),
+  status: z.enum(jobCertificateStatuses).default("draft"),
+  issued_at: z.string().optional().nullable(),
+  file_url: z.string().optional().nullable(),
 });
 
 export const engineerAiAssistRequestSchema = z.object({
@@ -62,11 +100,27 @@ export const engineerAiAssistRequestSchema = z.object({
 export const quoteSchema = z.object({
   job_id: z.string().uuid(),
   customer_id: z.string().uuid(),
+  document_type: z.enum(quoteDocumentTypes).default("quote"),
   line_items: z.array(lineItemSchema).min(1),
   vat_rate: z.coerce.number().min(0).max(1),
   vat_category: z.string().default("standard_20"),
   status: z.enum(quoteStatuses).default("draft"),
   valid_until: z.string().optional().nullable(),
+});
+
+export const quoteAcceptanceSchema = z.object({
+  accepted_by_name: z.string().min(2),
+  accepted_by_email: z.string().email().optional().or(z.literal("")).nullable(),
+  acceptance_method: z.string().min(2),
+  notes: z.string().optional().nullable(),
+});
+
+export const invoiceScheduleSchema = z.object({
+  label: z.string().min(2),
+  payment_type: z.enum(paymentTypes),
+  percentage: z.coerce.number().min(0).max(100).optional().nullable(),
+  fixed_amount: z.coerce.number().min(0).optional().nullable(),
+  due_offset_days: z.coerce.number().int().min(0).default(14),
 });
 
 export const invoiceSchema = z.object({
@@ -186,6 +240,24 @@ export const supplierSchema = z.object({
   phone: z.string().optional().nullable(),
   pricing_last_updated_at: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+});
+
+export const purchaseOrderSchema = z.object({
+  supplier_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  po_number: z.string().min(2),
+  status: z.enum(purchaseOrderStatuses).default("draft"),
+  total_amount: z.coerce.number().nonnegative(),
+  notes: z.string().optional().nullable(),
+  issued_at: z.string().optional().nullable(),
+});
+
+export const supplierReconciliationSchema = z.object({
+  purchase_order_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  supplier_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  entry_type: z.enum(supplierReconciliationEntryTypes),
+  reference_number: z.string().optional().nullable(),
+  amount: z.coerce.number(),
+  status: z.enum(supplierReconciliationStatuses).default("open"),
 });
 
 export const productSchema = z.object({

@@ -74,10 +74,10 @@ export function EngineerJobWorkspace({
               </div>
             ) : null}
             <NoteCreateForm
+              key={`${jobId}-${draftVersion}`}
               entityType="job"
               entityId={jobId}
               initialBody={draftBody}
-              bodyVersion={draftVersion}
               textareaId={noteTextareaId}
               onClearDraft={clearDraft}
             />

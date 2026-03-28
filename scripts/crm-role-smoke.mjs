@@ -12,6 +12,8 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const createdUserIds = [];
+const createdMembershipIds = [];
+const createdProfileIds = [];
 const createdServiceIds = [];
 const createdCustomerIds = [];
 const createdTemplateIds = [];
@@ -24,22 +26,15 @@ function logFail(message) {
   console.error(`FAIL ${message}`);
 }
 
-async function waitForProfile(userId) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const { data, error } = await admin.schema("crm").from("user_profiles").select("*").eq("user_id", userId).maybeSingle();
-    if (data) {
-      return data;
-    }
-    if (error && attempt === 9) {
-      throw error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+async function getDefaultTenant() {
+  const { data, error } = await admin.schema("crm").from("tenants").select("*").eq("slug", "empire-home-solutions").maybeSingle();
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not resolve default CRM tenant for smoke tests");
   }
-
-  throw new Error(`Timed out waiting for crm.user_profiles row for ${userId}`);
+  return data;
 }
 
-async function createSignedInUser(role) {
+async function createSignedInUser(role, tenantId) {
   const suffix = randomUUID().slice(0, 8);
   const email = `crm-smoke-${role}-${suffix}@example.com`;
   const password = `Smoke-${suffix}-A1!`;
@@ -56,15 +51,42 @@ async function createSignedInUser(role) {
   }
 
   createdUserIds.push(data.user.id);
-  const profile = await waitForProfile(data.user.id);
-  const { error: profileError } = await admin
+  const { data: membership, error: membershipError } = await admin
+    .schema("crm")
+    .from("tenant_memberships")
+    .insert({
+      tenant_id: tenantId,
+      user_id: data.user.id,
+      role,
+      active: true,
+      is_owner: role === "management",
+      is_demo: false,
+    })
+    .select("*")
+    .single();
+  if (membershipError || !membership) {
+    throw new Error(membershipError?.message ?? "Failed to create smoke tenant membership");
+  }
+  createdMembershipIds.push(membership.id);
+
+  const { data: profile, error: profileError } = await admin
     .schema("crm")
     .from("user_profiles")
-    .update({ role, full_name: fullName, active: true })
-    .eq("id", profile.id);
-  if (profileError) {
-    throw new Error(profileError.message);
+    .insert({
+      tenant_id: tenantId,
+      user_id: data.user.id,
+      role,
+      full_name: fullName,
+      email,
+      active: true,
+      is_demo: false,
+    })
+    .select("*")
+    .single();
+  if (profileError || !profile) {
+    throw new Error(profileError?.message ?? "Failed to create smoke tenant profile");
   }
+  createdProfileIds.push(profile.id);
 
   const client = createClient(supabaseUrl, publishableKey, {
     auth: {
@@ -90,6 +112,12 @@ async function cleanup() {
   for (const serviceId of createdServiceIds) {
     await admin.schema("crm").from("services").delete().eq("id", serviceId);
   }
+  for (const profileId of createdProfileIds) {
+    await admin.schema("crm").from("user_profiles").delete().eq("id", profileId);
+  }
+  for (const membershipId of createdMembershipIds) {
+    await admin.schema("crm").from("tenant_memberships").delete().eq("id", membershipId);
+  }
   for (const userId of createdUserIds) {
     await admin.auth.admin.deleteUser(userId);
   }
@@ -98,8 +126,9 @@ async function cleanup() {
 let failed = false;
 
 try {
-  const manager = await createSignedInUser("management");
-  const sales = await createSignedInUser("sales");
+  const tenant = await getDefaultTenant();
+  const manager = await createSignedInUser("management", tenant.id);
+  const sales = await createSignedInUser("sales", tenant.id);
 
   const slug = `crm-smoke-${Date.now()}`;
   const { data: service, error: serviceError } = await manager.client

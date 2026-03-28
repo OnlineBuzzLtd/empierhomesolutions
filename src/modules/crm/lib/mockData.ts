@@ -48,9 +48,12 @@ export interface Quote {
   job_id: string
   customer_id: string
   quote_number: string
+  document_type: 'quote' | 'estimate'
+  current_version_number: number
   line_items: LineItem[]
   subtotal: number
   vat_rate: number
+  vat_category: string
   total: number
   status: QuoteStatus
   valid_until: string
@@ -66,6 +69,7 @@ export interface Invoice {
   line_items: LineItem[]
   subtotal: number
   vat_rate: number
+  vat_category: string
   total: number
   status: InvoiceStatus
   due_date: string
@@ -264,6 +268,8 @@ export const quotes: Quote[] = [
     job_id: 'j4',
     customer_id: 'c4',
     quote_number: 'Q-2026-0012',
+    document_type: 'quote',
+    current_version_number: 1,
     line_items: [
       { description: 'Worcester Bosch 4000 30kW Combi Boiler (supply)', qty: 1, unit_price: 1050 },
       { description: 'Boiler installation — labour (full day)', qty: 1, unit_price: 600 },
@@ -273,6 +279,7 @@ export const quotes: Quote[] = [
     ],
     subtotal: 2015,
     vat_rate: 0,
+    vat_category: 'vat_exempt',
     total: 2015,
     status: 'accepted',
     valid_until: '2026-03-01',
@@ -283,12 +290,15 @@ export const quotes: Quote[] = [
     job_id: 'j2',
     customer_id: 'c2',
     quote_number: 'Q-2026-0013',
+    document_type: 'estimate',
+    current_version_number: 1,
     line_items: [
       { description: 'Annual boiler service — Vaillant EcoTec', qty: 1, unit_price: 85 },
       { description: 'Landlord gas safety certificate (CP12)', qty: 1, unit_price: 35 },
     ],
     subtotal: 120,
     vat_rate: 0,
+    vat_category: 'vat_exempt',
     total: 120,
     status: 'sent',
     valid_until: '2026-03-05',
@@ -312,6 +322,7 @@ export const invoices: Invoice[] = [
     ],
     subtotal: 600,
     vat_rate: 0,
+    vat_category: 'vat_exempt',
     total: 600,
     status: 'paid',
     due_date: '2026-02-21',
@@ -331,6 +342,7 @@ export const invoices: Invoice[] = [
     ],
     subtotal: 700,
     vat_rate: 0,
+    vat_category: 'vat_exempt',
     total: 700,
     status: 'unpaid',
     due_date: '2026-02-25',

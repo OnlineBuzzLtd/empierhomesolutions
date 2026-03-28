@@ -6,10 +6,10 @@ import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
 import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
-import { listCustomers, listCustomFieldDefinitions, listJobs, listJobTypes, listServices, listStaffDirectory } from "@/modules/crm/lib/data";
+import { listCustomers, listCustomFieldDefinitions, listJobs, listJobTypes, listServices, listSiteContacts, listSites, listStaffDirectory } from "@/modules/crm/lib/data";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
-import { getAssignableEngineerNames } from "@/modules/crm/lib/staff";
+import { getAssignableEngineerOptions } from "@/modules/crm/lib/staff";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 
 export default async function JobsPage() {
@@ -20,15 +20,17 @@ export default async function JobsPage() {
 
   await requireCrmUser();
   const demoState = await getCrmDemoState();
-  const [jobs, customers, services, jobTypes, customFields, staff] = await Promise.all([
+  const [jobs, customers, services, jobTypes, customFields, staff, sites, siteContacts] = await Promise.all([
     listJobs(demoState.mode),
     listCustomers(demoState.mode),
     listServices(),
     listJobTypes(),
     listCustomFieldDefinitions(),
     listStaffDirectory(demoState.mode),
+    listSites(demoState.mode),
+    listSiteContacts(demoState.mode),
   ]);
-  const engineers = getAssignableEngineerNames(staff);
+  const engineers = getAssignableEngineerOptions(staff);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -48,7 +50,7 @@ export default async function JobsPage() {
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{job.title}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {job.customer?.full_name ?? "Customer"} · {job.service?.name ?? "Service"} · {job.scheduled_date ?? "TBC"}
+                      {job.customer?.full_name ?? "Customer"} · {job.site?.label ?? job.service?.name ?? "Service"} · {job.scheduled_date ?? "TBC"}
                     </p>
                   </div>
                   <StatusBadge config={jobStatusConfig[job.status]} />
@@ -59,7 +61,7 @@ export default async function JobsPage() {
         </SectionCard>
 
         <SectionCard title="Add Job">
-          <JobCreateForm customers={customers} services={services} jobTypes={jobTypes} engineers={engineers} customFields={customFields} />
+          <JobCreateForm customers={customers} services={services} jobTypes={jobTypes} sites={sites} siteContacts={siteContacts} engineers={engineers} customFields={customFields} />
         </SectionCard>
       </div>
     </div>

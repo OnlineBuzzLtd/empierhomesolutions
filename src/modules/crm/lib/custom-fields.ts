@@ -44,6 +44,6 @@ export async function upsertCustomFieldValues(params: {
   }));
 
   await supabase.schema("crm").from("custom_field_values").upsert(payload, {
-    onConflict: "field_definition_id,entity_type,entity_id",
+    onConflict: "tenant_id,field_definition_id,entity_type,entity_id",
   });
 }

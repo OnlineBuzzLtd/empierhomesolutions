@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { ZodSchema } from "zod";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
+import { getCrmSession } from "@/modules/crm/lib/auth";
 import { buildInvoiceNumber, buildQuoteNumber } from "@/modules/crm/lib/numbers";
-import type { CrmRole, LineItem, UserProfile } from "@/modules/crm/types";
+import type { CrmRole, LineItem, Tenant, TenantBranding, TenantMembership, UserProfile } from "@/modules/crm/types";
 
 export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -17,6 +18,9 @@ export type CrmApiSession = {
   supabase: Awaited<ReturnType<typeof createCrmServerClient>>;
   user: User;
   profile: UserProfile | null;
+  membership: TenantMembership;
+  tenant: Tenant;
+  branding: TenantBranding | null;
 };
 
 export async function parseJsonBody<T>(request: Request, schema: ZodSchema<T>) {
@@ -32,6 +36,22 @@ export function parseLineItems(value: unknown) {
     return JSON.parse(value) as LineItem[];
   }
   return value as LineItem[];
+}
+
+export function parseIdList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((entry) => (typeof entry === "string" ? [entry] : []))
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? [trimmed] : [];
+  }
+
+  return [] as string[];
 }
 
 export function normalizeBlankFields<T extends Record<string, unknown>>(value: T, fields: Array<keyof T>) {
@@ -71,24 +91,13 @@ export async function nextInvoiceNumber() {
 }
 
 export async function requireCrmApiUser(allowedRoles?: CrmRole[]) {
-  const supabase = await createCrmServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const session = await getCrmSession();
+  if (!session.user || !session.membership || !session.tenant) {
     return { error: jsonError("Authentication required.", 401) };
   }
 
-  const { data: profile } = await supabase
-    .schema("crm")
-    .from("user_profiles")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle<UserProfile>();
-
   if (allowedRoles?.length) {
-    const role = profile?.role;
+    const role = session.profile?.role;
     if (!role || !allowedRoles.includes(role)) {
       return { error: jsonError("You do not have access to this CRM action.", 403) };
     }
@@ -96,9 +105,12 @@ export async function requireCrmApiUser(allowedRoles?: CrmRole[]) {
 
   return {
     session: {
-      supabase,
-      user,
-      profile: profile ?? null,
+      supabase: await createCrmServerClient(),
+      user: session.user,
+      profile: session.profile ?? null,
+      membership: session.membership,
+      tenant: session.tenant,
+      branding: session.branding ?? null,
     } satisfies CrmApiSession,
   };
 }

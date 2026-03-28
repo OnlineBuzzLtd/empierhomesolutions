@@ -20,5 +20,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return jsonError(error.message, 500);
   }
 
+  await supabase.schema("crm").from("invoice_schedules").update({ status: "paid" }).eq("invoice_id", id);
+
   return jsonSuccess({ invoice: data });
 }

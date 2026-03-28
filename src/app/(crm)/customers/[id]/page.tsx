@@ -19,6 +19,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   }
 
   const { customer, jobs, notes, assets, attachments } = detail;
+  const sites = detail.sites ?? [];
+  const siteContacts = detail.siteContacts ?? [];
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -67,7 +69,12 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                   <Link href={`/jobs/${job.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-3 hover:bg-slate-50">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{job.title}</p>
-                      <p className="mt-1 text-xs text-slate-500">{job.scheduled_date || "TBC"} · {job.assigned_engineer || "Unassigned"}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {job.site?.label ?? "Primary site"} · {job.scheduled_date || "TBC"} ·{" "}
+                        {job.assignees && job.assignees.length > 0
+                          ? job.assignees.map((assignee) => assignee.user_profile?.full_name ?? "Engineer").join(", ")
+                          : job.assigned_engineer || "Unassigned"}
+                      </p>
                     </div>
                   </Link>
                 </li>
@@ -89,6 +96,63 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
                     Service due {formatDate(asset.service_due_date)} · Warranty ends {formatDate(asset.warranty_end_date)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SectionCard title={`Sites (${sites.length})`}>
+          {sites.length === 0 ? (
+            <EmptyState message="No structured sites recorded yet." />
+          ) : (
+            <ul className="space-y-3">
+              {sites.map((site) => (
+                <li key={site.id} className="rounded-lg border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-900">{site.label}</p>
+                    {site.is_primary ? <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">Primary</span> : null}
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {[site.address_line1, site.address_line2, site.city, site.postcode].filter(Boolean).join(", ") || "No site address saved."}
+                  </p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <p className="rounded-lg bg-amber-50 p-3 text-xs text-slate-700">
+                      <span className="block font-semibold text-slate-900">Access notes</span>
+                      {site.access_notes || "No access notes."}
+                    </p>
+                    <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
+                      <span className="block font-semibold text-slate-900">Parking notes</span>
+                      {site.parking_notes || "No parking notes."}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard title={`Site Contacts (${siteContacts.length})`}>
+          {siteContacts.length === 0 ? (
+            <EmptyState message="No site-specific contacts recorded yet." />
+          ) : (
+            <ul className="space-y-3">
+              {siteContacts.map((contact) => (
+                <li key={contact.id} className="rounded-lg border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{contact.full_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {contact.site?.label ?? "Site"}{contact.role_label ? ` · ${contact.role_label}` : ""}
+                      </p>
+                    </div>
+                    {contact.is_primary ? <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">Primary</span> : null}
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {[contact.phone, contact.email].filter(Boolean).join(" · ") || "No phone or email saved."}
                   </p>
                 </li>
               ))}

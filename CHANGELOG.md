@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-03-28
+
+### Added
+
+- Multi-tenant CRM SaaS foundation with `crm.tenants`, `crm.tenant_memberships`, `crm.tenant_settings`, `crm.tenant_branding`, tenant-scoped numbering, tenant-aware storage, and Empire Home Solutions preserved as tenant one
+- Public CRM workspace signup at `/signup` plus reusable tenant provisioning logic for onboarding and admin-assisted tenant creation
+- Tenant workspace switching and tenant-branded quote/invoice PDF rendering
+- Fergus-critical job delivery data model additions for sites, site contacts, job assignees, job phases, and job variations
+- Fergus-critical commercial workflow additions for quote versions, quote acceptance, invoice schedules, staged invoice generation, and staged payment tracking
+- Fergus-critical compliance and supplier-control workflow additions for hazards, checklists, certificates, purchase orders, and supplier reconciliation
+- Live backend feature smoke coverage in `scripts/crm-feature-smoke.mjs`
+
+### Changed
+
+- Reworked CRM auth/session and RLS around tenant membership instead of single-workspace authenticated access
+- Removed Empire-specific CRM login copy so the CRM shell can operate as a reusable SaaS product
+- Hardened remote smoke and demo bootstrap scripts for tenant-scoped profiles, certifications, and attachments
+- Updated local route smoke to cover both `/login` and `/signup`
+
+### Verified
+
+- `supabase db push --linked`
+- `npm run crm:smoke:remote`
+- `npm run crm:smoke:features`
+- `npm run crm:smoke:routes`
+- `npm run crm:demo:bootstrap`
+- `npm run crm:smoke:demo`
+- `npm run typecheck`
+- `npm run lint`
+- `npm test`
+- `rm -rf .next && npm run build`
+
 ## 2026-03-25
 
 ### Changed

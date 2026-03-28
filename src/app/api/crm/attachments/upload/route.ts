@@ -29,8 +29,9 @@ export async function POST(request: Request) {
     return jsonError("Missing entity information.");
   }
 
+  const { supabase, user, tenant } = auth.session;
   const buffer = Buffer.from(await file.arrayBuffer());
-  const fileName = `${entityType}/${entityId}/${Date.now()}-${file.name}`;
+  const fileName = `${tenant.id}/${entityType}/${entityId}/${Date.now()}-${file.name}`;
   const admin = createCrmServiceRoleClient();
   const upload = await admin.storage.from("crm-uploads").upload(fileName, buffer, {
     contentType: file.type,
@@ -40,8 +41,6 @@ export async function POST(request: Request) {
   if (upload.error) {
     return jsonError(upload.error.message, 500);
   }
-
-  const { supabase, user } = auth.session;
 
   const { data, error } = await supabase
     .schema("crm")

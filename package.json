@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "crm:smoke:routes": "node scripts/crm-route-smoke.mjs",
     "crm:smoke:remote": "node scripts/crm-role-smoke.mjs",
+    "crm:smoke:features": "node scripts/crm-feature-smoke.mjs",
     "crm:demo:bootstrap": "node scripts/crm-demo-bootstrap.mjs",
     "crm:smoke:demo": "node scripts/crm-demo-smoke.mjs",
     "format:check": "prettier --check .",

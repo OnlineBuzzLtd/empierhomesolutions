@@ -49,7 +49,7 @@ export async function updateCrmSession(request: NextRequest) {
   const demoCookie = request.cookies.get(crmDemoCookieName)?.value;
   const isDemoActive = Boolean(demoCookie);
 
-  if (pathname === "/login" && user) {
+  if ((pathname === "/login" || pathname === "/signup") && user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/dashboard";
     return NextResponse.redirect(redirectUrl);

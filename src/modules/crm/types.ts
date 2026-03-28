@@ -17,8 +17,17 @@ export type LeadStatus = (typeof leadStatuses)[number];
 export const jobStatuses = ["enquiry", "booked", "in_progress", "completed", "invoiced"] as const;
 export type JobStatus = (typeof jobStatuses)[number];
 
+export const jobPhaseStatuses = ["planned", "ready", "in_progress", "completed"] as const;
+export type JobPhaseStatus = (typeof jobPhaseStatuses)[number];
+
+export const jobVariationStatuses = ["draft", "approved", "declined", "invoiced"] as const;
+export type JobVariationStatus = (typeof jobVariationStatuses)[number];
+
 export const quoteStatuses = ["draft", "sent", "accepted", "declined"] as const;
 export type QuoteStatus = (typeof quoteStatuses)[number];
+
+export const quoteDocumentTypes = ["quote", "estimate"] as const;
+export type QuoteDocumentType = (typeof quoteDocumentTypes)[number];
 
 export const invoiceStatuses = ["unpaid", "paid", "overdue", "void"] as const;
 export type InvoiceStatus = (typeof invoiceStatuses)[number];
@@ -28,6 +37,27 @@ export type PaymentStatus = (typeof paymentStatuses)[number];
 
 export const paymentTypes = ["deposit", "stage", "final", "finance"] as const;
 export type PaymentType = (typeof paymentTypes)[number];
+
+export const invoiceScheduleStatuses = ["planned", "invoiced", "paid"] as const;
+export type InvoiceScheduleStatus = (typeof invoiceScheduleStatuses)[number];
+
+export const jobHazardStatuses = ["active", "mitigated", "hazard_free"] as const;
+export type JobHazardStatus = (typeof jobHazardStatuses)[number];
+
+export const jobChecklistStatuses = ["required", "completed"] as const;
+export type JobChecklistStatus = (typeof jobChecklistStatuses)[number];
+
+export const jobCertificateStatuses = ["draft", "completed", "sent"] as const;
+export type JobCertificateStatus = (typeof jobCertificateStatuses)[number];
+
+export const purchaseOrderStatuses = ["draft", "issued", "received", "reconciled"] as const;
+export type PurchaseOrderStatus = (typeof purchaseOrderStatuses)[number];
+
+export const supplierReconciliationStatuses = ["open", "reconciled"] as const;
+export type SupplierReconciliationStatus = (typeof supplierReconciliationStatuses)[number];
+
+export const supplierReconciliationEntryTypes = ["invoice", "credit"] as const;
+export type SupplierReconciliationEntryType = (typeof supplierReconciliationEntryTypes)[number];
 
 export const expenseCategories = ["materials", "travel", "subcontractor", "other"] as const;
 export type ExpenseCategory = (typeof expenseCategories)[number];
@@ -49,6 +79,9 @@ export type CertificationCategory = (typeof certificationCategories)[number];
 
 export const crmAddonKeys = ["ai_comms_hub"] as const;
 export type CrmAddonKey = (typeof crmAddonKeys)[number];
+
+export const tenantStatuses = ["trial", "active", "suspended", "archived"] as const;
+export type TenantStatus = (typeof tenantStatuses)[number];
 
 export const engineerAiAssistActions = [
   "summary",
@@ -74,8 +107,60 @@ export type StatusBadgeConfig = {
   className: string;
 };
 
+export type Tenant = {
+  id: string;
+  slug: string;
+  name: string;
+  status: TenantStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TenantBranding = {
+  id: string;
+  tenant_id: string;
+  business_name: string;
+  crm_display_name: string | null;
+  primary_phone: string | null;
+  support_email: string | null;
+  website_url: string | null;
+  logo_url: string | null;
+  accent_color: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TenantSettings = {
+  id: string;
+  tenant_id: string;
+  legal_name: string | null;
+  vat_registration_number: string | null;
+  gas_safe_number: string | null;
+  invoice_footer: string | null;
+  quote_footer: string | null;
+  certificate_footer: string | null;
+  default_payment_terms: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TenantMembership = {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  role: CrmRole;
+  active: boolean;
+  is_owner: boolean;
+  is_demo: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+  updated_at: string;
+  tenant?: Tenant | null;
+};
+
 export type UserProfile = {
   id: string;
+  tenant_id: string;
   user_id: string;
   role: CrmRole;
   full_name: string;
@@ -185,9 +270,44 @@ export type CustomerAsset = {
   updated_at: string;
 };
 
+export type Site = {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  label: string;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  postcode: string | null;
+  access_notes: string | null;
+  parking_notes: string | null;
+  is_primary: boolean;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SiteContact = {
+  id: string;
+  tenant_id: string;
+  site_id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  role_label: string | null;
+  is_primary: boolean;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Job = {
   id: string;
   customer_id: string;
+  site_id: string | null;
+  site_contact_id: string | null;
   lead_id: string | null;
   service_id: string | null;
   job_type_id: string | null;
@@ -201,6 +321,80 @@ export type Job = {
   created_by: string | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobAssignee = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  user_profile_id: string;
+  assignment_role: string | null;
+  created_at: string;
+  user_profile?: Pick<UserProfile, "id" | "full_name" | "role" | "user_id"> | null;
+};
+
+export type JobPhase = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  name: string;
+  description: string | null;
+  status: JobPhaseStatus;
+  sort_order: number;
+  target_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobVariation = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  title: string;
+  description: string | null;
+  estimated_value: number;
+  status: JobVariationStatus;
+  created_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobHazard = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  title: string;
+  description: string | null;
+  status: JobHazardStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobChecklist = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  title: string;
+  notes: string | null;
+  status: JobChecklistStatus;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobCertificate = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  title: string;
+  certificate_number: string | null;
+  status: JobCertificateStatus;
+  issued_at: string | null;
+  file_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -245,6 +439,8 @@ export type Quote = {
   job_id: string;
   customer_id: string;
   quote_number: string;
+  document_type: QuoteDocumentType;
+  current_version_number: number;
   line_items: LineItem[];
   subtotal: number;
   vat_rate: number;
@@ -254,6 +450,36 @@ export type Quote = {
   valid_until: string | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+};
+
+export type QuoteVersion = {
+  id: string;
+  tenant_id: string;
+  quote_id: string;
+  version_number: number;
+  document_type: QuoteDocumentType;
+  line_items: LineItem[];
+  subtotal: number;
+  vat_rate: number;
+  vat_category: string;
+  total: number;
+  valid_until: string | null;
+  status: QuoteStatus;
+  change_summary: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type QuoteAcceptance = {
+  id: string;
+  tenant_id: string;
+  quote_id: string;
+  accepted_by_name: string;
+  accepted_by_email: string | null;
+  acceptance_method: string;
+  notes: string | null;
+  accepted_at: string;
   created_at: string;
 };
 
@@ -291,6 +517,51 @@ export type Payment = {
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
+};
+
+export type InvoiceSchedule = {
+  id: string;
+  tenant_id: string;
+  quote_id: string;
+  label: string;
+  payment_type: PaymentType;
+  percentage: number | null;
+  fixed_amount: number | null;
+  due_offset_days: number;
+  status: InvoiceScheduleStatus;
+  invoice_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PurchaseOrder = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  supplier_id: string | null;
+  po_number: string;
+  status: PurchaseOrderStatus;
+  total_amount: number;
+  notes: string | null;
+  issued_at: string | null;
+  created_at: string;
+  updated_at: string;
+  supplier?: Pick<Supplier, "id" | "name"> | null;
+};
+
+export type SupplierReconciliation = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  purchase_order_id: string | null;
+  supplier_id: string | null;
+  entry_type: SupplierReconciliationEntryType;
+  reference_number: string | null;
+  amount: number;
+  status: SupplierReconciliationStatus;
+  created_at: string;
+  updated_at: string;
+  supplier?: Pick<Supplier, "id" | "name"> | null;
 };
 
 export type Expense = {
@@ -547,13 +818,26 @@ export type LeadWithRelations = Lead & {
 
 export type JobWithRelations = Job & {
   customer?: Pick<Customer, "id" | "full_name" | "phone" | "address_line1" | "postcode"> | null;
+  site?: Pick<Site, "id" | "label" | "address_line1" | "postcode" | "city" | "access_notes" | "parking_notes"> | null;
+  site_contact?: Pick<SiteContact, "id" | "full_name" | "phone" | "email" | "role_label"> | null;
   service?: Pick<Service, "id" | "name"> | null;
   job_type?: Pick<JobType, "id" | "name"> | null;
+  assignees?: JobAssignee[];
+  phases?: JobPhase[];
+  variations?: JobVariation[];
+  hazards?: JobHazard[];
+  checklists?: JobChecklist[];
+  certificates?: JobCertificate[];
+  purchaseOrders?: PurchaseOrder[];
+  supplierReconciliation?: SupplierReconciliation[];
 };
 
 export type QuoteWithRelations = Quote & {
   customer?: Pick<Customer, "id" | "full_name" | "address_line1" | "postcode" | "phone"> | null;
   job?: Pick<Job, "id" | "title"> | null;
+  versions?: QuoteVersion[];
+  acceptance?: QuoteAcceptance | null;
+  invoiceSchedules?: InvoiceSchedule[];
 };
 
 export type InvoiceWithRelations = Invoice & {

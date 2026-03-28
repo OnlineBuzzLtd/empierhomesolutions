@@ -12,6 +12,7 @@ export function QuoteCreateForm({
   templateLabel,
   endpoint = "/api/crm/quotes",
   submitLabel = "Create Quote",
+  includeChangeSummary = false,
 }: {
   customers: Customer[];
   jobs: Job[];
@@ -22,6 +23,7 @@ export function QuoteCreateForm({
   templateLabel?: string | null;
   endpoint?: string;
   submitLabel?: string;
+  includeChangeSummary?: boolean;
 }) {
   return (
     <ApiForm endpoint={endpoint} submitLabel={submitLabel} className="space-y-3">
@@ -49,6 +51,10 @@ export function QuoteCreateForm({
             </option>
           ))}
         </select>
+        <select name="document_type" defaultValue={initialQuote?.document_type ?? "quote"} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="quote">Quote</option>
+          <option value="estimate">Estimate</option>
+        </select>
         <input name="vat_rate" type="number" step="0.01" min="0" max="1" defaultValue={initialQuote?.vat_rate ?? 0.2} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         <select name="status" defaultValue={initialQuote?.status ?? "draft"} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
           <option value="draft">Draft</option>
@@ -63,6 +69,9 @@ export function QuoteCreateForm({
         </select>
         <input name="valid_until" type="date" defaultValue={initialQuote?.valid_until ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </div>
+      {includeChangeSummary ? (
+        <input name="change_summary" placeholder="Revision summary" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      ) : null}
       <LineItemsEditor
         key={JSON.stringify({
           templateLabel,

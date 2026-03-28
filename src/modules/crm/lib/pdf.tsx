@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
-import type { InvoiceWithRelations, QuoteWithRelations } from "@/modules/crm/types";
+import type { InvoiceWithRelations, QuoteWithRelations, TenantBranding, TenantSettings } from "@/modules/crm/types";
 import { formatCurrency } from "@/modules/crm/lib/format";
 
 const styles = StyleSheet.create({
@@ -39,11 +39,19 @@ const styles = StyleSheet.create({
   },
 });
 
-function QuotePdfDocument({ quote }: { quote: QuoteWithRelations }) {
+type PdfTenantContext = {
+  branding: TenantBranding | null;
+  settings: TenantSettings | null;
+};
+
+function QuotePdfDocument({ quote, context }: { quote: QuoteWithRelations; context: PdfTenantContext }) {
+  const businessName = context.branding?.business_name ?? "CRM Workspace";
+  const documentTitle = quote.document_type === "estimate" ? "Estimate" : "Quote";
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.heading}>Empire Home Solutions Quote</Text>
+        <Text style={styles.heading}>{businessName} {documentTitle}</Text>
         <View style={styles.row}>
           <View>
             <Text style={styles.subheading}>{quote.quote_number}</Text>
@@ -56,6 +64,12 @@ function QuotePdfDocument({ quote }: { quote: QuoteWithRelations }) {
             <Text>{quote.customer?.postcode ?? ""}</Text>
           </View>
         </View>
+        {(context.branding?.primary_phone || context.branding?.support_email) ? (
+          <View style={{ marginBottom: 12 }}>
+            {context.branding?.primary_phone ? <Text>Phone: {context.branding.primary_phone}</Text> : null}
+            {context.branding?.support_email ? <Text>Email: {context.branding.support_email}</Text> : null}
+          </View>
+        ) : null}
         <Text style={styles.subheading}>Line items</Text>
         {quote.line_items.map((item, index) => (
           <View key={`${item.description}-${index}`} style={styles.tableRow}>
@@ -79,16 +93,19 @@ function QuotePdfDocument({ quote }: { quote: QuoteWithRelations }) {
             <Text>{formatCurrency(quote.total)}</Text>
           </View>
         </View>
+        {context.settings?.quote_footer ? <Text style={{ marginTop: 24 }}>{context.settings.quote_footer}</Text> : null}
       </Page>
     </Document>
   );
 }
 
-function InvoicePdfDocument({ invoice }: { invoice: InvoiceWithRelations }) {
+function InvoicePdfDocument({ invoice, context }: { invoice: InvoiceWithRelations; context: PdfTenantContext }) {
+  const businessName = context.branding?.business_name ?? "CRM Workspace";
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.heading}>Empire Home Solutions Invoice</Text>
+        <Text style={styles.heading}>{businessName} Invoice</Text>
         <View style={styles.row}>
           <View>
             <Text style={styles.subheading}>{invoice.invoice_number}</Text>
@@ -101,6 +118,12 @@ function InvoicePdfDocument({ invoice }: { invoice: InvoiceWithRelations }) {
             <Text>{invoice.customer?.postcode ?? ""}</Text>
           </View>
         </View>
+        {(context.branding?.primary_phone || context.branding?.support_email) ? (
+          <View style={{ marginBottom: 12 }}>
+            {context.branding?.primary_phone ? <Text>Phone: {context.branding.primary_phone}</Text> : null}
+            {context.branding?.support_email ? <Text>Email: {context.branding.support_email}</Text> : null}
+          </View>
+        ) : null}
         <Text style={styles.subheading}>Line items</Text>
         {invoice.line_items.map((item, index) => (
           <View key={`${item.description}-${index}`} style={styles.tableRow}>
@@ -124,15 +147,16 @@ function InvoicePdfDocument({ invoice }: { invoice: InvoiceWithRelations }) {
             <Text>{formatCurrency(invoice.total)}</Text>
           </View>
         </View>
+        {context.settings?.invoice_footer ? <Text style={{ marginTop: 24 }}>{context.settings.invoice_footer}</Text> : null}
       </Page>
     </Document>
   );
 }
 
-export async function renderQuotePdf(quote: QuoteWithRelations) {
-  return pdf(<QuotePdfDocument quote={quote} />).toBlob();
+export async function renderQuotePdf(quote: QuoteWithRelations, context: PdfTenantContext) {
+  return pdf(<QuotePdfDocument quote={quote} context={context} />).toBlob();
 }
 
-export async function renderInvoicePdf(invoice: InvoiceWithRelations) {
-  return pdf(<InvoicePdfDocument invoice={invoice} />).toBlob();
+export async function renderInvoicePdf(invoice: InvoiceWithRelations, context: PdfTenantContext) {
+  return pdf(<InvoicePdfDocument invoice={invoice} context={context} />).toBlob();
 }

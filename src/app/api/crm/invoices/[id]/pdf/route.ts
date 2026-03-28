@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { renderInvoicePdf } from "@/modules/crm/lib/pdf";
 import { getInvoiceDetail } from "@/modules/crm/lib/data";
 import { requireCrmApiUser } from "@/modules/crm/lib/api";
+import type { TenantSettings } from "@/modules/crm/types";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireCrmApiUser();
@@ -16,7 +17,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return new Response("Not found", { status: 404 });
   }
 
-  const buffer = await renderInvoicePdf(invoiceDetail.invoice);
+  const { data: tenantSettings } = await auth.session.supabase
+    .schema("crm")
+    .from("tenant_settings")
+    .select("*")
+    .eq("tenant_id", auth.session.tenant.id)
+    .maybeSingle<TenantSettings>();
+
+  const buffer = await renderInvoicePdf(invoiceDetail.invoice, {
+    branding: auth.session.branding ?? null,
+    settings: tenantSettings ?? null,
+  });
   return new Response(buffer, {
     headers: {
       "Content-Type": "application/pdf",

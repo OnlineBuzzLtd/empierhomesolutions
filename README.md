@@ -20,6 +20,12 @@ The CRM is no longer a single-business Empire-only workspace. It now supports:
 - hazards, checklists, certificates, purchase orders, and supplier reconciliation
 - demo bootstrap and live smoke coverage against the linked backend
 
+Current Empire tenant state:
+
+- tenant 1 (`Empire Home Solutions`) is now production-only; tenant-level demo mode is disabled there
+- the public Empire website lead form writes into tenant 1 CRM
+- seeded non-demo admin/engineer roleplay jobs are available in tenant 1 so office and field users can exercise the same live workflow
+
 ## Local Setup
 
 1. Install dependencies:
@@ -84,6 +90,12 @@ CRM:
 - `http://localhost:3000/reports`
 - `http://localhost:3000/settings`
 
+Live CRM:
+
+- `https://empire-home-solutions.vercel.app/login`
+- `https://empire-home-solutions.vercel.app/signup`
+- `https://empire-home-solutions.vercel.app/dashboard`
+
 ## What This Branch Includes
 
 Landing pages:
@@ -108,6 +120,9 @@ CRM:
 - production-safe demo mode with seeded demo data and guided replay
 - Supabase migrations for tenancy, sites/site contacts, job assignees, phases, variations, quote versions, quote acceptance, invoice schedules, compliance workflows, supplier control, and RLS hardening
 - live smoke coverage for route protection, role permissions, feature workflows, demo bootstrap, and tenant isolation
+- production hardening for website lead intake, duplicate-review metadata, and safer customer matching
+- production-only tenant-1 configuration with real admin/engineer roleplay data
+- engineer job-note and attachment form handling validated end-to-end on live tenant-1 jobs
 
 ## Supabase Notes
 
@@ -124,6 +139,12 @@ Empire Home Solutions is the seeded first tenant. New workspaces can be created 
 
 - `http://localhost:3000/signup`
 - `http://localhost:3000/settings` as a management/admin user
+
+For Empire tenant 1 specifically:
+
+- demo mode is disabled
+- the public landing-page lead flow is wired into this tenant
+- production roleplay validation has been run with real non-demo admin + engineer accounts against shared live jobs
 
 ## Scripts
 

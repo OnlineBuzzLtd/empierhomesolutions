@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-03-29
+
+### Added
+
+- Real non-demo tenant-1 admin/engineer roleplay workflow data so office and field users can work against the same live job, calendar, notes, and attachment records
+
+### Changed
+
+- Disabled demo mode for tenant 1 only and removed tenant-1 demo memberships, demo profiles, demo walkthrough records, and demo auth users so Empire now runs as production-only CRM data
+- Hardened website lead intake so tenant-1 landing-page enquiries are tenant-scoped, use stricter customer matching, dedupe repeated submissions inside the intake window, and preserve duplicate-review metadata instead of creating noisy duplicate leads
+- Improved lead cards to surface linked customer phone, email, address/postcode, and a direct customer link for office users
+- Normalized blank optional select values to `null` across CRM validation so create/update flows no longer fail when fields such as `Unassigned` submit `""` instead of a UUID/date/time value
+- Fixed engineer job note and attachment forms so the real page buttons now submit reliably through the client UI and sync immediately back to admin on the same job
+
+### Verified
+
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
+- `supabase db push --linked`
+- live website lead submission against `https://empire-home-solutions.vercel.app/api/lead`
+- local engineer UI roleplay on seeded tenant-1 job `da2b191a-2d4c-427a-9297-0c66220e78ab`
+- live engineer UI roleplay on seeded tenant-1 job `da2b191a-2d4c-427a-9297-0c66220e78ab`
+
 ## 2026-03-28
 
 ### Added

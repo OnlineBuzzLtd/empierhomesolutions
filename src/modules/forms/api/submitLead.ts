@@ -179,9 +179,14 @@ export function determineCustomerMatch(
   );
 
   if (strictMatch) {
+    const possibleDuplicateCustomer = customers.find(
+      (customer) =>
+        customer.id !== strictMatch.id && !(sameEmail(customer.email, cleanPayload.email) || sameName(customer.full_name, cleanPayload.name)),
+    );
+
     return {
       customerId: strictMatch.id,
-      possibleDuplicateCustomerId: null,
+      possibleDuplicateCustomerId: possibleDuplicateCustomer?.id ?? null,
       customerMatchResult: "matched",
       matchedCustomerConfidence: sameEmail(strictMatch.email, cleanPayload.email) ? "high" : "medium",
       customerUpdate: {

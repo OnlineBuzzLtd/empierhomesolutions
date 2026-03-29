@@ -120,10 +120,10 @@ export default async function LeadsPage() {
                             Existing customer history was matched safely. Historical customer attachments stay on the customer record.
                           </p>
                         ) : null}
-                        {lead.customer_match_result === "possible_duplicate" && lead.possible_duplicate_customer ? (
+                        {lead.possible_duplicate_customer ? (
                           <p className="mt-2 text-xs text-amber-700">
                             Similar customer found: {lead.possible_duplicate_customer.full_name || "Existing customer"}. Review before
-                            merging records.
+                            merging records or carrying history across.
                           </p>
                         ) : null}
                         <p className="mt-1 text-xs text-slate-500">Next action {formatRelativeTime(lead.next_action_at)}</p>

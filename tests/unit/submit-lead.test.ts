@@ -132,6 +132,31 @@ describe("website intake matching", () => {
     expect(decision.matchedExistingCustomerHistory).toBe(true);
   });
 
+  it("keeps a possible duplicate flag when a strict match and another phone-only match both exist", () => {
+    const decision = determineCustomerMatch(buildPayload(), [
+      {
+        id: "customer-1",
+        full_name: "Jon Jones",
+        email: "jonjones@testing.com",
+        phone: "07779305853",
+        address_line1: "1 Fake Street",
+        postcode: "IG1 3SW",
+      },
+      {
+        id: "customer-2",
+        full_name: "Shaz Iqbal",
+        email: "shaz@onlinebuzz.co.uk",
+        phone: "07779305853",
+        address_line1: "75 Five Oaks Lane",
+        postcode: "IG7 4FP",
+      },
+    ]);
+
+    expect(decision.customerId).toBe("customer-1");
+    expect(decision.customerMatchResult).toBe("matched");
+    expect(decision.possibleDuplicateCustomerId).toBe("customer-2");
+  });
+
   it("does not reuse a customer on phone match alone", () => {
     const decision = determineCustomerMatch(buildPayload(), [
       {

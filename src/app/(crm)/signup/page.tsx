@@ -15,6 +15,10 @@ export default function SignupPage() {
         </div>
 
         {!setup.configured && setup.message ? <SetupNotice message={setup.message} /> : <SignupForm />}
+
+        <p className="mt-6 text-center text-xs uppercase tracking-[0.25em] text-slate-500">
+          Powered by <span className="font-semibold text-slate-300">Customer Journeys AI</span>
+        </p>
       </div>
     </div>
   );

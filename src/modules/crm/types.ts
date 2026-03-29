@@ -810,7 +810,7 @@ export type CustomerWithCounts = Customer & {
 };
 
 export type LeadWithRelations = Lead & {
-  customer?: Pick<Customer, "id" | "full_name" | "phone" | "postcode"> | null;
+  customer?: Pick<Customer, "id" | "full_name" | "phone" | "email" | "address_line1" | "postcode"> | null;
   service?: Pick<Service, "id" | "name"> | null;
   job_type?: Pick<JobType, "id" | "name"> | null;
   owner?: Pick<UserProfile, "id" | "full_name" | "role"> | null;

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LeadCreateForm } from "@/modules/crm/components/forms/LeadCreateForm";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
@@ -44,10 +45,28 @@ export default async function LeadsPage() {
                 <div key={lead.id} className="rounded-lg border border-slate-200 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">{lead.customer?.full_name ?? "Unlinked lead"}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{lead.customer?.full_name ?? "Unlinked lead"}</p>
+                        {lead.customer?.id ? (
+                          <Link href={`/customers/${lead.customer.id}`} className="text-xs font-medium text-blue-600 hover:text-blue-700">
+                            Open customer
+                          </Link>
+                        ) : null}
+                      </div>
                       <p className="mt-1 text-xs text-slate-500">
                         {lead.source || "No source"} · {lead.service?.name || "Service TBC"} · {lead.job_type?.name || "Job type TBC"}
                       </p>
+                      {lead.customer ? (
+                        <div className="mt-2 space-y-1 text-xs text-slate-600">
+                          {lead.customer.phone ? <p>Phone: {lead.customer.phone}</p> : null}
+                          {lead.customer.email ? <p>Email: {lead.customer.email}</p> : null}
+                          {lead.customer.address_line1 || lead.customer.postcode ? (
+                            <p>
+                              Address: {[lead.customer.address_line1, lead.customer.postcode].filter(Boolean).join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <p className="mt-1 text-xs text-slate-500">Next action {formatRelativeTime(lead.next_action_at)}</p>
                     </div>
                     <StatusBadge config={leadStatusConfig[lead.status]} />

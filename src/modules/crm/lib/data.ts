@@ -511,7 +511,7 @@ export async function listLeads(mode?: CrmMode) {
   const leadsQuery = supabase
     .schema("crm")
     .from("leads")
-    .select("*, customer:customers(id, full_name, phone, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select("*, customer:customers(id, full_name, phone, email, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
   const { data } = await leadsQuery.order("created_at", { ascending: false });
   return (data ?? []) as LeadWithRelations[];

@@ -11,6 +11,7 @@ export async function getCrmDemoState(): Promise<CrmDemoState> {
   const resolvedMode = resolveCrmDemoMode({
     cookieValue,
     isDemoUser: session.profile?.is_demo,
+    demoEnabled: session.settings?.demo_mode_enabled ?? true,
   });
   const pathname = headerStore.get("x-crm-pathname") ?? "";
   const steps = await resolveCrmDemoSteps(crmDemoSteps, resolvedMode.active);

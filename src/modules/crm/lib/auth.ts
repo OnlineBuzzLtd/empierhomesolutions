@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import type { CrmRole, Tenant, TenantBranding, TenantMembership, UserProfile } from "@/modules/crm/types";
+import type { CrmRole, Tenant, TenantBranding, TenantMembership, TenantSettings, UserProfile } from "@/modules/crm/types";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 
@@ -17,6 +17,7 @@ export async function getCrmSession() {
       memberships: [] as TenantMembership[],
       tenant: null as Tenant | null,
       branding: null as TenantBranding | null,
+      settings: null as TenantSettings | null,
       configured: false,
     };
   }
@@ -29,7 +30,7 @@ export async function getCrmSession() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { user: null, profile: null, membership: null, memberships: [], tenant: null, branding: null, configured: true };
+    return { user: null, profile: null, membership: null, memberships: [], tenant: null, branding: null, settings: null, configured: true };
   }
 
   const { data: memberships } = await supabase
@@ -49,10 +50,10 @@ export async function getCrmSession() {
   const tenant = membership?.tenant ?? null;
 
   if (!membership || !tenant) {
-    return { user, profile: null, membership: null, memberships: resolvedMemberships, tenant: null, branding: null, configured: true };
+    return { user, profile: null, membership: null, memberships: resolvedMemberships, tenant: null, branding: null, settings: null, configured: true };
   }
 
-  const [{ data: profile }, { data: branding }] = await Promise.all([
+  const [{ data: profile }, { data: branding }, { data: settings }] = await Promise.all([
     supabase
       .schema("crm")
       .from("user_profiles")
@@ -66,6 +67,12 @@ export async function getCrmSession() {
       .select("*")
       .eq("tenant_id", membership.tenant_id)
       .maybeSingle<TenantBranding>(),
+    supabase
+      .schema("crm")
+      .from("tenant_settings")
+      .select("*")
+      .eq("tenant_id", membership.tenant_id)
+      .maybeSingle<TenantSettings>(),
   ]);
 
   const derivedProfile =
@@ -97,6 +104,7 @@ export async function getCrmSession() {
     memberships: resolvedMemberships,
     tenant,
     branding: branding ?? null,
+    settings: settings ?? null,
     configured: true,
   };
 }

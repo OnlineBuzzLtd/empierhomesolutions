@@ -48,7 +48,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const [session, aiHubAddon] = await Promise.all([getCrmSession(), getAddonState("ai_comms_hub")]);
   const demoState = await getCrmDemoState();
   const setup = getCrmSetupState();
-  const canManageDemo = userCanManageSettings(session.profile?.role) && !session.profile?.is_demo;
+  const canManageDemo = userCanManageSettings(session.profile?.role) && !session.profile?.is_demo && session.settings?.demo_mode_enabled !== false;
   const isEngineer = session.profile?.role === "engineer";
   const navItems = isEngineer
     ? engineerNavItems

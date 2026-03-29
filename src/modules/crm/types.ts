@@ -145,6 +145,7 @@ export type TenantSettings = {
   invoice_footer: string | null;
   quote_footer: string | null;
   certificate_footer: string | null;
+  demo_mode_enabled: boolean;
   default_payment_terms: Record<string, unknown>;
   created_at: string;
   updated_at: string;

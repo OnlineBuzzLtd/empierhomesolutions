@@ -8,6 +8,10 @@ export async function POST() {
     return auth.error;
   }
 
+  if (auth.session.settings?.demo_mode_enabled === false) {
+    return NextResponse.json({ error: "Demo mode is disabled for this workspace." }, { status: 403 });
+  }
+
   const response = NextResponse.json({
     ok: true,
     active: true,

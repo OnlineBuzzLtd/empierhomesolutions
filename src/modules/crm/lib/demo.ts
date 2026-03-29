@@ -289,7 +289,16 @@ export function findCrmDemoStepIndex(pathname: string) {
   return crmDemoSteps.findIndex((step) => pathname === step.route || pathname.startsWith(`${step.route}/`));
 }
 
-export function resolveCrmDemoMode(options: { cookieValue?: string | null; isDemoUser?: boolean }) {
+export function resolveCrmDemoMode(options: { cookieValue?: string | null; isDemoUser?: boolean; demoEnabled?: boolean }) {
+  if (options.demoEnabled === false) {
+    return {
+      active: false,
+      mode: "live",
+      scenarioKey: null,
+      locked: false,
+    } satisfies Pick<CrmDemoState, "active" | "mode" | "scenarioKey" | "locked">;
+  }
+
   const locked = Boolean(options.isDemoUser);
   const active = locked || options.cookieValue === crmDemoScenarioKey;
 

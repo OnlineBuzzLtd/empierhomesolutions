@@ -4,7 +4,7 @@ import { ZodSchema } from "zod";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { getCrmSession } from "@/modules/crm/lib/auth";
 import { buildInvoiceNumber, buildQuoteNumber } from "@/modules/crm/lib/numbers";
-import type { CrmRole, LineItem, Tenant, TenantBranding, TenantMembership, UserProfile } from "@/modules/crm/types";
+import type { CrmRole, LineItem, Tenant, TenantBranding, TenantMembership, TenantSettings, UserProfile } from "@/modules/crm/types";
 
 export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -21,6 +21,7 @@ export type CrmApiSession = {
   membership: TenantMembership;
   tenant: Tenant;
   branding: TenantBranding | null;
+  settings: TenantSettings | null;
 };
 
 export async function parseJsonBody<T>(request: Request, schema: ZodSchema<T>) {
@@ -111,6 +112,7 @@ export async function requireCrmApiUser(allowedRoles?: CrmRole[]) {
       membership: session.membership,
       tenant: session.tenant,
       branding: session.branding ?? null,
+      settings: session.settings ?? null,
     } satisfies CrmApiSession,
   };
 }

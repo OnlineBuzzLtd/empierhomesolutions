@@ -5,10 +5,12 @@
 ### Added
 
 - Real non-demo tenant-1 admin/engineer roleplay workflow data so office and field users can work against the same live job, calendar, notes, and attachment records
+- Reusable tenant-1 production scenario seed script plus a roleplay guide covering the best live jobs, leads, and user accounts for buyer demos
 
 ### Changed
 
 - Disabled demo mode for tenant 1 only and removed tenant-1 demo memberships, demo profiles, demo walkthrough records, and demo auth users so Empire now runs as production-only CRM data
+- Replaced the old tenant-1 roleplay/demo dataset with a realistic 14-day production scenario set covering repair, service, install, landlord, plumbing, cylinder, commercial, and quoting workflows
 - Hardened website lead intake so tenant-1 landing-page enquiries are tenant-scoped, use stricter customer matching, dedupe repeated submissions inside the intake window, and preserve duplicate-review metadata instead of creating noisy duplicate leads
 - Improved lead cards to surface linked customer phone, email, address/postcode, and a direct customer link for office users
 - Normalized blank optional select values to `null` across CRM validation so create/update flows no longer fail when fields such as `Unassigned` submit `""` instead of a UUID/date/time value
@@ -16,6 +18,7 @@
 
 ### Verified
 
+- `node scripts/tenant1-production-scenarios-seed.mjs`
 - `npm run typecheck`
 - `npm test`
 - `npm run build`

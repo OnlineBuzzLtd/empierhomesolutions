@@ -25,6 +25,7 @@ Current Empire tenant state:
 - tenant 1 (`Empire Home Solutions`) is now production-only; tenant-level demo mode is disabled there
 - the public Empire website lead form writes into tenant 1 CRM
 - seeded non-demo admin/engineer roleplay jobs are available in tenant 1 so office and field users can exercise the same live workflow
+- tenant 1 can be reset to a realistic 14-day production scenario set with `node scripts/tenant1-production-scenarios-seed.mjs`
 
 ## Local Setup
 
@@ -123,6 +124,7 @@ CRM:
 - production hardening for website lead intake, duplicate-review metadata, and safer customer matching
 - production-only tenant-1 configuration with real admin/engineer roleplay data
 - engineer job-note and attachment form handling validated end-to-end on live tenant-1 jobs
+- reusable tenant-1 production scenario seeding for buyer roleplay with realistic customers, leads, jobs, appointments, quotes, invoices, compliance records, and purchase orders
 
 ## Supabase Notes
 
@@ -157,6 +159,7 @@ For Empire tenant 1 specifically:
 - `npm run crm:smoke:features`
 - `npm run crm:demo:bootstrap`
 - `npm run crm:smoke:demo`
+- `node scripts/tenant1-production-scenarios-seed.mjs`
 
 ## Demo Mode
 
@@ -171,6 +174,7 @@ For Empire tenant 1 specifically:
 - `docs/crm-prd.md`
 - `docs/crm-saas-fergus-launch-prd.md`
 - `docs/crm-prod-readiness.md`
+- `docs/tenant1-roleplay-guide.md`
 - `docs/paid-lp-foundation-task-list.md`
 - `docs/reporting-dashboard-spec.md`
 - `docs/deployment-pipeline.md`

@@ -4,6 +4,8 @@ import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import type { Attribution } from "@/modules/tracking/attribution";
 import { z } from "zod";
 
+const LANDING_PAGE_TENANT_SLUG = "empire-home-solutions";
+
 const attributionSchema = z
   .object({
     utm_source: z.string().optional(),
@@ -148,6 +150,21 @@ function buildLeadNotes(cleanPayload: ReturnType<typeof sanitizeLeadPayload>) {
   return noteLines.join("\n");
 }
 
+async function resolveLandingPageTenantId(admin: ReturnType<typeof createCrmServiceRoleClient>) {
+  const { data: tenant, error } = await admin
+    .schema("crm")
+    .from("tenants")
+    .select("id")
+    .eq("slug", LANDING_PAGE_TENANT_SLUG)
+    .maybeSingle();
+
+  if (error || !tenant) {
+    throw new Error(error?.message ?? `Tenant ${LANDING_PAGE_TENANT_SLUG} could not be resolved.`);
+  }
+
+  return tenant.id;
+}
+
 async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
   const crmEnv = getCrmEnv();
   if (!crmEnv.adminEnabled) {
@@ -164,18 +181,33 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
   const cleanPayload = sanitizeLeadPayload(lead);
   const admin = createCrmServiceRoleClient();
   const leadNotes = buildLeadNotes(cleanPayload);
+  let tenantId: string;
+
+  try {
+    tenantId = await resolveLandingPageTenantId(admin);
+  } catch (error) {
+    return {
+      ok: false,
+      status: 500,
+      error: {
+        code: "tenant_resolve_failed",
+        message: error instanceof Error ? error.message : "CRM tenant could not be resolved.",
+      },
+    };
+  }
 
   const serviceSlug = serviceSlugByLeadType[cleanPayload.leadType];
   const jobTypeSlug = jobTypeSlugByLeadType[cleanPayload.leadType];
 
   const [{ data: service }, { data: existingCustomer }] = await Promise.all([
     serviceSlug
-      ? admin.schema("crm").from("services").select("id").eq("slug", serviceSlug).maybeSingle()
+      ? admin.schema("crm").from("services").select("id").eq("tenant_id", tenantId).eq("slug", serviceSlug).maybeSingle()
       : Promise.resolve({ data: null }),
     admin
       .schema("crm")
       .from("customers")
       .select("id, notes, email, address_line1")
+      .eq("tenant_id", tenantId)
       .eq("phone", cleanPayload.phone)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -190,6 +222,7 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
       .schema("crm")
       .from("job_types")
       .select("id")
+      .eq("tenant_id", tenantId)
       .eq("service_id", serviceId)
       .eq("slug", jobTypeSlug)
       .maybeSingle();
@@ -204,6 +237,7 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
       .schema("crm")
       .from("customers")
       .insert({
+        tenant_id: tenantId,
         full_name: cleanPayload.name,
         email: cleanPayload.email || null,
         phone: cleanPayload.phone,
@@ -247,6 +281,7 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
     .schema("crm")
     .from("leads")
     .insert({
+      tenant_id: tenantId,
       customer_id: customerId,
       service_id: serviceId,
       job_type_id: jobTypeId,
@@ -270,11 +305,13 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
 
   await admin.schema("crm").from("notes").insert([
     {
+      tenant_id: tenantId,
       entity_type: "customer",
       entity_id: customerId,
       body: `Website enquiry received.\n${leadNotes}`,
     },
     {
+      tenant_id: tenantId,
       entity_type: "lead",
       entity_id: createdLead.id,
       body: `Website enquiry received.\n${leadNotes}`,

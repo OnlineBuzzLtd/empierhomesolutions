@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, engineerAiAssistActions, expenseCategories, invoiceStatuses, jobCertificateStatuses, jobChecklistStatuses, jobHazardStatuses, jobPhaseStatuses, jobStatuses, jobVariationStatuses, leadStatuses, paymentStatuses, paymentTypes, purchaseOrderStatuses, quoteDocumentTypes, quoteStatuses, supplierReconciliationEntryTypes, supplierReconciliationStatuses, supportedEntityTypes } from "@/modules/crm/types";
 
+const emptyStringToNull = (v: unknown) => (v === "" ? null : v);
+
 function parseCheckboxIdList(value: unknown) {
   if (Array.isArray(value)) {
     return value
@@ -40,24 +42,24 @@ export const customerSchema = z.object({
 });
 
 export const leadSchema = z.object({
-  customer_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  job_type_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  customer_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  job_type_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   status: z.enum(leadStatuses),
   lost_reason: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
-  assigned_to: z.string().uuid().optional().or(z.literal("")).nullable(),
+  assigned_to: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   next_action_at: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
 export const jobSchema = z.object({
   customer_id: z.string().uuid(),
-  site_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  site_contact_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  lead_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  job_type_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  site_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  site_contact_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  lead_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  job_type_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   title: z.string().min(2),
   description: z.string().optional().nullable(),
   scheduled_date: z.string().optional().nullable(),
@@ -140,7 +142,7 @@ export const invoiceScheduleSchema = z.object({
 });
 
 export const invoiceSchema = z.object({
-  quote_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  quote_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   job_id: z.string().uuid(),
   customer_id: z.string().uuid(),
   line_items: z.array(lineItemSchema).min(1),
@@ -151,7 +153,7 @@ export const invoiceSchema = z.object({
 });
 
 export const expenseSchema = z.object({
-  job_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  job_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   description: z.string().min(2),
   amount: z.coerce.number().nonnegative(),
   category: z.enum(expenseCategories),
@@ -159,8 +161,8 @@ export const expenseSchema = z.object({
 });
 
 export const paymentSchema = z.object({
-  invoice_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  quote_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  invoice_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  quote_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   customer_id: z.string().uuid(),
   payment_type: z.enum(paymentTypes),
   amount: z.coerce.number().positive(),
@@ -172,10 +174,10 @@ export const paymentSchema = z.object({
 });
 
 export const appointmentSchema = z.object({
-  customer_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  lead_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  job_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  assigned_to: z.string().uuid().optional().or(z.literal("")).nullable(),
+  customer_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  lead_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  job_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  assigned_to: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   type: z.enum(appointmentTypes),
   title: z.string().min(2),
   starts_at: z.string().min(1),
@@ -205,8 +207,8 @@ export const jobTypeSchema = z.object({
 export const customFieldDefinitionSchema = z.object({
   id: z.string().uuid().optional(),
   entity_type: z.enum(supportedEntityTypes),
-  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  job_type_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  job_type_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   field_key: z.string().min(2),
   label: z.string().min(2),
   field_type: z.enum(customFieldTypes),
@@ -219,8 +221,8 @@ export const customFieldDefinitionSchema = z.object({
 export const requiredDocumentRuleSchema = z.object({
   id: z.string().uuid().optional(),
   entity_type: z.enum(["lead", "job", "asset"]),
-  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  job_type_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  job_type_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   pipeline_stage: z.string().optional().nullable(),
   document_type: z.string().min(2),
   required: z.coerce.boolean().default(true),
@@ -259,7 +261,7 @@ export const supplierSchema = z.object({
 });
 
 export const purchaseOrderSchema = z.object({
-  supplier_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  supplier_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   po_number: z.string().min(2),
   status: z.enum(purchaseOrderStatuses).default("draft"),
   total_amount: z.coerce.number().nonnegative(),
@@ -268,8 +270,8 @@ export const purchaseOrderSchema = z.object({
 });
 
 export const supplierReconciliationSchema = z.object({
-  purchase_order_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  supplier_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  purchase_order_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  supplier_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   entry_type: z.enum(supplierReconciliationEntryTypes),
   reference_number: z.string().optional().nullable(),
   amount: z.coerce.number(),
@@ -278,8 +280,8 @@ export const supplierReconciliationSchema = z.object({
 
 export const productSchema = z.object({
   id: z.string().uuid().optional(),
-  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  supplier_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  supplier_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   category: z.string().optional().nullable(),
   name: z.string().min(2),
   sku: z.string().optional().nullable(),
@@ -292,8 +294,8 @@ export const productSchema = z.object({
 
 export const quoteTemplateSchema = z.object({
   id: z.string().uuid().optional(),
-  service_id: z.string().uuid().optional().or(z.literal("")).nullable(),
-  job_type_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  job_type_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   name: z.string().min(2),
   description: z.string().optional().nullable(),
   line_items: z.array(lineItemSchema).default([]),

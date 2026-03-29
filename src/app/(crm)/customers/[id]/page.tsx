@@ -178,6 +178,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </SectionCard>
 
         <SectionCard title={`Attachments (${attachments.length})`}>
+          <p className="mb-3 text-xs text-slate-500">
+            Customer attachments are historical files tied to this customer record. Website enquiries do not automatically add files here
+            unless someone uploads them to the customer, lead, or job later.
+          </p>
           <AttachmentList attachments={attachments} canDelete={userCanManageSettings(session.profile?.role)} />
           <div className="mt-4">
             <AttachmentUploadForm entityType="customer" entityId={customer.id} />

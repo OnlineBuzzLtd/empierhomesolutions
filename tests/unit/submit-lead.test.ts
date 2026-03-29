@@ -2,6 +2,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 let leadRequestSchema: typeof import("@/modules/forms/api/submitLead").leadRequestSchema;
 let sanitizeLeadPayload: typeof import("@/modules/forms/api/submitLead").sanitizeLeadPayload;
+let determineCustomerMatch: typeof import("@/modules/forms/api/submitLead").determineCustomerMatch;
+let buildSubmissionFingerprint: typeof import("@/modules/forms/api/submitLead").buildSubmissionFingerprint;
+let isWithinLeadDedupeWindow: typeof import("@/modules/forms/api/submitLead").isWithinLeadDedupeWindow;
 
 beforeAll(async () => {
   process.env.NEXT_PUBLIC_SITE_URL ??= "https://empirehomesolutions.co.uk";
@@ -10,6 +13,9 @@ beforeAll(async () => {
   const submitLeadModule = await import("@/modules/forms/api/submitLead");
   leadRequestSchema = submitLeadModule.leadRequestSchema;
   sanitizeLeadPayload = submitLeadModule.sanitizeLeadPayload;
+  determineCustomerMatch = submitLeadModule.determineCustomerMatch;
+  buildSubmissionFingerprint = submitLeadModule.buildSubmissionFingerprint;
+  isWithinLeadDedupeWindow = submitLeadModule.isWithinLeadDedupeWindow;
 });
 
 describe("lead request schema", () => {
@@ -85,5 +91,108 @@ describe("sanitizeLeadPayload", () => {
     expect(payload.email).toBe("jane.smith@example.com");
     expect(payload.address_line1).toBe("12 High Street");
     expect(payload.postcode).toBe("UB8 1AA");
+  });
+});
+
+describe("website intake matching", () => {
+  function buildPayload() {
+    return sanitizeLeadPayload({
+      name: "Jon Jones",
+      email: "jonjones@testing.com",
+      house_name_number: "1",
+      street: "Fake Street",
+      postcode: "IG1 3SW",
+      phone: "07779 305853",
+      issue: "Boiler not working",
+      companyWebsite: "",
+      pagePath: "/lp/boiler-installation/uxbridge",
+      service: "boilers",
+      location: "Uxbridge",
+      leadType: "install",
+      origin: "https://empirehomesolutions.co.uk",
+      attribution: {},
+    });
+  }
+
+  it("reuses an existing customer only when phone and email or name match", () => {
+    const decision = determineCustomerMatch(buildPayload(), [
+      {
+        id: "customer-1",
+        full_name: "Jon Jones",
+        email: "jonjones@testing.com",
+        phone: "07779305853",
+        address_line1: "1 Fake Street",
+        postcode: "IG1 3SW",
+      },
+    ]);
+
+    expect(decision.customerId).toBe("customer-1");
+    expect(decision.customerMatchResult).toBe("matched");
+    expect(decision.possibleDuplicateCustomerId).toBeNull();
+    expect(decision.matchedExistingCustomerHistory).toBe(true);
+  });
+
+  it("does not reuse a customer on phone match alone", () => {
+    const decision = determineCustomerMatch(buildPayload(), [
+      {
+        id: "customer-2",
+        full_name: "Shaz Iqbal",
+        email: "shaz@onlinebuzz.co.uk",
+        phone: "07779305853",
+        address_line1: "75 Five Oaks Lane",
+        postcode: "IG7 4FP",
+      },
+    ]);
+
+    expect(decision.customerId).toBeNull();
+    expect(decision.customerMatchResult).toBe("possible_duplicate");
+    expect(decision.possibleDuplicateCustomerId).toBe("customer-2");
+    expect(decision.matchedExistingCustomerHistory).toBe(false);
+  });
+});
+
+describe("website intake dedupe", () => {
+  function buildPayload() {
+    return sanitizeLeadPayload({
+      name: "Jon Jones",
+      email: "jonjones@testing.com",
+      house_name_number: "1",
+      street: "Fake Street",
+      postcode: "IG1 3SW",
+      phone: "07779 305853",
+      issue: "Boiler not working",
+      companyWebsite: "",
+      pagePath: "/lp/boiler-installation/uxbridge",
+      service: "boilers",
+      location: "Uxbridge",
+      leadType: "install",
+      origin: "https://empirehomesolutions.co.uk",
+      attribution: {},
+    });
+  }
+
+  it("builds the same fingerprint for identical submissions", () => {
+    const cleanPayload = buildPayload();
+    const sameFingerprint = buildSubmissionFingerprint({
+      ...cleanPayload,
+      phone: "07779 305853",
+      issue: "  Boiler   not working ",
+    });
+
+    expect(sameFingerprint).toBe(buildSubmissionFingerprint(cleanPayload));
+  });
+
+  it("treats identical submissions within 15 minutes as duplicates", () => {
+    const now = new Date("2026-03-29T10:15:00.000Z");
+    const recentTimestamp = "2026-03-29T10:05:30.000Z";
+
+    expect(isWithinLeadDedupeWindow(now, recentTimestamp)).toBe(true);
+  });
+
+  it("creates a new lead outside the dedupe window", () => {
+    const now = new Date("2026-03-29T10:30:00.000Z");
+    const oldTimestamp = "2026-03-29T10:05:30.000Z";
+
+    expect(isWithinLeadDedupeWindow(now, oldTimestamp)).toBe(false);
   });
 });

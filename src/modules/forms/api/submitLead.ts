@@ -1,10 +1,15 @@
 import { getServerEnv, publicEnv } from "@/lib/env";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
+import type { LeadCustomerMatchResult, LeadDedupeResult, LeadStatus } from "@/modules/crm/types";
 import type { Attribution } from "@/modules/tracking/attribution";
 import { z } from "zod";
 
 const LANDING_PAGE_TENANT_SLUG = "empire-home-solutions";
+const WEBSITE_INTAKE_SOURCE = "website";
+const WEBSITE_CUSTOMER_SOURCE = "Website booking form";
+const LEAD_DEDUPE_WINDOW_MINUTES = 15;
+const openWebsiteLeadStatuses: LeadStatus[] = ["new", "contacted", "follow_up", "survey_booked", "quoted", "accepted"];
 
 const attributionSchema = z
   .object({
@@ -43,6 +48,10 @@ function sanitizeText(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+export function normalizeName(value: string) {
+  return sanitizeText(value).toLowerCase();
+}
+
 export function isAllowedOrigin(origin: string) {
   if (origin === publicEnv.siteUrl) {
     return true;
@@ -72,11 +81,17 @@ function sanitizeAttribution(attribution: Attribution = {}) {
   );
 }
 
-function normalizePhone(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+export function normalizePhone(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+
+  return trimmed.startsWith("+") ? `+${digits}` : digits;
 }
 
-function normalizeEmail(value: string) {
+export function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
@@ -107,6 +122,103 @@ export function sanitizeLeadPayload(lead: LeadRequest) {
     },
     attribution: sanitizeAttribution(lead.attribution),
   };
+}
+
+type CleanLeadPayload = ReturnType<typeof sanitizeLeadPayload>;
+
+type ExistingCustomerCandidate = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address_line1: string | null;
+  postcode: string | null;
+};
+
+type ExistingLeadCandidate = {
+  id: string;
+  customer_id: string | null;
+  status: LeadStatus;
+  submission_count: number | null;
+  first_submitted_at: string | null;
+};
+
+type CustomerMatchDecision = {
+  customerId: string | null;
+  possibleDuplicateCustomerId: string | null;
+  customerMatchResult: LeadCustomerMatchResult;
+  matchedCustomerConfidence: string;
+  customerUpdate: Record<string, string | null>;
+  matchedExistingCustomerHistory: boolean;
+};
+
+export function buildSubmissionFingerprint(cleanPayload: CleanLeadPayload) {
+  return [
+    normalizePhone(cleanPayload.phone),
+    cleanPayload.leadType,
+    normalizeName(cleanPayload.issue),
+    normalizeName(cleanPayload.address_line1),
+    normalizeName(cleanPayload.postcode),
+  ].join("|");
+}
+
+function sameEmail(left: string | null | undefined, right: string | null | undefined) {
+  return Boolean(left && right && normalizeEmail(left) === normalizeEmail(right));
+}
+
+function sameName(left: string | null | undefined, right: string | null | undefined) {
+  return Boolean(left && right && normalizeName(left) === normalizeName(right));
+}
+
+export function determineCustomerMatch(
+  cleanPayload: CleanLeadPayload,
+  customers: ExistingCustomerCandidate[],
+): CustomerMatchDecision {
+  const strictMatch = customers.find(
+    (customer) => sameEmail(customer.email, cleanPayload.email) || sameName(customer.full_name, cleanPayload.name),
+  );
+
+  if (strictMatch) {
+    return {
+      customerId: strictMatch.id,
+      possibleDuplicateCustomerId: null,
+      customerMatchResult: "matched",
+      matchedCustomerConfidence: sameEmail(strictMatch.email, cleanPayload.email) ? "high" : "medium",
+      customerUpdate: {
+        email: strictMatch.email || cleanPayload.email || null,
+        address_line1: strictMatch.address_line1 || cleanPayload.address_line1 || null,
+        postcode: strictMatch.postcode || cleanPayload.postcode || null,
+      },
+      matchedExistingCustomerHistory: true,
+    };
+  }
+
+  const possibleDuplicateCustomer = customers[0] ?? null;
+  return {
+    customerId: null,
+    possibleDuplicateCustomerId: possibleDuplicateCustomer?.id ?? null,
+    customerMatchResult: possibleDuplicateCustomer ? "possible_duplicate" : "new",
+    matchedCustomerConfidence: possibleDuplicateCustomer ? "low" : "high",
+    customerUpdate: {
+      email: cleanPayload.email || null,
+      address_line1: cleanPayload.address_line1,
+      postcode: cleanPayload.postcode,
+    },
+    matchedExistingCustomerHistory: false,
+  };
+}
+
+export function isWithinLeadDedupeWindow(submittedAt: Date, candidateTimestamp: string | null) {
+  if (!candidateTimestamp) {
+    return false;
+  }
+
+  const candidateTime = new Date(candidateTimestamp);
+  if (Number.isNaN(candidateTime.getTime())) {
+    return false;
+  }
+
+  return submittedAt.getTime() - candidateTime.getTime() <= LEAD_DEDUPE_WINDOW_MINUTES * 60 * 1000;
 }
 
 const serviceSlugByLeadType: Record<LeadRequest["leadType"], string | null> = {
@@ -150,6 +262,48 @@ function buildLeadNotes(cleanPayload: ReturnType<typeof sanitizeLeadPayload>) {
   return noteLines.join("\n");
 }
 
+function buildWebsiteEnquiryNote(cleanPayload: CleanLeadPayload, options?: { matchedExistingCustomerHistory?: boolean; submissionCount?: number; deduped?: boolean }) {
+  const lines = ["Website enquiry received."];
+
+  if (options?.deduped) {
+    lines.push(`This enquiry was submitted again. Submission count: ${options.submissionCount ?? 1}.`);
+  }
+
+  if (options?.matchedExistingCustomerHistory) {
+    lines.push("Existing customer history found. Historical customer files remain separate from this enquiry.");
+  }
+
+  lines.push(buildLeadNotes(cleanPayload));
+  return lines.join("\n");
+}
+
+async function createCustomer(
+  admin: ReturnType<typeof createCrmServiceRoleClient>,
+  tenantId: string,
+  cleanPayload: CleanLeadPayload,
+) {
+  const { data: customer, error } = await admin
+    .schema("crm")
+    .from("customers")
+    .insert({
+      tenant_id: tenantId,
+      full_name: cleanPayload.name,
+      email: cleanPayload.email || null,
+      phone: cleanPayload.phone,
+      address_line1: cleanPayload.address_line1,
+      postcode: cleanPayload.postcode,
+      source: WEBSITE_CUSTOMER_SOURCE,
+    })
+    .select("id")
+    .single();
+
+  if (error || !customer) {
+    throw new Error(error?.message ?? "Customer record could not be created.");
+  }
+
+  return customer.id;
+}
+
 async function resolveLandingPageTenantId(admin: ReturnType<typeof createCrmServiceRoleClient>) {
   const { data: tenant, error } = await admin
     .schema("crm")
@@ -180,7 +334,8 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
 
   const cleanPayload = sanitizeLeadPayload(lead);
   const admin = createCrmServiceRoleClient();
-  const leadNotes = buildLeadNotes(cleanPayload);
+  const submittedAt = new Date();
+  const submissionFingerprint = buildSubmissionFingerprint(cleanPayload);
   let tenantId: string;
 
   try {
@@ -199,19 +354,18 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
   const serviceSlug = serviceSlugByLeadType[cleanPayload.leadType];
   const jobTypeSlug = jobTypeSlugByLeadType[cleanPayload.leadType];
 
-  const [{ data: service }, { data: existingCustomer }] = await Promise.all([
+  const [{ data: service }, { data: existingCustomers }] = await Promise.all([
     serviceSlug
       ? admin.schema("crm").from("services").select("id").eq("tenant_id", tenantId).eq("slug", serviceSlug).maybeSingle()
       : Promise.resolve({ data: null }),
     admin
       .schema("crm")
       .from("customers")
-      .select("id, notes, email, address_line1")
+      .select("id, full_name, email, phone, address_line1, postcode")
       .eq("tenant_id", tenantId)
       .eq("phone", cleanPayload.phone)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(5),
   ]);
 
   const serviceId = service?.id ?? null;
@@ -230,51 +384,97 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
     jobTypeId = jobType?.id ?? null;
   }
 
-  let customerId = existingCustomer?.id ?? null;
+  const matchDecision = determineCustomerMatch(cleanPayload, (existingCustomers ?? []) as ExistingCustomerCandidate[]);
+  let customerId = matchDecision.customerId;
 
-  if (!customerId) {
-    const { data: customer, error: customerError } = await admin
+  try {
+    if (!customerId) {
+      customerId = await createCustomer(admin, tenantId, cleanPayload);
+    } else if (Object.keys(matchDecision.customerUpdate).length > 0) {
+      await admin
+        .schema("crm")
+        .from("customers")
+        .update(matchDecision.customerUpdate)
+        .eq("id", customerId);
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      status: 500,
+      error: {
+        code: "customer_create_failed",
+        message: error instanceof Error ? error.message : "Customer record could not be created.",
+      },
+    };
+  }
+
+  const leadNotes = buildWebsiteEnquiryNote(cleanPayload, {
+    matchedExistingCustomerHistory: matchDecision.matchedExistingCustomerHistory,
+  });
+
+  const { data: recentLead } = await admin
+    .schema("crm")
+    .from("leads")
+    .select("id, customer_id, status, submission_count, first_submitted_at, last_submitted_at, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("intake_source", WEBSITE_INTAKE_SOURCE)
+    .eq("submission_fingerprint", submissionFingerprint)
+    .in("status", openWebsiteLeadStatuses)
+    .order("last_submitted_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const dedupeCandidate = recentLead as (ExistingLeadCandidate & { created_at?: string | null; last_submitted_at?: string | null }) | null;
+  const dedupeTimestamp = dedupeCandidate?.last_submitted_at ?? dedupeCandidate?.first_submitted_at ?? dedupeCandidate?.created_at ?? null;
+
+  if (dedupeCandidate && isWithinLeadDedupeWindow(submittedAt, dedupeTimestamp)) {
+    const nextSubmissionCount = (dedupeCandidate.submission_count ?? 1) + 1;
+    const duplicateLeadNotes = buildWebsiteEnquiryNote(cleanPayload, {
+      matchedExistingCustomerHistory: matchDecision.matchedExistingCustomerHistory,
+      deduped: true,
+      submissionCount: nextSubmissionCount,
+    });
+
+    const { error: updateLeadError } = await admin
       .schema("crm")
-      .from("customers")
-      .insert({
-        tenant_id: tenantId,
-        full_name: cleanPayload.name,
-        email: cleanPayload.email || null,
-        phone: cleanPayload.phone,
-        address_line1: cleanPayload.address_line1,
-        postcode: cleanPayload.postcode,
-        source: "Website booking form",
-        notes: leadNotes,
+      .from("leads")
+      .update({
+        customer_id: customerId,
+        service_id: serviceId,
+        job_type_id: jobTypeId,
+        source: cleanPayload.attribution.utm_source || WEBSITE_CUSTOMER_SOURCE,
+        notes: duplicateLeadNotes,
+        intake_source: WEBSITE_INTAKE_SOURCE,
+        submission_fingerprint: submissionFingerprint,
+        submission_count: nextSubmissionCount,
+        last_submitted_at: submittedAt.toISOString(),
+        possible_duplicate_customer_id: matchDecision.possibleDuplicateCustomerId,
+        matched_customer_confidence: matchDecision.matchedCustomerConfidence,
+        customer_match_result: matchDecision.customerMatchResult,
+        dedupe_result: "updated_existing" satisfies LeadDedupeResult,
       })
-      .select("id")
-      .single();
+      .eq("id", dedupeCandidate.id);
 
-    if (customerError || !customer) {
+    if (updateLeadError) {
       return {
         ok: false,
         status: 500,
         error: {
-          code: "customer_create_failed",
-          message: customerError?.message ?? "Customer record could not be created.",
+          code: "lead_update_failed",
+          message: updateLeadError.message,
         },
       };
     }
 
-    customerId = customer.id;
-  } else {
-    const mergedNotes = [existingCustomer?.notes, leadNotes].filter(Boolean).join("\n\n");
-    await admin
-      .schema("crm")
-      .from("customers")
-      .update({
-        full_name: cleanPayload.name,
-        email: cleanPayload.email || existingCustomer?.email || null,
-        address_line1: cleanPayload.address_line1 || existingCustomer?.address_line1 || null,
-        postcode: cleanPayload.postcode,
-        source: "Website booking form",
-        notes: mergedNotes,
-      })
-      .eq("id", customerId);
+    await admin.schema("crm").from("notes").insert({
+      tenant_id: tenantId,
+      entity_type: "lead",
+      entity_id: dedupeCandidate.id,
+      body: duplicateLeadNotes,
+    });
+
+    return { ok: true };
   }
 
   const { data: createdLead, error: leadError } = await admin
@@ -286,8 +486,17 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
       service_id: serviceId,
       job_type_id: jobTypeId,
       status: "new",
-      source: cleanPayload.attribution.utm_source || "Website booking form",
+      source: cleanPayload.attribution.utm_source || WEBSITE_CUSTOMER_SOURCE,
       notes: leadNotes,
+      intake_source: WEBSITE_INTAKE_SOURCE,
+      submission_fingerprint: submissionFingerprint,
+      submission_count: 1,
+      first_submitted_at: submittedAt.toISOString(),
+      last_submitted_at: submittedAt.toISOString(),
+      possible_duplicate_customer_id: matchDecision.possibleDuplicateCustomerId,
+      matched_customer_confidence: matchDecision.matchedCustomerConfidence,
+      customer_match_result: matchDecision.customerMatchResult,
+      dedupe_result: "created" satisfies LeadDedupeResult,
     })
     .select("id")
     .single();
@@ -308,13 +517,13 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
       tenant_id: tenantId,
       entity_type: "customer",
       entity_id: customerId,
-      body: `Website enquiry received.\n${leadNotes}`,
+      body: leadNotes,
     },
     {
       tenant_id: tenantId,
       entity_type: "lead",
       entity_id: createdLead.id,
-      body: `Website enquiry received.\n${leadNotes}`,
+      body: leadNotes,
     },
   ]);
 

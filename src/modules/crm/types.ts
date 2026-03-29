@@ -14,6 +14,12 @@ export const leadStatuses = [
 ] as const;
 export type LeadStatus = (typeof leadStatuses)[number];
 
+export const leadCustomerMatchResults = ["matched", "new", "possible_duplicate"] as const;
+export type LeadCustomerMatchResult = (typeof leadCustomerMatchResults)[number];
+
+export const leadDedupeResults = ["created", "updated_existing"] as const;
+export type LeadDedupeResult = (typeof leadDedupeResults)[number];
+
 export const jobStatuses = ["enquiry", "booked", "in_progress", "completed", "invoiced"] as const;
 export type JobStatus = (typeof jobStatuses)[number];
 
@@ -224,6 +230,15 @@ export type Lead = {
   assigned_to: string | null;
   next_action_at: string | null;
   notes: string | null;
+  intake_source: string | null;
+  submission_fingerprint: string | null;
+  submission_count: number;
+  first_submitted_at: string | null;
+  last_submitted_at: string | null;
+  possible_duplicate_customer_id: string | null;
+  matched_customer_confidence: string | null;
+  customer_match_result: LeadCustomerMatchResult | null;
+  dedupe_result: LeadDedupeResult | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
@@ -814,6 +829,7 @@ export type LeadWithRelations = Lead & {
   service?: Pick<Service, "id" | "name"> | null;
   job_type?: Pick<JobType, "id" | "name"> | null;
   owner?: Pick<UserProfile, "id" | "full_name" | "role"> | null;
+  possible_duplicate_customer?: Pick<Customer, "id" | "full_name" | "phone" | "email"> | null;
 };
 
 export type JobWithRelations = Job & {

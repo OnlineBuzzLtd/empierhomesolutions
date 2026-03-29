@@ -1,6 +1,22 @@
 import { z } from "zod";
 import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, engineerAiAssistActions, expenseCategories, invoiceStatuses, jobCertificateStatuses, jobChecklistStatuses, jobHazardStatuses, jobPhaseStatuses, jobStatuses, jobVariationStatuses, leadStatuses, paymentStatuses, paymentTypes, purchaseOrderStatuses, quoteDocumentTypes, quoteStatuses, supplierReconciliationEntryTypes, supplierReconciliationStatuses, supportedEntityTypes } from "@/modules/crm/types";
 
+function parseCheckboxIdList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((entry) => (typeof entry === "string" ? [entry] : []))
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? [trimmed] : [];
+  }
+
+  return [] as string[];
+}
+
 export const lineItemSchema = z.object({
   description: z.string().min(2),
   qty: z.coerce.number().positive(),
@@ -49,7 +65,7 @@ export const jobSchema = z.object({
   duration_hours: z.coerce.number().nonnegative().optional().nullable(),
   status: z.enum(jobStatuses),
   assigned_engineer: z.string().optional().nullable(),
-  assigned_engineer_ids: z.array(z.string().uuid()).optional().default([]),
+  assigned_engineer_ids: z.preprocess(parseCheckboxIdList, z.array(z.string().uuid())).optional().default([]),
 });
 
 export const noteSchema = z.object({

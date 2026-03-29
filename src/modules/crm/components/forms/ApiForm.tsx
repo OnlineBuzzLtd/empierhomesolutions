@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { DemoReadonlyNotice } from "@/modules/crm/components/demo/DemoReadonlyNotice";
 import { useCrmDemoMode } from "@/modules/crm/components/demo/DemoModeProvider";
 
@@ -30,7 +30,7 @@ export function ApiForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
+  async function submitForm(formData: FormData) {
     setIsSubmitting(true);
     setError(null);
     setSuccess(null);
@@ -66,8 +66,13 @@ export function ApiForm({
     router.refresh();
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitForm(new FormData(event.currentTarget));
+  }
+
   return (
-    <form action={handleSubmit} className={className}>
+    <form onSubmit={handleSubmit} className={className}>
       <fieldset disabled={isSubmitting || demo.active} className="space-y-3 disabled:opacity-60">
         {children}
       </fieldset>

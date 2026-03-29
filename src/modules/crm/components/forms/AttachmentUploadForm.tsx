@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { DemoReadonlyNotice } from "@/modules/crm/components/demo/DemoReadonlyNotice";
 import { useCrmDemoMode } from "@/modules/crm/components/demo/DemoModeProvider";
 import { getAttachmentTypeOptions } from "@/modules/crm/lib/attachments";
@@ -19,7 +19,7 @@ export function AttachmentUploadForm({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
+  async function submitForm(formData: FormData) {
     setError(null);
     setIsSubmitting(true);
 
@@ -39,8 +39,13 @@ export function AttachmentUploadForm({
     router.refresh();
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitForm(new FormData(event.currentTarget));
+  }
+
   return (
-    <form action={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <fieldset disabled={isSubmitting || demo.active} className="space-y-3 disabled:opacity-60">
         <input type="hidden" name="entity_type" value={entityType} />
         <input type="hidden" name="entity_id" value={entityId} />

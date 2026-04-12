@@ -27,6 +27,24 @@ Current Empire tenant state:
 - seeded non-demo admin/engineer roleplay jobs are available in tenant 1 so office and field users can exercise the same live workflow
 - tenant 1 can be reset to a realistic 14-day production scenario set with `node scripts/tenant1-production-scenarios-seed.mjs`
 
+### Agentic Front Desk Status
+
+The CRM is now wired to the live CustomerJourneys runtime for tenant-linked front-desk testing.
+
+Current validated behavior:
+
+- `/ai-hub/live` opens real webchat sessions against the linked runtime
+- SMS, WhatsApp, and Phone readiness are shown from the runtime link record
+- runtime conversations publish platform events back into CRM through `/api/platform/events`
+- strict booking confirmation is enforced per session before a booking is confirmed
+- confirmed conversations materialize into CRM link, event, command, and appointment records
+
+Current local operator setup:
+
+- local CRM: `http://127.0.0.1:3000`
+- runtime event bridge: active through a Cloudflare tunnel to the local CRM
+- live runtime health: `https://customerjourneys-platform-api-424400851565.europe-west2.run.app/health`
+
 ## Local Setup
 
 1. Install dependencies:
@@ -96,6 +114,11 @@ Live CRM:
 - `https://empire-home-solutions.vercel.app/login`
 - `https://empire-home-solutions.vercel.app/signup`
 - `https://empire-home-solutions.vercel.app/dashboard`
+
+Live front-desk test surface:
+
+- `http://localhost:3000/ai-hub/live`
+- `http://localhost:3000/inbox`
 
 ## What This Branch Includes
 
@@ -172,6 +195,8 @@ For Empire tenant 1 specifically:
 ## Docs
 
 - `docs/crm-prd.md`
+- `docs/CRM_AGENTIC_AI_TECHNICAL_MANUAL.md`
+- `docs/HOW_TO_TEST.md`
 - `docs/crm-saas-fergus-launch-prd.md`
 - `docs/crm-prod-readiness.md`
 - `docs/tenant1-roleplay-guide.md`

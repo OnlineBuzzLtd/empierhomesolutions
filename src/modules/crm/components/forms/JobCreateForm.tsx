@@ -73,6 +73,15 @@ export function JobCreateForm({
         </select>
         <input name="scheduled_date" type="date" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         <input name="scheduled_time" type="time" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <input name="affected_area" placeholder="Affected area / room" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <select name="urgency_level" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="">Select urgency…</option>
+          <option value="emergency">Emergency</option>
+          <option value="same_day">Same day</option>
+          <option value="flexible">Flexible</option>
+        </select>
+        <input name="preferred_date_text" placeholder="Preferred date" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <input name="preferred_time_window" placeholder="Preferred time window" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </div>
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
         <input type="hidden" name="assigned_engineer_ids" value="" />
@@ -88,7 +97,12 @@ export function JobCreateForm({
           ))}
         </div>
       </div>
-      <textarea name="description" placeholder="Description" className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <textarea name="description" placeholder="Internal description" className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <textarea
+        name="problem_description"
+        placeholder="Problem description in the customer's words"
+        className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+      />
       <DynamicCustomFields definitions={customFields} entityType="job" />
     </ApiForm>
   );

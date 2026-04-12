@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-04-12
+
+### Added
+
+- Tenant-linked live channel testing under `/ai-hub/live`, including linked runtime readiness, proxied webchat, and CRM-side conversation result surfaces
+- Platform event ingestion and command execution support for runtime-driven `ConversationStarted`, `ConversationQualified`, `ConversationRestarted`, `BookingConfirmed`, and escalation flows
+- First-class CRM schema support for strict booking capture fields, including customer first/last name, job problem/urgency/affected-area capture, preferred scheduling fields, and notification delivery timestamps/status
+- Technical manual coverage for the CRM/runtime integration model in `docs/CRM_AGENTIC_AI_TECHNICAL_MANUAL.md`
+
+### Changed
+
+- Moved the front-desk booking flow onto a strict per-session booking contract so bookings are not confirmed until required service, contact, property, problem, urgency, preferred-date/time, and slot-confirmation fields are captured in the current session
+- Linked Empire tenant 1 to the live CustomerJourneys runtime and surfaced runtime readiness, booking results, and operator review state directly inside the CRM
+- Updated CRM API validation and form handling so the new strict booking fields are writable through the existing customers, leads, and jobs flows
+
+### Verified
+
+- `npm run typecheck`
+- `npx vitest run tests/crm/api-routes.test.ts --reporter=dot`
+- live local CRM availability on `http://127.0.0.1:3000/login`
+- live runtime-to-CRM event sync through `/api/platform/events`
+- confirmed end-to-end webchat booking with CRM materialization for conversation `467de906-7817-467b-86db-0f4c6eb70134`
+
 ## 2026-03-29
 
 ### Added

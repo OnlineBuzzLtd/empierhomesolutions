@@ -2,6 +2,7 @@ import { jobSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { jsonError, jsonSuccess, normalizeBlankFields, parseIdList, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
+import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
 async function syncJobAssignees(supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>, tenantId: string, jobId: string, userProfileIds: string[]) {
   const uniqueIds = [...new Set(userProfileIds)];
@@ -106,6 +107,34 @@ export async function POST(request: Request) {
       entityId: data.id,
       values: customFieldValues,
     });
+
+    const occurredAt = String(updatedJob.updated_at ?? updatedJob.created_at ?? new Date().toISOString());
+    const tenantId = String(tenant.id ?? updatedJob.tenant_id ?? "");
+    await enqueueCrmPlatformEvent(supabase, {
+      tenantId,
+      eventType: "JobCreated",
+      aggregateType: "job",
+      aggregateId: updatedJob.id,
+      idempotencyKey: `job:${updatedJob.id}:created:${occurredAt}`,
+      occurredAt,
+      payload: {
+        job_id: updatedJob.id,
+        customer_id: updatedJob.customer_id,
+        lead_id: updatedJob.lead_id,
+        title: updatedJob.title,
+        problem_description: updatedJob.problem_description,
+        affected_area: updatedJob.affected_area,
+        urgency_level: updatedJob.urgency_level,
+        preferred_date_text: updatedJob.preferred_date_text,
+        preferred_time_window: updatedJob.preferred_time_window,
+        status: updatedJob.status,
+        scheduled_date: updatedJob.scheduled_date,
+        scheduled_time: updatedJob.scheduled_time,
+        duration_hours: updatedJob.duration_hours,
+        assigned_engineer: updatedJob.assigned_engineer,
+      },
+    });
+    await publishPendingPlatformOutboxEvents(supabase);
 
     return jsonSuccess({ job: updatedJob });
   } catch (error) {

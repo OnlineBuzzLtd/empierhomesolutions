@@ -10,6 +10,14 @@ export async function updateCrmSession(request: NextRequest) {
   requestHeaders.set("x-crm-pathname", request.nextUrl.pathname);
   requestHeaders.set("x-crm-next", nextPath);
 
+  if (env.crmE2ePlatformFixturesEnabled) {
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
+
   if (!env.enabled || !env.url || !env.publishableKey) {
     return NextResponse.next({
       request: {

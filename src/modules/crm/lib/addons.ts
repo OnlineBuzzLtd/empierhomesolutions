@@ -21,7 +21,15 @@ const defaultAddons: Record<CrmAddonKey, AddonState> = {
 
 export async function getAddonState(addonKey: CrmAddonKey): Promise<AddonState> {
   const fallback = defaultAddons[addonKey];
-  if (!getCrmEnv().enabled) {
+  const env = getCrmEnv();
+  if (env.crmE2ePlatformFixturesEnabled) {
+    return {
+      ...fallback,
+      enabled: true,
+    };
+  }
+
+  if (!env.enabled) {
     return fallback;
   }
 

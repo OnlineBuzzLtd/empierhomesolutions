@@ -4,11 +4,16 @@ import type { User } from "@supabase/supabase-js";
 import type { CrmRole, Tenant, TenantBranding, TenantMembership, TenantSettings, UserProfile } from "@/modules/crm/types";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { getCrmEnv } from "@/modules/crm/lib/env";
+import { buildPlatformE2eMockSession } from "@/modules/platform/lib/e2e-fixtures";
 
 export const crmActiveTenantCookieName = "crm_active_tenant";
 
 export async function getCrmSession() {
   const env = getCrmEnv();
+  if (env.crmE2ePlatformFixturesEnabled) {
+    return buildPlatformE2eMockSession();
+  }
+
   if (!env.enabled) {
     return {
       user: null as User | null,

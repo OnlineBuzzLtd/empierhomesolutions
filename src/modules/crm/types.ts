@@ -231,6 +231,11 @@ export type Lead = {
   assigned_to: string | null;
   next_action_at: string | null;
   notes: string | null;
+  problem_description?: string | null;
+  affected_area?: string | null;
+  urgency_level?: string | null;
+  preferred_date_text?: string | null;
+  preferred_time_window?: string | null;
   intake_source: string | null;
   submission_fingerprint: string | null;
   submission_count: number;
@@ -249,6 +254,8 @@ export type Lead = {
 export type Customer = {
   id: string;
   full_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   phone: string | null;
   email: string | null;
   address_line1: string | null;
@@ -297,6 +304,7 @@ export type Site = {
   postcode: string | null;
   access_notes: string | null;
   parking_notes: string | null;
+  vulnerable_occupant_flag?: boolean;
   is_primary: boolean;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
@@ -329,6 +337,11 @@ export type Job = {
   job_type_id: string | null;
   title: string;
   description: string | null;
+  problem_description?: string | null;
+  affected_area?: string | null;
+  urgency_level?: string | null;
+  preferred_date_text?: string | null;
+  preferred_time_window?: string | null;
   scheduled_date: string | null;
   scheduled_time: string | null;
   duration_hours: number | null;
@@ -437,6 +450,10 @@ export type Appointment = {
   starts_at: string;
   ends_at: string;
   status: AppointmentStatus;
+  confirmation_email_sent_at?: string | null;
+  confirmation_sms_sent_at?: string | null;
+  notification_status?: string | null;
+  notification_failure_reason?: string | null;
   reminder_offset_minutes: number | null;
   recurrence_rule: string | null;
   is_demo?: boolean;

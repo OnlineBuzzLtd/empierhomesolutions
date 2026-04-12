@@ -20,6 +20,7 @@ export default defineConfig({
       CONVERSION_API_SECRET: "dev-conversion-secret",
       NEXT_PUBLIC_CALL_NUMBER_RULES: '{"default":"01895 725 151","googleRepair":"01895 725 151"}',
       NEXT_PUBLIC_LP_AB_FLAGS: '{"headline":"control","cta":"call-now","trustOrder":"default"}',
+      CRM_E2E_PLATFORM_FIXTURES: "1",
     },
   },
 });

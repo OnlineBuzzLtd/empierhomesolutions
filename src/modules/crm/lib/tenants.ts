@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import type { CrmRole, Tenant, TenantBranding, TenantSettings, UserProfile } from "@/modules/crm/types";
+import { ensureCustomerJourneysRuntimeLink } from "@/modules/crm/lib/customerjourneys";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 
 type ServiceRoleClient = ReturnType<typeof createCrmServiceRoleClient>;
@@ -335,6 +336,18 @@ export async function createTenantWorkspace(admin: ServiceRoleClient, input: Ten
 
   if (sourceTenant?.id) {
     await cloneTenantBaseline(admin, sourceTenant.id, createdTenant.id, warnings);
+  }
+
+  try {
+    const runtimeLink = await ensureCustomerJourneysRuntimeLink(admin, {
+      tenant: createdTenant,
+      timezone: "Europe/London",
+    });
+    if (runtimeLink.warning) {
+      warnings.push(runtimeLink.warning);
+    }
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : "Failed to link CustomerJourneys runtime.");
   }
 
   return {

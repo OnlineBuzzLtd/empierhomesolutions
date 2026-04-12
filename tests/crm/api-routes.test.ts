@@ -479,6 +479,197 @@ describe("crm api routes", () => {
     expect(body.error).toBe("Could not allocate quote number.");
   });
 
+  it("manually relinks a platform conversation and propagates the customer and job to linked CRM records", async () => {
+    const customerMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "cust-2" }, error: null });
+    const customerEqArchived = vi.fn().mockReturnValue({ maybeSingle: customerMaybeSingle });
+    const customerEqId = vi.fn().mockReturnValue({ eq: customerEqArchived });
+    const customerEqTenant = vi.fn().mockReturnValue({ eq: customerEqId });
+    const customerSelect = vi.fn().mockReturnValue({ eq: customerEqTenant });
+
+    const jobMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "job-2", customer_id: "cust-2" }, error: null });
+    const jobEqId = vi.fn().mockReturnValue({ maybeSingle: jobMaybeSingle });
+    const jobEqTenant = vi.fn().mockReturnValue({ eq: jobEqId });
+    const jobSelect = vi.fn().mockReturnValue({ eq: jobEqTenant });
+
+    const leadEqId = vi.fn().mockResolvedValue({ error: null });
+    const leadEqTenant = vi.fn().mockReturnValue({ eq: leadEqId });
+    const leadUpdate = vi.fn().mockReturnValue({ eq: leadEqTenant });
+
+    const appointmentEqId = vi.fn().mockResolvedValue({ error: null });
+    const appointmentEqTenant = vi.fn().mockReturnValue({ eq: appointmentEqId });
+    const appointmentUpdate = vi.fn().mockReturnValue({ eq: appointmentEqTenant });
+
+    const from = vi.fn((table: string) => {
+      if (table === "customers") {
+        return { select: customerSelect };
+      }
+      if (table === "jobs") {
+        return { select: jobSelect };
+      }
+      if (table === "leads") {
+        return { update: leadUpdate };
+      }
+      if (table === "appointments") {
+        return { update: appointmentUpdate };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    const getPlatformConversationLink = vi.fn().mockResolvedValue({
+      id: "link-1",
+      workspace_id: "workspace-1",
+      tenant_id: "tenant-1",
+      conversation_id: "conv-1",
+      customer_id: null,
+      lead_id: "lead-1",
+      job_id: null,
+      callback_appointment_id: "appt-callback-1",
+      booking_appointment_id: "appt-booking-1",
+      latest_channel: "sms",
+      identity_phone: "+447700900111",
+      identity_email: null,
+      metadata: {},
+      latest_event_at: null,
+      created_at: "2026-03-30T10:00:00.000Z",
+      updated_at: "2026-03-30T10:00:00.000Z",
+    });
+    const upsertPlatformConversationLink = vi.fn().mockResolvedValue({
+      id: "link-1",
+      conversation_id: "conv-1",
+      customer_id: "cust-2",
+      job_id: "job-2",
+    });
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          user: { id: "user-1" },
+          tenant: { id: "tenant-1" },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink,
+      upsertPlatformConversationLink,
+    }));
+
+    const route = await import("@/app/api/platform/conversations/[conversationId]/relink/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          customer_id: "22222222-2222-4222-8222-222222222222",
+          job_id: "33333333-3333-4333-8333-333333333333",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ conversationId: "conv-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.link.customer_id).toBe("cust-2");
+    expect(body.link.job_id).toBe("job-2");
+    expect(upsertPlatformConversationLink).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({ tenant_id: "tenant-1", workspace_id: "workspace-1" }),
+      expect.objectContaining({ conversationId: "conv-1", customerId: "cust-2", jobId: "job-2" }),
+    );
+    expect(leadUpdate).toHaveBeenCalledWith({ tenant_id: "tenant-1", customer_id: "cust-2" });
+    expect(appointmentUpdate).toHaveBeenCalledWith({
+      tenant_id: "tenant-1",
+      customer_id: "cust-2",
+      job_id: "job-2",
+    });
+    expect(appointmentUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects manual relink when the selected job belongs to a different customer", async () => {
+    const customerMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "cust-1" }, error: null });
+    const customerEqArchived = vi.fn().mockReturnValue({ maybeSingle: customerMaybeSingle });
+    const customerEqId = vi.fn().mockReturnValue({ eq: customerEqArchived });
+    const customerEqTenant = vi.fn().mockReturnValue({ eq: customerEqId });
+    const customerSelect = vi.fn().mockReturnValue({ eq: customerEqTenant });
+
+    const jobMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "job-2", customer_id: "cust-2" }, error: null });
+    const jobEqId = vi.fn().mockReturnValue({ maybeSingle: jobMaybeSingle });
+    const jobEqTenant = vi.fn().mockReturnValue({ eq: jobEqId });
+    const jobSelect = vi.fn().mockReturnValue({ eq: jobEqTenant });
+
+    const from = vi.fn((table: string) => {
+      if (table === "customers") {
+        return { select: customerSelect };
+      }
+      if (table === "jobs") {
+        return { select: jobSelect };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    const getPlatformConversationLink = vi.fn().mockResolvedValue({
+      id: "link-1",
+      workspace_id: "workspace-1",
+      tenant_id: "tenant-1",
+      conversation_id: "conv-1",
+      customer_id: null,
+      lead_id: null,
+      job_id: null,
+      callback_appointment_id: null,
+      booking_appointment_id: null,
+      latest_channel: "sms",
+      identity_phone: null,
+      identity_email: null,
+      metadata: {},
+      latest_event_at: null,
+      created_at: "2026-03-30T10:00:00.000Z",
+      updated_at: "2026-03-30T10:00:00.000Z",
+    });
+    const upsertPlatformConversationLink = vi.fn();
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          user: { id: "user-1" },
+          tenant: { id: "tenant-1" },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink,
+      upsertPlatformConversationLink,
+    }));
+
+    const route = await import("@/app/api/platform/conversations/[conversationId]/relink/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          customer_id: "11111111-1111-4111-8111-111111111111",
+          job_id: "33333333-3333-4333-8333-333333333333",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ conversationId: "conv-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("different customer");
+    expect(upsertPlatformConversationLink).not.toHaveBeenCalled();
+  });
+
   it("records quote acceptance and advances the quote status", async () => {
     const quoteSingle = vi.fn().mockResolvedValue({
       data: {
@@ -955,5 +1146,193 @@ describe("crm api routes", () => {
     expect(response.status).toBe(200);
     expect(body.draft.title).toBe("Arrival note draft");
     expect(body.access).toBe("demo");
+  });
+
+  it("searches relink customer and job candidates within the current workspace", async () => {
+    const customersLimit = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: "cust-1",
+          full_name: "Jane Smith",
+          phone: "07700900123",
+          email: "jane@example.com",
+          postcode: "SW1A 1AA",
+        },
+        {
+          id: "cust-2",
+          full_name: "Alex Brown",
+          phone: "07700900999",
+          email: "alex@example.com",
+          postcode: "M1 1AA",
+        },
+      ],
+      error: null,
+    });
+    const customersOrder = vi.fn().mockReturnValue({ limit: customersLimit });
+    const customersArchivedEq = vi.fn().mockReturnValue({ order: customersOrder });
+    const customersTenantEq = vi.fn().mockReturnValue({ eq: customersArchivedEq });
+    const customersSelect = vi.fn().mockReturnValue({ eq: customersTenantEq });
+
+    const jobsLimit = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: "job-1",
+          customer_id: "cust-1",
+          title: "Boiler service",
+          status: "booked",
+          scheduled_date: "2026-04-01",
+        },
+        {
+          id: "job-2",
+          customer_id: "cust-2",
+          title: "Fuse board upgrade",
+          status: "enquiry",
+          scheduled_date: "2026-04-03",
+        },
+      ],
+      error: null,
+    });
+    const jobsOrder = vi.fn().mockReturnValue({ limit: jobsLimit });
+    const jobsTenantEq = vi.fn().mockReturnValue({ order: jobsOrder });
+    const jobsSelect = vi.fn().mockReturnValue({ eq: jobsTenantEq });
+
+    const from = vi.fn((table: string) => {
+      if (table === "customers") {
+        return { select: customersSelect };
+      }
+      if (table === "jobs") {
+        return { select: jobsSelect };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+        },
+      }),
+    }));
+
+    const route = await import("@/app/api/platform/relink/search/route");
+    expect(route.GET).toBeTypeOf("function");
+    const response = (await route.GET(
+      new Request("http://localhost/api/platform/relink/search?type=all&q=Jane"),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.customers).toHaveLength(1);
+    expect(body.customers[0].id).toBe("cust-1");
+    expect(body.jobs).toHaveLength(0);
+  });
+
+  it("rejects relink search queries shorter than 2 characters", async () => {
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase: {},
+          tenant: { id: "tenant-1" },
+        },
+      }),
+    }));
+
+    const route = await import("@/app/api/platform/relink/search/route");
+    const response = (await route.GET(
+      new Request("http://localhost/api/platform/relink/search?type=customer&q=a"),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("at least 2 characters");
+  });
+
+  it("updates review ownership for a platform conversation", async () => {
+    const supabase = {};
+    const getPlatformConversationLink = vi.fn().mockResolvedValue({
+      id: "link-1",
+      workspace_id: "workspace-1",
+      tenant_id: "tenant-1",
+      conversation_id: "11111111-1111-4111-8111-111111111111",
+      customer_id: null,
+      lead_id: null,
+      job_id: null,
+      callback_appointment_id: null,
+      booking_appointment_id: null,
+      latest_channel: "sms",
+      identity_phone: null,
+      identity_email: null,
+      metadata: {},
+      latest_event_at: "2026-03-30T10:00:00.000Z",
+      created_at: "2026-03-30T10:00:00.000Z",
+      updated_at: "2026-03-30T10:00:00.000Z",
+    });
+    const upsertPlatformConversationLink = vi.fn().mockResolvedValue({
+      id: "link-1",
+      workspace_id: "workspace-1",
+      tenant_id: "tenant-1",
+      conversation_id: "11111111-1111-4111-8111-111111111111",
+      metadata: {
+        review_status: "in_progress",
+        review_assignee_user_id: "22222222-2222-4222-8222-222222222222",
+        review_assignee_name: "Alex Manager",
+      },
+    });
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+          user: { id: "user-1", email: "alex@example.com" },
+          profile: { full_name: "Alex Manager" },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink,
+      upsertPlatformConversationLink,
+    }));
+
+    const route = await import("@/app/api/platform/conversations/[conversationId]/review/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "in_progress",
+          assignee_user_id: "22222222-2222-4222-8222-222222222222",
+          assignee_name: "Alex Manager",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ conversationId: "11111111-1111-4111-8111-111111111111" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(upsertPlatformConversationLink).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({ tenant_id: "tenant-1", workspace_id: "workspace-1" }),
+      expect.objectContaining({
+        conversationId: "11111111-1111-4111-8111-111111111111",
+        metadata: expect.objectContaining({
+          review_status: "in_progress",
+          review_assignee_name: "Alex Manager",
+        }),
+      }),
+    );
+    expect(body.ok).toBe(true);
   });
 });

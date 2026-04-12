@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
+import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
 const tenantSettingsSchema = z.object({
   business_name: z.string().min(2),
@@ -59,6 +60,22 @@ export async function POST(request: Request) {
     if (brandingError || settingsError) {
       return jsonError(brandingError?.message ?? settingsError?.message ?? "Failed to save workspace settings.", 500);
     }
+
+    const occurredAt = String(settings.updated_at ?? branding.updated_at ?? new Date().toISOString());
+    await enqueueCrmPlatformEvent(supabase, {
+      tenantId: tenant.id,
+      eventType: "WorkspaceSettingsChanged",
+      aggregateType: "workspace",
+      aggregateId: tenant.id,
+      idempotencyKey: `workspace:${tenant.id}:settings:${occurredAt}`,
+      occurredAt,
+      payload: {
+        tenant_id: tenant.id,
+        branding,
+        settings,
+      },
+    });
+    await publishPendingPlatformOutboxEvents(supabase);
 
     return jsonSuccess({ branding, settings });
   } catch (error) {

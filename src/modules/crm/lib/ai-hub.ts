@@ -594,10 +594,10 @@ async function loadAiHubScenarios(): Promise<AiConversation[]> {
     const supabase = await createCrmServerClient();
     const [{ data: conversations, error: conversationsError }, { data: messages, error: messagesError }, { data: actions, error: actionsError }, { data: impacts, error: impactsError }] =
       await Promise.all([
-        supabase.schema("crm").from("ai_conversations").select("*").order("created_at"),
-        supabase.schema("crm").from("ai_messages").select("*").order("sort_order"),
-        supabase.schema("crm").from("ai_actions").select("*").order("sort_order"),
-        supabase.schema("crm").from("ai_crm_impacts").select("*").order("sort_order"),
+        supabase.schema("crm").from("ai_conversations").select("*").eq("is_demo", true).order("created_at"),
+        supabase.schema("crm").from("ai_messages").select("*").eq("is_demo", true).order("sort_order"),
+        supabase.schema("crm").from("ai_actions").select("*").eq("is_demo", true).order("sort_order"),
+        supabase.schema("crm").from("ai_crm_impacts").select("*").eq("is_demo", true).order("sort_order"),
       ]);
 
     if (conversationsError || messagesError || actionsError || impactsError || !conversations?.length) {

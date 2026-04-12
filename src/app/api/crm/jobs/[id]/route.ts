@@ -2,6 +2,7 @@ import { jobSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
 import { jsonError, jsonSuccess, normalizeBlankFields, parseIdList, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
 async function syncJobAssignees(supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>, tenantId: string, jobId: string, userProfileIds: string[]) {
   const uniqueIds = [...new Set(userProfileIds)];
@@ -72,7 +73,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const { supabase, tenant } = auth.session;
-    const { data: existing } = await supabase.schema("crm").from("jobs").select("service_id, job_type_id, status").eq("id", id).single();
+    const { data: existing } = await supabase
+      .schema("crm")
+      .from("jobs")
+      .select("service_id, job_type_id, status, scheduled_date, scheduled_time, customer_id, lead_id, title")
+      .eq("id", id)
+      .single();
     const assignedEngineerIds = parseIdList(body.assigned_engineer_ids);
     const shouldSyncAssignees = Object.prototype.hasOwnProperty.call(body, "assigned_engineer_ids");
 
@@ -138,6 +144,43 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       entityId: id,
       values: extractCustomFieldValues(body),
     });
+
+    const schedulingChanged =
+      existing !== null &&
+      ((parsed.data.scheduled_date !== undefined && parsed.data.scheduled_date !== existing.scheduled_date) ||
+        (parsed.data.scheduled_time !== undefined && parsed.data.scheduled_time !== existing.scheduled_time));
+
+    if (schedulingChanged) {
+      const occurredAt = String(updatedJob.updated_at ?? new Date().toISOString());
+      const tenantId = String(tenant.id ?? updatedJob.tenant_id ?? "");
+      await enqueueCrmPlatformEvent(supabase, {
+        tenantId,
+        eventType: "JobRescheduled",
+        aggregateType: "job",
+        aggregateId: updatedJob.id,
+        idempotencyKey: `job:${updatedJob.id}:rescheduled:${occurredAt}`,
+        occurredAt,
+        payload: {
+          job_id: updatedJob.id,
+          customer_id: updatedJob.customer_id,
+          lead_id: updatedJob.lead_id,
+          title: updatedJob.title,
+          problem_description: updatedJob.problem_description,
+          affected_area: updatedJob.affected_area,
+          urgency_level: updatedJob.urgency_level,
+          preferred_date_text: updatedJob.preferred_date_text,
+          preferred_time_window: updatedJob.preferred_time_window,
+          previous_scheduled_date: existing?.scheduled_date ?? null,
+          previous_scheduled_time: existing?.scheduled_time ?? null,
+          scheduled_date: updatedJob.scheduled_date,
+          scheduled_time: updatedJob.scheduled_time,
+          duration_hours: updatedJob.duration_hours,
+          assigned_engineer: updatedJob.assigned_engineer,
+          status: updatedJob.status,
+        },
+      });
+      await publishPendingPlatformOutboxEvents(supabase);
+    }
 
     return jsonSuccess({ job: updatedJob });
   } catch (error) {

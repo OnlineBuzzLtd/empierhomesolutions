@@ -68,6 +68,35 @@ export function LeadCreateForm({
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Next Action</span>
           <input name="next_action_at" type="datetime-local" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         </label>
+        <label className="block md:col-span-2">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Problem Description</span>
+          <textarea
+            name="problem_description"
+            className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Customer's words"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Affected Area</span>
+          <input name="affected_area" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Kitchen, bathroom, outside…" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Urgency</span>
+          <select name="urgency_level" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">Select…</option>
+            <option value="emergency">Emergency</option>
+            <option value="same_day">Same day</option>
+            <option value="flexible">Flexible</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Preferred Date</span>
+          <input name="preferred_date_text" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Tomorrow morning, Fri 10 Apr…" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Preferred Time Window</span>
+          <input name="preferred_time_window" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="AM, 9-12, after 3pm…" />
+        </label>
       </div>
       <label className="block">
         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</span>

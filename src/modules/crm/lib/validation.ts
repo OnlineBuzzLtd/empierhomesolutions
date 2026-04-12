@@ -26,7 +26,9 @@ export const lineItemSchema = z.object({
 });
 
 export const customerSchema = z.object({
-  full_name: z.string().min(2),
+  full_name: z.string().min(2).optional().nullable(),
+  first_name: z.string().optional().nullable(),
+  last_name: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   address_line1: z.string().optional().nullable(),
@@ -39,6 +41,18 @@ export const customerSchema = z.object({
   referral_notes: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   archived: z.coerce.boolean().optional().default(false),
+}).superRefine((value, ctx) => {
+  const fullName = value.full_name?.trim() ?? "";
+  const firstName = value.first_name?.trim() ?? "";
+  const lastName = value.last_name?.trim() ?? "";
+
+  if (fullName.length === 0 && firstName.length === 0 && lastName.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["first_name"],
+      message: "Enter a name for the customer.",
+    });
+  }
 });
 
 export const leadSchema = z.object({
@@ -51,6 +65,11 @@ export const leadSchema = z.object({
   assigned_to: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   next_action_at: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  problem_description: z.string().optional().nullable(),
+  affected_area: z.string().optional().nullable(),
+  urgency_level: z.string().optional().nullable(),
+  preferred_date_text: z.string().optional().nullable(),
+  preferred_time_window: z.string().optional().nullable(),
 });
 
 export const jobSchema = z.object({
@@ -62,6 +81,11 @@ export const jobSchema = z.object({
   job_type_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   title: z.string().min(2),
   description: z.string().optional().nullable(),
+  problem_description: z.string().optional().nullable(),
+  affected_area: z.string().optional().nullable(),
+  urgency_level: z.string().optional().nullable(),
+  preferred_date_text: z.string().optional().nullable(),
+  preferred_time_window: z.string().optional().nullable(),
   scheduled_date: z.string().optional().nullable(),
   scheduled_time: z.string().optional().nullable(),
   duration_hours: z.coerce.number().nonnegative().optional().nullable(),
@@ -183,6 +207,10 @@ export const appointmentSchema = z.object({
   starts_at: z.string().min(1),
   ends_at: z.string().min(1),
   status: z.enum(appointmentStatuses).default("scheduled"),
+  confirmation_email_sent_at: z.string().optional().nullable(),
+  confirmation_sms_sent_at: z.string().optional().nullable(),
+  notification_status: z.string().optional().nullable(),
+  notification_failure_reason: z.string().optional().nullable(),
   reminder_offset_minutes: z.coerce.number().optional().nullable(),
   recurrence_rule: z.string().optional().nullable(),
 });

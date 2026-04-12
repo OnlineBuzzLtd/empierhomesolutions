@@ -24,19 +24,30 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const baseNavItems = [
+type CrmNavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  addonKey?: "ai_comms_hub";
+};
+
+const baseNavItems: CrmNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "⊞" },
   { href: "/leads", label: "Leads", icon: "🧲" },
   { href: "/customers", label: "Customers", icon: "👤" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/calendar", label: "Calendar", icon: "🗓" },
-  { href: "/ai-hub", label: "AI Hub", icon: "🤖", locked: true },
+  { href: "/inbox", label: "Inbox", icon: "📨", addonKey: "ai_comms_hub" },
+  { href: "/calls", label: "Calls", icon: "☎️", addonKey: "ai_comms_hub" },
+  { href: "/automations", label: "Automations", icon: "⚡", addonKey: "ai_comms_hub" },
+  { href: "/ai-settings", label: "AI Settings", icon: "🧠", addonKey: "ai_comms_hub" },
+  { href: "/ai-hub", label: "AI Hub", icon: "🤖", addonKey: "ai_comms_hub" },
   { href: "/quotes", label: "Quotes", icon: "📋" },
   { href: "/invoices", label: "Invoices", icon: "📄" },
   { href: "/staff", label: "Staff", icon: "🪪" },
 ];
 
-const engineerNavItems = [
+const engineerNavItems: CrmNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/calendar", label: "Calendar", icon: "🗓" },
@@ -96,7 +107,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                 >
                   <span>{item.icon}</span>
                   <span>{item.label}</span>
-                  {item.href === "/ai-hub" && !aiHubAddon.enabled ? (
+                  {item.addonKey === "ai_comms_hub" && !aiHubAddon.enabled ? (
                     <span className="ml-auto rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">
                       Add-on
                     </span>
@@ -134,7 +145,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                       <Link key={item.href} href={item.href} className="rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
                         <span className="inline-flex items-center gap-2">
                           <span>{item.label}</span>
-                          {item.href === "/ai-hub" && !aiHubAddon.enabled ? (
+                          {item.addonKey === "ai_comms_hub" && !aiHubAddon.enabled ? (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700">
                               Add-on
                             </span>

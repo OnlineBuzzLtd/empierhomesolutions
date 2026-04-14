@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-04-14
+
+### Fixed
+
+- `src/app/api/crm/quotes/[id]/accept/route.ts` — quote acceptance route now returns a well-formed JSON response and correctly persists the accepted-at timestamp and accepted-by user
+- `docs/CRM_AGENTIC_AI_TECHNICAL_MANUAL.md` — updated technical manual sections on voice channel integration, ElevenLabs managed-agent webhook flow, and CRM event sync path for voice bookings
+
+### Added
+
+- Voice channel CRM integration verified: `BookingConfirmed` events from ElevenLabs managed-voice calls are published to the CRM through the same `/api/platform/events` path as webchat, SMS, and WhatsApp; voice bookings now appear in CRM records autonomously
+- `src/app/api/crm/ai-hub/live/sessions/[id]/route.ts` — session detail endpoint for live AI-Hub channel sessions
+- `src/app/api/crm/ai-hub/live/sessions/[id]/messages/route.ts` — message history endpoint for live sessions
+- `scripts/plumbersrus-seed.mjs` — Plumbers R Us seed script for multi-tenant demo data
+- `docs/crm-buyer-guide.md` — buyer guide for CRM capabilities
+
+### Verified
+
+- Voice booking end-to-end: ElevenLabs → platform-api `post-call` webhook → `publishCrmConversationLifecycle` → CRM `BookingConfirmed` event → CRM lead/appointment records
+- All four channels (webchat, SMS, WhatsApp, voice) confirmed to produce identical CRM outcomes on booking confirmation
+- `npm run typecheck` passing
+
 ## 2026-04-12
 
 ### Added

@@ -31,13 +31,15 @@ Current Empire tenant state:
 
 The CRM is now wired to the live CustomerJourneys runtime for tenant-linked front-desk testing.
 
-Current validated behavior:
+Current validated behavior (as of April 14, 2026):
 
 - `/ai-hub/live` opens real webchat sessions against the linked runtime
 - SMS, WhatsApp, and Phone readiness are shown from the runtime link record
 - runtime conversations publish platform events back into CRM through `/api/platform/events`
 - strict booking confirmation is enforced per session before a booking is confirmed
 - confirmed conversations materialize into CRM link, event, command, and appointment records
+- **voice channel at full parity**: ElevenLabs managed-voice bookings publish `BookingConfirmed` events through the same platform-events path; voice bookings appear in CRM autonomously with no manual intervention
+- all four channels (webchat, SMS, WhatsApp, voice) confirmed to produce identical CRM outcomes
 
 Current local operator setup:
 

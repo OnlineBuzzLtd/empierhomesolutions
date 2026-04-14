@@ -1,6 +1,7 @@
 import { quoteAcceptanceSchema } from "@/modules/crm/lib/validation";
 import { jsonError, jsonSuccess, normalizeBlankFields, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
+import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -69,6 +70,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       changeSummary: "Customer accepted quote",
       createdBy: user.id,
     });
+
+    await enqueueCrmPlatformEvent(supabase, {
+      tenantId: String(tenant.id ?? quote.tenant_id ?? ""),
+      eventType: "QuoteAccepted",
+      aggregateType: "quote",
+      aggregateId: quote.id,
+      idempotencyKey: `quote:${quote.id}:accepted:${acceptedAt}`,
+      occurredAt: acceptedAt,
+      payload: {
+        quote_id: quote.id,
+        job_id: quote.job_id,
+        customer_id: quote.customer_id,
+        total: quote.total,
+        accepted_at: acceptedAt,
+        accepted_by_name: acceptance.accepted_by_name,
+        accepted_by_email: acceptance.accepted_by_email,
+        acceptance_method: acceptance.acceptance_method,
+      },
+    });
+    await publishPendingPlatformOutboxEvents(supabase);
 
     return jsonSuccess({ quote, acceptance });
   } catch (error) {

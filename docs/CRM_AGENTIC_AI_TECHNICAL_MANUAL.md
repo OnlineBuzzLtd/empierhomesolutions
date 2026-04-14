@@ -340,6 +340,36 @@ Reference live proof:
 
 ---
 
+### 11.4 Strict Scenario Runner (Webchat + SMS + WhatsApp)
+
+Use the deterministic runner to validate strict booking across all channels and verify CRM payload cleanliness.
+
+Runner:
+
+- `services/platform-api/scripts/qa/run-strict-scenarios.mjs`
+
+Prerequisites:
+
+- `CUSTOMERJOURNEYS_PLATFORM_API_BASE_URL`
+- `CUSTOMERJOURNEYS_INTERNAL_API_TOKEN`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- optional: `RUNTIME_TENANT_ID`, `RUNTIME_INBOUND_NUMBER`, `RUNTIME_SMS_FROM`, `RUNTIME_WA_FROM`
+
+Run:
+
+```bash
+node services/platform-api/scripts/qa/run-strict-scenarios.mjs
+```
+
+Pass criteria:
+
+- all scenarios return `BookingConfirmed` (except explicit handoff)
+- `first_name`, `serviceCity`, `issue_description` do not contain forbidden single-token values
+- `crm.platform_conversation_links` row exists for each conversation
+
+---
+
 ## 12) Operating Model for Teams
 
 Use this mental model when explaining to stakeholders:

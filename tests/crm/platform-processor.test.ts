@@ -106,7 +106,6 @@ describe("platform event processor", () => {
       "11111111-1111-4111-8111-111111111111",
       alias.tenant_id,
       "processed",
-      undefined,
     );
   });
 

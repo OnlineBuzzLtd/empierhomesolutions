@@ -63,13 +63,11 @@ export async function processPlatformEvent(
       }
     }
 
-    await updatePlatformEventStatus(
-      supabase,
-      envelope.event_id,
-      alias.tenant_id,
-      deferred ? "failed" : "processed",
-      deferred ? "Deferred for replay." : undefined,
-    );
+    if (deferred) {
+      await updatePlatformEventStatus(supabase, envelope.event_id, alias.tenant_id, "failed", "Deferred for replay.");
+    } else {
+      await updatePlatformEventStatus(supabase, envelope.event_id, alias.tenant_id, "processed");
+    }
 
     return {
       alias,

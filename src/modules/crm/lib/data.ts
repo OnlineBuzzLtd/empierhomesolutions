@@ -879,7 +879,7 @@ export async function listAppointmentsForCalendar(filters?: {
   filterByMode(usersQuery, context.mode, context.scenarioKey);
 
   const [{ data: appointments }, { data: leads }, { data: assets }, { data: users }] = await Promise.all([
-    appointmentsQuery.lte("starts_at", end.toISOString()).order("starts_at"),
+    appointmentsQuery.gte("starts_at", start.toISOString()).lte("starts_at", end.toISOString()).order("starts_at"),
     leadsQuery.not("next_action_at", "is", null).gte("next_action_at", start.toISOString()).lte("next_action_at", end.toISOString()),
     assetsQuery.order("service_due_date"),
     usersQuery,

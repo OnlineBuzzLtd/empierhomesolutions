@@ -624,6 +624,46 @@ async function attachAppointmentToJob(
   }
 }
 
+async function createJobFromBooking(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  input: {
+    customerId: string;
+    leadId: string | null;
+    title: string;
+    description: string | null;
+    startsAt: string;
+    assignedEngineer: string | null;
+  },
+): Promise<string> {
+  const scheduledDate = input.startsAt.slice(0, 10);
+  const scheduledTime = input.startsAt.slice(11, 16);
+
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("jobs")
+    .insert({
+      tenant_id: alias.tenant_id,
+      customer_id: input.customerId,
+      lead_id: input.leadId ?? null,
+      title: input.title,
+      description: input.description ?? null,
+      status: "booked",
+      scheduled_date: scheduledDate,
+      scheduled_time: scheduledTime,
+      assigned_engineer: input.assignedEngineer ?? null,
+      is_demo: false,
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !data) {
+    throw error ?? new Error("Failed to create job from booking.");
+  }
+
+  return data.id;
+}
+
 async function createNote(
   supabase: SupabaseClient,
   alias: WorkspaceAlias,
@@ -953,11 +993,59 @@ export async function executePlatformCommand(
             ...buildConversationSessionMetadata(payload),
           },
         });
+      } else {
+        await supabase
+          .schema("crm")
+          .from("appointments")
+          .update({
+            title: buildBookingTitle(payload),
+            starts_at: startsAt,
+            ends_at: endsAt,
+            status: "scheduled",
+          })
+          .eq("id", link.booking_appointment_id)
+          .eq("tenant_id", alias.tenant_id);
+        await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          latestEventAt: startsAt,
+          metadata: {
+            booking_uid: pickString(payload, ["booking_uid", "calcom_booking_id"]),
+            booking_slot_label: pickString(payload, ["booking_slot_label"]),
+            ...buildConversationSessionMetadata(payload),
+          },
+        });
       }
 
       const refreshedLink = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
       if (refreshedLink?.booking_appointment_id && refreshedLink.customer_id) {
         await attachAppointmentToCustomer(supabase, alias, refreshedLink.booking_appointment_id, refreshedLink.customer_id);
+      }
+
+      // Auto-create a job so it appears in the engineer diary.
+      // Only create when a customer is known and no job has been linked yet.
+      if (refreshedLink?.customer_id && !refreshedLink.job_id) {
+        const assignedEngineer = pickString(payload, [
+          "booking_resource_name",
+          "resource_name",
+          "engineer_name",
+          "assigned_engineer",
+        ]);
+        const jobId = await createJobFromBooking(supabase, alias, {
+          customerId: refreshedLink.customer_id,
+          leadId: refreshedLink.lead_id,
+          title: buildBookingTitle(payload),
+          description: buildLeadNotes(payload) || null,
+          startsAt,
+          assignedEngineer,
+        });
+        await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          jobId,
+          latestEventAt: startsAt,
+        });
+        if (refreshedLink.booking_appointment_id) {
+          await attachAppointmentToJob(supabase, alias, refreshedLink.booking_appointment_id, jobId);
+        }
       }
 
       return;

@@ -302,12 +302,11 @@ export async function resolveWorkspaceAliasForIncomingWorkspaceId(
     return null;
   }
 
-  return {
-    workspace_id: workspaceId,
-    tenant_id: data.crm_tenant_id,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  } satisfies WorkspaceAliasRow;
+  // Resolve the real CRM workspace alias so that workspace_id is a valid FK
+  // in platform_event_log / platform_command_log. Using the CJ tenant ID
+  // directly as workspace_id would violate the FK constraint on those tables
+  // because it is not present in crm.workspace_aliases.
+  return getWorkspaceAlias(supabase, data.crm_tenant_id);
 }
 
 export async function listPlatformEvents(supabase: SupabaseClient, tenantId: string, limit = 25) {

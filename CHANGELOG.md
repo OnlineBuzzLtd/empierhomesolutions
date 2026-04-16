@@ -20,6 +20,10 @@
 - `supabase/migrations/202604160001_engineer_ux_improvements.sql` — adds `started_at` to `crm.jobs` and `is_mandatory` to `crm.job_checklists`
 - `supabase/migrations/202604160002_job_status_no_access_aborted.sql` — adds `no_access` and `aborted` values to `crm.job_status` enum
 - `supabase/migrations/202604160003_crm_compliance_demo_columns.sql` — adds `is_demo` / `demo_scenario_key` to all compliance tables missing them (`job_hazards`, `job_checklists`, `job_certificates`, `purchase_orders`, `supplier_reconciliation`)
+- `supabase/migrations/202604160004_crm_job_report_templates.sql` — adds tenant-scoped job report question templates plus a trigger that auto-inserts active templates into new jobs as mandatory checklists, with backfill for existing live jobs missing mandatory checklists
+- `src/app/api/crm/settings/job-report-templates/route.ts` — tenant-scoped CRUD API for job report question templates
+- `src/modules/crm/components/settings/JobReportTemplatesForm.tsx` — settings UI to add and remove default job report questions
+- `scripts/e2e-engineer-channel-test.mjs` — end-to-end script that fires multi-channel booking events, creates engineer-assigned jobs, and verifies they appear in the engineer diary
 
 ### Changed
 
@@ -31,6 +35,7 @@
 - `src/modules/crm/lib/data.ts` — `getJobDetail` customer select now includes `email` to match `JobWithRelations` type
 - `src/modules/crm/types.ts` — `Job.started_at` added as optional; `JobWithRelations.customer` includes `email`; `JobChecklist.is_mandatory` added
 - `src/modules/crm/components/dashboard/JobStatusActionButton.tsx` — success state with `successLabel` for immediate visual feedback
+- `src/app/(crm)/settings/page.tsx` — settings now includes a “Job Report Questions” section for tenant-managed engineer completion questions
 
 ### Fixed
 

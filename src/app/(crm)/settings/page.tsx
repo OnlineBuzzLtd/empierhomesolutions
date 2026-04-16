@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
 import { CustomFieldSettingsForm } from "@/modules/crm/components/forms/CustomFieldSettingsForm";
+import { JobReportTemplatesForm } from "@/modules/crm/components/settings/JobReportTemplatesForm";
 import { JobTypeSettingsForm } from "@/modules/crm/components/forms/JobTypeSettingsForm";
 import { RequiredDocumentRuleForm } from "@/modules/crm/components/forms/RequiredDocumentRuleForm";
 import { ServiceSettingsForm } from "@/modules/crm/components/forms/ServiceSettingsForm";
@@ -28,7 +29,7 @@ export default async function SettingsPage() {
 
   const demoState = await getCrmDemoState();
   const supabase = await createCrmServerClient();
-  const [{ data: tenantSettings }, users, services, jobTypes, customFields, rules, suppliers, products, quoteTemplates] = await Promise.all([
+  const [{ data: tenantSettings }, users, services, jobTypes, customFields, rules, suppliers, products, quoteTemplates, { data: jobReportTemplates }] = await Promise.all([
     supabase.schema("crm").from("tenant_settings").select("*").eq("tenant_id", session.tenant!.id).maybeSingle(),
     listUserProfiles(demoState.mode),
     listServices(),
@@ -38,6 +39,7 @@ export default async function SettingsPage() {
     listSuppliers(demoState.mode),
     listProducts(demoState.mode),
     listQuoteTemplates(demoState.mode),
+    supabase.schema("crm").from("job_report_templates").select("id, title, position, is_active").eq("tenant_id", session.tenant!.id).eq("is_demo", false).order("position", { ascending: true }),
   ]);
 
   return (
@@ -146,6 +148,12 @@ export default async function SettingsPage() {
               </div>
             ))}
           </div>
+        </SectionCard>
+
+        <SectionCard title="Job Report Questions">
+          <JobReportTemplatesForm
+            initialTemplates={(jobReportTemplates ?? []) as { id: string; title: string; position: number; is_active: boolean }[]}
+          />
         </SectionCard>
 
         <SectionCard title="Suppliers">

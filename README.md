@@ -155,6 +155,7 @@ CRM:
 - Commusoft-style engineer field app UI: engineers log in to a streamlined mobile-first view with a diary, job event detail, Arrive/No Access/Abort/Leave workflow, and a mandatory-checklist Leave Questions modal; engineers can switch to the classic CRM view from `/preferences`
 - `no_access` and `aborted` job statuses added to the workflow
 - compliance tables (`job_checklists`, `job_hazards`, `job_certificates`, `purchase_orders`, `supplier_reconciliation`) now carry `is_demo` / `demo_scenario_key` columns so demo-mode filtering works correctly for all compliance data
+- tenant-scoped job report question templates in Settings; active questions are auto-added to new jobs as mandatory checklists, and existing live jobs without mandatory checklists are backfilled from the tenant defaults
 
 ## Supabase Notes
 
@@ -190,6 +191,7 @@ For Empire tenant 1 specifically:
 - `npm run crm:demo:bootstrap`
 - `npm run crm:smoke:demo`
 - `node scripts/tenant1-production-scenarios-seed.mjs`
+- `node scripts/e2e-engineer-channel-test.mjs`
 
 ## Demo Mode
 

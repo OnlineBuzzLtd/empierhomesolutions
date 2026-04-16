@@ -1,0 +1,18 @@
+
+ RUN  v4.0.18 /Users/shehzadiqbal/empire-home-solutions
+
+ ✓ tests/crm/ai-hub-live-agent.test.ts > live agent adapter > throws when the runtime is not configured 5ms
+ ✓ tests/crm/ai-hub-live-agent.test.ts > live agent adapter > maps a successful runtime response 90ms
+ ✓ tests/crm/ai-hub-live-agent.test.ts > live agent adapter > throws an auth error for 401/403 responses 3ms
+ ✓ tests/crm/ai-hub-live-agent.test.ts > live agent adapter > throws a request error on timeout 6ms
+ ✓ tests/crm/platform-processor.test.ts > platform event processor > returns no alias when the workspace does not exist 386ms
+ ✓ tests/crm/platform-processor.test.ts > platform event processor > processes commands outside the HTTP route wrapper 29ms
+ ✓ tests/crm/ai-hub-live-routes.test.ts > live front desk routes > blocks non-tenant-1 access on session creation 394ms
+ ✓ tests/crm/ai-hub-live-routes.test.ts > live front desk routes > sends a customer message, calls the agent, and processes booking events 56ms
+ ✓ tests/crm/ai-hub-live-routes.test.ts > live front desk routes > returns a clear 503 when the live runtime is not configured 12ms
+
+ Test Files  3 passed (3)
+      Tests  9 passed (9)
+   Start at  19:16:38
+   Duration  1.27s (transform 933ms, setup 0ms, import 890ms, tests 995ms, environment 1ms)
+

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { EngineerDashboard } from "@/modules/crm/components/dashboard/EngineerDashboard";
+import { CommsoftHome } from "@/modules/crm/components/commusoft/CommsoftHome";
 import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
 import { getAddonState, resolveAiHubViewState } from "@/modules/crm/lib/addons";
 import { getAiHubProvider } from "@/modules/crm/lib/ai-hub";
@@ -12,6 +13,7 @@ import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
+import { getUiPreference } from "@/app/actions/ui-preference";
 
 export default async function DashboardPage() {
   const setup = getCrmSetupState();
@@ -23,8 +25,14 @@ export default async function DashboardPage() {
   const demoState = await getCrmDemoState();
 
   if (session.profile?.role === "engineer") {
-    const data = await getEngineerDashboardData(session.profile.full_name, demoState.mode);
-    return <EngineerDashboard data={data} engineerName={session.profile.full_name} />;
+    const [data, uiMode] = await Promise.all([
+      getEngineerDashboardData(session.profile.full_name, demoState.mode),
+      getUiPreference(),
+    ]);
+    if (uiMode === "classic") {
+      return <EngineerDashboard data={data} engineerName={session.profile.full_name} />;
+    }
+    return <CommsoftHome data={data} engineerName={session.profile.full_name} />;
   }
 
   const provider = getAiHubProvider();

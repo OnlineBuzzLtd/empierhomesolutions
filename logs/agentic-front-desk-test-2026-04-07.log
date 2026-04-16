@@ -1,0 +1,52 @@
+
+ RUN  v4.0.18 /Users/shehzadiqbal/empire-home-solutions
+
+ ✓ tests/crm/platform.test.ts > crm platform helpers > treats the tenant id as the current workspace id alias 2ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > exposes the shared command and event vocabulary 0ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > validates versioned workspace-scoped event envelopes 4ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > validates versioned workspace-scoped command envelopes 2ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > derives explicit CRM commands from agentic booking events 6ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > derives match and link commands from conversation start events 1ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > selects a uniquely best job candidate from date and title hints 1ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > returns null when job matching is ambiguous 13ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > builds native operator-shell module cards 1ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > flags conversations with no CRM customer as review-needed 1ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > flags booked conversations without jobs for review 0ms
+ ✓ tests/crm/platform.test.ts > crm platform helpers > treats fully linked conversations as resolved 0ms
+ ✓ tests/crm/platform-events-route.test.ts > platform events route > processes 'missed call recovery' events into the expected CRM commands 237ms
+ ✓ tests/crm/platform-events-route.test.ts > platform events route > processes 'conversation start matching' events into the expected CRM commands 10ms
+ ✓ tests/crm/platform-events-route.test.ts > platform events route > processes 'lead qualification' events into the expected CRM commands 7ms
+ ✓ tests/crm/platform-events-route.test.ts > platform events route > processes 'booking confirmation' events into the expected CRM commands 7ms
+ ✓ tests/crm/platform-events-route.test.ts > platform events route > processes 'escalation handling' events into the expected CRM commands 9ms
+ ✓ tests/crm/platform-events-route.test.ts > platform events route > rejects requests with the wrong shared secret 6ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > archives a customer through the delete route 327ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > blocks job stage progression when required fields or documents are missing 50ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > blocks job completion when compliance records are still open 37ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > normalizes blank optional job fields before insert 35ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > creates a job phase and defaults the sort order after the latest phase 37ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > blocks non-managers from approving job variations 26ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > converts a quote into an invoice 200ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > marks an invoice as paid 8ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > rejects unauthenticated quote creation before allocating a quote number 36ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > returns a JSON error when quote number allocation fails 22ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > manually relinks a platform conversation and propagates the customer and job to linked CRM records 13ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > rejects manual relink when the selected job belongs to a different customer 3ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > records quote acceptance and advances the quote status 32ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > generates an invoice from a planned invoice schedule 11ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > returns a signed attachment URL 11ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > updates a user profile role using the user_id conflict target 12ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > creates a new tenant through the public signup route 144ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > allows managers to start demo mode and sets the demo cookie 76ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > blocks non-managers from starting demo mode 2ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > clears the demo cookie when demo mode stops 9ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > blocks engineer ai assist when the add-on is not available 95ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > returns an engineer ai draft for the requested action 4ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > searches relink customer and job candidates within the current workspace 16ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > rejects relink search queries shorter than 2 characters 3ms
+ ✓ tests/crm/api-routes.test.ts > crm api routes > updates review ownership for a platform conversation 10ms
+
+ Test Files  3 passed (3)
+      Tests  43 passed (43)
+   Start at  16:33:13
+   Duration  1.63s (transform 783ms, setup 0ms, import 600ms, tests 1.54s, environment 1ms)
+

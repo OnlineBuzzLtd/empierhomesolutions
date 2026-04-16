@@ -353,6 +353,7 @@ describe("crm engineer ai helpers", () => {
         id: "cust-1",
         full_name: "Sarah Thompson",
         phone: "07700 900123",
+        email: null,
         address_line1: "18 Ash Grove",
         postcode: "LE5 2AB",
       },

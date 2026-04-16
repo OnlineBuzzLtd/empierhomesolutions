@@ -12,6 +12,7 @@ import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { LogoutButton } from "@/modules/crm/components/layout/LogoutButton";
 import { TenantSwitcher } from "@/modules/crm/components/layout/TenantSwitcher";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
+import { getUiPreference } from "@/app/actions/ui-preference";
 
 export async function generateMetadata(): Promise<Metadata> {
   const session = await getCrmSession();
@@ -61,6 +62,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const setup = getCrmSetupState();
   const canManageDemo = userCanManageSettings(session.profile?.role) && !session.profile?.is_demo && session.settings?.demo_mode_enabled !== false;
   const isEngineer = session.profile?.role === "engineer";
+  const uiMode = isEngineer ? await getUiPreference() : "classic";
+  const isCommsoftMode = isEngineer && uiMode === "commusoft";
   const navItems = isEngineer
     ? engineerNavItems
     : userCanManageSettings(session.profile?.role)
@@ -86,6 +89,16 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   if (!session.user) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100">{children}</div>
+    );
+  }
+
+  if (isCommsoftMode && session.user) {
+    return (
+      <DemoModeProvider state={demoState}>
+        <div className="min-h-screen bg-white text-slate-900">
+          {children}
+        </div>
+      </DemoModeProvider>
     );
   }
 
@@ -160,19 +173,25 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
               </div>
             </header>
 
-            <main className={`flex-1 px-4 py-6 lg:px-8 ${isEngineer ? "pb-24 lg:pb-6" : ""}`}>
-              <div className="mx-auto w-full max-w-7xl">
-                {demoState.active ? (
-                  <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    {demoState.locked
-                      ? "Demo account: you are viewing demo CRM records only."
-                      : "Demo data mode is active. Changes here apply to the demo walkthrough only."}
-                  </div>
-                ) : null}
-              </div>
-              {children}
-            </main>
-            {isEngineer ? (
+            {isCommsoftMode ? (
+              <main className="flex-1">
+                {children}
+              </main>
+            ) : (
+              <main className={`flex-1 px-4 py-6 lg:px-8 ${isEngineer ? "pb-24 lg:pb-6" : ""}`}>
+                <div className="mx-auto w-full max-w-7xl">
+                  {demoState.active ? (
+                    <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      {demoState.locked
+                        ? "Demo account: you are viewing demo CRM records only."
+                        : "Demo data mode is active. Changes here apply to the demo walkthrough only."}
+                    </div>
+                  ) : null}
+                </div>
+                {children}
+              </main>
+            )}
+            {isEngineer && !isCommsoftMode ? (
               <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
                 <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold">
                   <Link

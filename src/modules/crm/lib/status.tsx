@@ -6,6 +6,8 @@ export const jobStatusConfig: Record<JobStatus, StatusBadgeConfig> = {
   in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-700" },
   completed: { label: "Completed", className: "bg-emerald-100 text-emerald-700" },
   invoiced: { label: "Invoiced", className: "bg-violet-100 text-violet-700" },
+  no_access: { label: "No Access", className: "bg-pink-100 text-pink-700" },
+  aborted: { label: "Aborted", className: "bg-rose-100 text-rose-700" },
 };
 
 export const jobPhaseStatusConfig: Record<JobPhaseStatus, StatusBadgeConfig> = {

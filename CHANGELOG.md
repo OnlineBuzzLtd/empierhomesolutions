@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-04-16
+
+### Added
+
+- Commusoft-style engineer field app UI as an alternative view for engineers, accessible from `/dashboard` when `engineer_ui` cookie is set to `commusoft`
+- `src/modules/crm/components/commusoft/CommsoftHome.tsx` — engineer home screen with greeting, current event card, and bottom navigation
+- `src/modules/crm/components/commusoft/CommsoftDiary.tsx` — horizontal date strip with daily job list
+- `src/modules/crm/components/commusoft/CommsoftJobEvent.tsx` — workflow-driven job detail with Arrive / No Access / Abort / Leave actions
+- `src/modules/crm/components/commusoft/CommsoftJobActions.tsx` — client-side action handler for job status transitions
+- `src/modules/crm/components/commusoft/LeaveQuestionsModal.tsx` — full-screen pre-completion questionnaire driven by mandatory checklists
+- `src/modules/crm/components/commusoft/ViewToggle.tsx` — radio-style UI mode switcher (Field App / Classic View)
+- `src/app/(crm)/diary/page.tsx` — dedicated engineer diary route
+- `src/app/(crm)/preferences/page.tsx` — engineer preferences page for view mode switching
+- `src/app/actions/ui-preference.ts` — server action to read/write `engineer_ui` cookie
+- `src/modules/crm/components/jobs/EngineerFieldView.tsx` — streamlined classic engineer job detail
+- `src/modules/crm/components/jobs/CompleteJobButton.tsx` — structured error display for completion blockers
+- `src/modules/crm/components/shared/CollapsibleSectionCard.tsx` — reusable accordion component for mobile UX
+- `supabase/migrations/202604160001_engineer_ux_improvements.sql` — adds `started_at` to `crm.jobs` and `is_mandatory` to `crm.job_checklists`
+- `supabase/migrations/202604160002_job_status_no_access_aborted.sql` — adds `no_access` and `aborted` values to `crm.job_status` enum
+- `supabase/migrations/202604160003_crm_compliance_demo_columns.sql` — adds `is_demo` / `demo_scenario_key` to all compliance tables missing them (`job_hazards`, `job_checklists`, `job_certificates`, `purchase_orders`, `supplier_reconciliation`)
+
+### Changed
+
+- `src/app/(crm)/dashboard/page.tsx` — engineers now land on Commusoft home by default; classic view available via preferences
+- `src/app/(crm)/jobs/[id]/page.tsx` — engineers see `CommsoftJobEvent` by default; classic `EngineerFieldView` available via preferences
+- `src/app/(crm)/layout.tsx` — renders a minimal full-screen wrapper for Commusoft mode, hiding default sidebar, header, and bottom nav
+- `src/app/api/crm/jobs/[id]/route.ts` — sets `started_at` on first `in_progress` transition; allows `no_access` and `aborted` to bypass compliance checks; returns structured `blockers` payload on completion failure
+- `src/modules/crm/lib/status.tsx` — `no_access` (pink) and `aborted` (red) added to `jobStatusConfig`
+- `src/modules/crm/lib/data.ts` — `getJobDetail` customer select now includes `email` to match `JobWithRelations` type
+- `src/modules/crm/types.ts` — `Job.started_at` added as optional; `JobWithRelations.customer` includes `email`; `JobChecklist.is_mandatory` added
+- `src/modules/crm/components/dashboard/JobStatusActionButton.tsx` — success state with `successLabel` for immediate visual feedback
+
+### Fixed
+
+- Compliance tables (`job_hazards`, `job_checklists`, `job_certificates`, `purchase_orders`, `supplier_reconciliation`) were missing `is_demo` / `demo_scenario_key` columns so all reads via `filterByMode` silently returned empty arrays — the Leave Questions modal and other compliance features were invisible to the app
+- `getJobDetail` customer select was missing `email`, causing a TypeScript type mismatch in `CommsoftJobEvent`
+
+### Verified
+
+- `supabase db push` applied all three new migrations
+- Engineer diary shows assigned jobs after programmatic job assignment to live tenant
+- Leave questions modal displays mandatory checklists for in-progress jobs
+
 ## 2026-04-14
 
 ### Fixed

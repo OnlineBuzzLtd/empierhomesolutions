@@ -33,18 +33,20 @@ async function syncJobAssignees(supabase: Awaited<ReturnType<typeof import("@/mo
   return ((profiles ?? []) as Array<{ id: string; full_name: string | null }>).map((profile) => profile.full_name?.trim()).filter(Boolean).join(", ");
 }
 
-async function hasOpenComplianceItems(supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>, jobId: string) {
+async function getComplianceBlockers(supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>, jobId: string) {
   const [hazards, checklists, certificates] = await Promise.all([
-    supabase.schema("crm").from("job_hazards").select("id").eq("job_id", jobId).in("status", ["active", "mitigated"]),
-    supabase.schema("crm").from("job_checklists").select("id").eq("job_id", jobId).eq("status", "required"),
-    supabase.schema("crm").from("job_certificates").select("id").eq("job_id", jobId).eq("status", "draft"),
+    supabase.schema("crm").from("job_hazards").select("id, title").eq("job_id", jobId).in("status", ["active", "mitigated"]),
+    supabase.schema("crm").from("job_checklists").select("id, title").eq("job_id", jobId).eq("status", "required").eq("is_mandatory", true),
+    supabase.schema("crm").from("job_certificates").select("id, title").eq("job_id", jobId).eq("status", "draft"),
   ]);
 
-  return {
-    hazards: (hazards.data ?? []).length,
-    checklists: (checklists.data ?? []).length,
-    certificates: (certificates.data ?? []).length,
-  };
+  const blockers: Array<{ type: "hazard" | "checklist" | "certificate"; label: string }> = [
+    ...(hazards.data ?? []).map((h) => ({ type: "hazard" as const, label: h.title as string })),
+    ...(checklists.data ?? []).map((c) => ({ type: "checklist" as const, label: c.title as string })),
+    ...(certificates.data ?? []).map((c) => ({ type: "certificate" as const, label: c.title as string })),
+  ];
+
+  return blockers;
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -76,7 +78,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { data: existing } = await supabase
       .schema("crm")
       .from("jobs")
-      .select("service_id, job_type_id, status, scheduled_date, scheduled_time, customer_id, lead_id, title")
+      .select("service_id, job_type_id, status, scheduled_date, scheduled_time, customer_id, lead_id, title, started_at")
       .eq("id", id)
       .single();
     const assignedEngineerIds = parseIdList(body.assigned_engineer_ids);
@@ -102,21 +104,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const nextStatus = parsed.data.status ?? existing?.status;
-    if (nextStatus === "completed" || nextStatus === "invoiced") {
-      const compliance = await hasOpenComplianceItems(supabase, id);
-      const blockers = [
-        compliance.hazards > 0 ? `${compliance.hazards} unresolved hazards` : null,
-        compliance.checklists > 0 ? `${compliance.checklists} incomplete checklists` : null,
-        compliance.certificates > 0 ? `${compliance.certificates} draft certificates` : null,
-      ].filter(Boolean);
+    const isTerminalWithoutCompliance = nextStatus === "no_access" || nextStatus === "aborted";
+    if (!isTerminalWithoutCompliance && (nextStatus === "completed" || nextStatus === "invoiced")) {
+      const blockers = await getComplianceBlockers(supabase, id);
       if (blockers.length > 0) {
-        return jsonError(`Cannot complete job. Resolve ${blockers.join(", ")} first.`);
+        return Response.json(
+          { error: "Cannot complete job. Resolve outstanding items first.", blockers },
+          { status: 400 },
+        );
       }
     }
 
+    const transitioningToInProgress = parsed.data.status === "in_progress" && existing?.status !== "in_progress";
     const updatePayload = {
       ...parsed.data,
       assigned_engineer_ids: undefined,
+      ...(transitioningToInProgress && !existing?.started_at ? { started_at: new Date().toISOString() } : {}),
     };
     const { data, error } = await supabase.schema("crm").from("jobs").update(updatePayload).eq("id", id).select("*").single();
     if (error) {

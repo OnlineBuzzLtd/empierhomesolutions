@@ -20,7 +20,7 @@ export type LeadCustomerMatchResult = (typeof leadCustomerMatchResults)[number];
 export const leadDedupeResults = ["created", "updated_existing"] as const;
 export type LeadDedupeResult = (typeof leadDedupeResults)[number];
 
-export const jobStatuses = ["enquiry", "booked", "in_progress", "completed", "invoiced"] as const;
+export const jobStatuses = ["enquiry", "booked", "in_progress", "completed", "invoiced", "no_access", "aborted"] as const;
 export type JobStatus = (typeof jobStatuses)[number];
 
 export const jobPhaseStatuses = ["planned", "ready", "in_progress", "completed"] as const;
@@ -347,6 +347,7 @@ export type Job = {
   duration_hours: number | null;
   status: JobStatus;
   assigned_engineer: string | null;
+  started_at?: string | null;
   created_by: string | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
@@ -410,6 +411,7 @@ export type JobChecklist = {
   title: string;
   notes: string | null;
   status: JobChecklistStatus;
+  is_mandatory: boolean;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -851,7 +853,7 @@ export type LeadWithRelations = Lead & {
 };
 
 export type JobWithRelations = Job & {
-  customer?: Pick<Customer, "id" | "full_name" | "phone" | "address_line1" | "postcode"> | null;
+  customer?: Pick<Customer, "id" | "full_name" | "phone" | "email" | "address_line1" | "postcode"> | null;
   site?: Pick<Site, "id" | "label" | "address_line1" | "postcode" | "city" | "access_notes" | "parking_notes"> | null;
   site_contact?: Pick<SiteContact, "id" | "full_name" | "phone" | "email" | "role_label"> | null;
   service?: Pick<Service, "id" | "name"> | null;

@@ -1,0 +1,8 @@
+
+Running 3 tests using 1 worker
+
+  ✓  1 tests/e2e/front-desk-smoke.spec.ts:10:7 › Front Desk smoke › renders multiple front-desk scenarios in the real inbox UI (1.2s)
+  ✓  2 tests/e2e/front-desk-smoke.spec.ts:23:7 › Front Desk smoke › allows an operator to take ownership of a review case (1.3s)
+  ✓  3 tests/e2e/front-desk-smoke.spec.ts:50:7 › Front Desk smoke › supports manual relink search and save from the inbox (1.5s)
+
+  3 passed (6.3s)

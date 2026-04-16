@@ -110,6 +110,8 @@ CRM:
 - `http://localhost:3000/staff`
 - `http://localhost:3000/reports`
 - `http://localhost:3000/settings`
+- `http://localhost:3000/diary` (engineer — daily schedule)
+- `http://localhost:3000/preferences` (engineer — UI mode toggle)
 
 Live CRM:
 
@@ -150,6 +152,9 @@ CRM:
 - production-only tenant-1 configuration with real admin/engineer roleplay data
 - engineer job-note and attachment form handling validated end-to-end on live tenant-1 jobs
 - reusable tenant-1 production scenario seeding for buyer roleplay with realistic customers, leads, jobs, appointments, quotes, invoices, compliance records, and purchase orders
+- Commusoft-style engineer field app UI: engineers log in to a streamlined mobile-first view with a diary, job event detail, Arrive/No Access/Abort/Leave workflow, and a mandatory-checklist Leave Questions modal; engineers can switch to the classic CRM view from `/preferences`
+- `no_access` and `aborted` job statuses added to the workflow
+- compliance tables (`job_checklists`, `job_hazards`, `job_certificates`, `purchase_orders`, `supplier_reconciliation`) now carry `is_demo` / `demo_scenario_key` columns so demo-mode filtering works correctly for all compliance data
 
 ## Supabase Notes
 

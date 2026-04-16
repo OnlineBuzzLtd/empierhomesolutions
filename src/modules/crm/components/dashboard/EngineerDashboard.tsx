@@ -7,6 +7,7 @@ import { formatDate } from "@/modules/crm/lib/format";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
 import type { EngineerDashboardData, EngineerDashboardJob } from "@/modules/crm/types";
 import { JobStatusActionButton } from "@/modules/crm/components/dashboard/JobStatusActionButton";
+import { CompleteJobButton } from "@/modules/crm/components/jobs/CompleteJobButton";
 
 export function EngineerDashboard({ data, engineerName }: { data: EngineerDashboardData; engineerName: string }) {
   const nextJob = data.nextAssignedJob;
@@ -110,12 +111,11 @@ export function EngineerDashboard({ data, engineerName }: { data: EngineerDashbo
                       endpoint={`/api/crm/jobs/${nextJob.id}`}
                       status="in_progress"
                       label="Start Job"
+                      successLabel="In Progress"
                       className="rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                     />
-                    <JobStatusActionButton
+                    <CompleteJobButton
                       endpoint={`/api/crm/jobs/${nextJob.id}`}
-                      status="completed"
-                      label="Mark Complete"
                       className="rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                     />
                     <Link href={`/jobs/${nextJob.id}#job-attachments`} className="rounded-full border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50">

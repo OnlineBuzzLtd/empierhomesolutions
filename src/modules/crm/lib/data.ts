@@ -680,7 +680,7 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   const jobQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)");
+    .select("*, customer:customers(id, full_name, phone, email, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(jobQuery, context.mode, context.scenarioKey);
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);

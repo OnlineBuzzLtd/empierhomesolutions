@@ -125,6 +125,7 @@ export const jobChecklistSchema = z.object({
   title: z.string().min(2),
   notes: z.string().optional().nullable(),
   status: z.enum(jobChecklistStatuses).default("required"),
+  is_mandatory: z.coerce.boolean().default(false),
 });
 
 export const jobCertificateSchema = z.object({

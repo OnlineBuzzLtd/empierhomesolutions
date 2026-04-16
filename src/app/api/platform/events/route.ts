@@ -39,9 +39,12 @@ export async function POST(request: Request) {
       { status: result.deferred ? 202 : 200 },
     );
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to process platform event." },
-      { status: 500 },
-    );
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "Failed to process platform event.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

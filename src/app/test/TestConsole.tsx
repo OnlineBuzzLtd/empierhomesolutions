@@ -458,10 +458,32 @@ export function TestConsole() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ conversationId: webchat.conversationId, body: webchatBody }),
       });
-      const data = (await res.json().catch(() => ({}))) as { session?: unknown; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        session?: {
+          message?: { id: string; body: string; direction: string; createdAt: string } | null;
+          replyMessage?: { id: string; body: string; direction: string; createdAt: string } | null;
+        };
+        error?: string;
+      };
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to send webchat message.");
       }
+      const session = data.session ?? {};
+      const userMsg = session.message ?? null;
+      const botMsg = session.replyMessage ?? null;
+      setWebchat((prev) =>
+        prev
+          ? {
+              ...prev,
+              lastReply: botMsg?.body ?? prev.lastReply,
+              messages: [...prev.messages, userMsg, botMsg].filter(
+                (entry): entry is { id: string; body: string; direction: string; createdAt: string } =>
+                  entry !== null,
+              ),
+              raw: data.session,
+            }
+          : prev,
+      );
       appendLog([
         {
           id: `wc:msg:${Date.now()}`,

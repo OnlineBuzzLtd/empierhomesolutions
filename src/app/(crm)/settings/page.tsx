@@ -3,6 +3,7 @@ import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
 import { CustomFieldSettingsForm } from "@/modules/crm/components/forms/CustomFieldSettingsForm";
 import { JobReportTemplatesForm } from "@/modules/crm/components/settings/JobReportTemplatesForm";
+import { TwilioProvisioningPanel } from "@/modules/crm/components/settings/TwilioProvisioningPanel";
 import { JobTypeSettingsForm } from "@/modules/crm/components/forms/JobTypeSettingsForm";
 import { RequiredDocumentRuleForm } from "@/modules/crm/components/forms/RequiredDocumentRuleForm";
 import { ServiceSettingsForm } from "@/modules/crm/components/forms/ServiceSettingsForm";
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
 
   const demoState = await getCrmDemoState();
   const supabase = await createCrmServerClient();
-  const [{ data: tenantSettings }, users, services, jobTypes, customFields, rules, suppliers, products, quoteTemplates, { data: jobReportTemplates }] = await Promise.all([
+  const [{ data: tenantSettings }, users, services, jobTypes, customFields, rules, suppliers, products, quoteTemplates, { data: jobReportTemplates }, { data: twilioState }] = await Promise.all([
     supabase.schema("crm").from("tenant_settings").select("*").eq("tenant_id", session.tenant!.id).maybeSingle(),
     listUserProfiles(demoState.mode),
     listServices(),
@@ -40,6 +41,12 @@ export default async function SettingsPage() {
     listProducts(demoState.mode),
     listQuoteTemplates(demoState.mode),
     supabase.schema("crm").from("job_report_templates").select("id, title, position, is_active").eq("tenant_id", session.tenant!.id).eq("is_demo", false).order("position", { ascending: true }),
+    supabase
+      .schema("crm")
+      .from("tenant_twilio_state")
+      .select("messaging_service_sid, voice_number_sid, voice_number_e164, whatsapp_sender_id, whatsapp_status, last_synced_at, last_error")
+      .eq("tenant_id", session.tenant!.id)
+      .maybeSingle(),
   ]);
 
   return (
@@ -68,6 +75,25 @@ export default async function SettingsPage() {
             <textarea name="certificate_footer" defaultValue={String(tenantSettings?.certificate_footer ?? "")} placeholder="Certificate footer" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
           </ApiForm>
           <p className="mt-3 text-xs text-slate-500">These settings are owned by the current tenant and replace hardcoded Empire branding in the CRM shell and future documents.</p>
+        </SectionCard>
+
+        <SectionCard title="Twilio Provisioning">
+          <TwilioProvisioningPanel
+            initialState={
+              twilioState
+                ? {
+                    messaging_service_sid: (twilioState.messaging_service_sid as string | null) ?? null,
+                    voice_number_sid: (twilioState.voice_number_sid as string | null) ?? null,
+                    voice_number_e164: (twilioState.voice_number_e164 as string | null) ?? null,
+                    whatsapp_sender_id: (twilioState.whatsapp_sender_id as string | null) ?? null,
+                    whatsapp_status: (twilioState.whatsapp_status as string | null) ?? "not_started",
+                    last_synced_at: (twilioState.last_synced_at as string | null) ?? null,
+                    last_error: (twilioState.last_error as string | null) ?? null,
+                  }
+                : null
+            }
+          />
+          <p className="mt-3 text-xs text-slate-500">Re-runs the Twilio + CustomerJourneys provisioning pipeline for this tenant idempotently. Safe to run any time — existing SIDs are reused.</p>
         </SectionCard>
 
         <SectionCard title="Create New Tenant">

@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import type { CrmRole, Tenant, TenantBranding, TenantSettings, UserProfile } from "@/modules/crm/types";
 import { ensureCustomerJourneysRuntimeLink } from "@/modules/crm/lib/customerjourneys";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
+import { ensureTenantTwilioProvisioning } from "@/modules/crm/lib/twilio-provisioning";
 
 type ServiceRoleClient = ReturnType<typeof createCrmServiceRoleClient>;
 
@@ -348,6 +349,21 @@ export async function createTenantWorkspace(admin: ServiceRoleClient, input: Ten
     }
   } catch (error) {
     warnings.push(error instanceof Error ? error.message : "Failed to link CustomerJourneys runtime.");
+  }
+
+  try {
+    const twilio = await ensureTenantTwilioProvisioning(admin, {
+      id: createdTenant.id,
+      name: createdTenant.name,
+      slug: createdTenant.slug,
+    });
+    for (const warning of twilio.warnings) {
+      warnings.push(`[twilio:${warning.step}] ${warning.message}`);
+    }
+  } catch (error) {
+    warnings.push(
+      error instanceof Error ? `[twilio] ${error.message}` : "[twilio] Failed to provision Twilio resources.",
+    );
   }
 
   return {

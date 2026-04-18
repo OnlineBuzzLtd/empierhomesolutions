@@ -6,7 +6,6 @@ import { buildPlatformE2eInboxFixtures } from "@/modules/platform/lib/e2e-fixtur
 import { listPlatformConversationRecords, type PlatformConversationRecord } from "@/modules/platform/lib/repository";
 
 export const customerJourneysDefaultVerticalKey = "plumbing";
-export const empireCustomerJourneysRuntimeTenantId = "75d76e43-4e5e-4568-8ff2-e2594c9818f9";
 
 type CustomerJourneysRuntimeLinkRow = {
   crm_tenant_id: string;
@@ -528,19 +527,6 @@ export async function ensureCustomerJourneysRuntimeLink(
   if (existing?.customerjourneys_tenant_id) {
     return {
       link: existing,
-      warning: null,
-    };
-  }
-
-  if (input.tenant.id === "11111111-1111-4111-8111-111111111111") {
-    const link = await upsertCustomerJourneysRuntimeLink(supabase, {
-      crmTenantId: input.tenant.id,
-      customerJourneysTenantId: empireCustomerJourneysRuntimeTenantId,
-      platformApiBaseUrl: getCrmEnv().customerJourneysPlatformApiBaseUrl,
-      authMode: "internal_service",
-    });
-    return {
-      link,
       warning: null,
     };
   }

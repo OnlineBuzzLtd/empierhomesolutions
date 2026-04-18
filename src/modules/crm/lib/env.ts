@@ -14,6 +14,9 @@ export function getCrmEnv() {
   const customerJourneysPlatformApiBaseUrl = normalizeEnv(process.env.CUSTOMERJOURNEYS_PLATFORM_API_BASE_URL);
   const customerJourneysAdminApiToken = normalizeEnv(process.env.CUSTOMERJOURNEYS_ADMIN_API_TOKEN);
   const customerJourneysInternalApiToken = normalizeEnv(process.env.CUSTOMERJOURNEYS_INTERNAL_API_TOKEN);
+  const twilioAccountSid = normalizeEnv(process.env.TWILIO_ACCOUNT_SID);
+  const twilioAuthToken = normalizeEnv(process.env.TWILIO_AUTH_TOKEN);
+  const twilioDefaultNumberPoolSid = normalizeEnv(process.env.TWILIO_DEFAULT_NUMBER_POOL_SID);
   const crmE2ePlatformFixturesEnabled = process.env.CRM_E2E_PLATFORM_FIXTURES === "1";
 
   return {
@@ -29,6 +32,10 @@ export function getCrmEnv() {
     customerJourneysAdminApiToken,
     customerJourneysInternalApiToken,
     customerJourneysBridgeEnabled: Boolean(customerJourneysPlatformApiBaseUrl),
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioDefaultNumberPoolSid,
+    twilioProvisioningEnabled: Boolean(twilioAccountSid && twilioAuthToken),
     crmE2ePlatformFixturesEnabled,
     enabled: Boolean(url && publishableKey),
     adminEnabled: Boolean(url && serviceRoleKey),

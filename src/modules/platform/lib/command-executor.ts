@@ -624,6 +624,45 @@ async function attachAppointmentToJob(
   }
 }
 
+async function syncJobScheduleFromBooking(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  input: {
+    jobId: string;
+    title: string;
+    description: string | null;
+    startsAt: string;
+    assignedEngineer: string | null;
+  },
+): Promise<void> {
+  const scheduledDate = input.startsAt.slice(0, 10);
+  const scheduledTime = input.startsAt.slice(11, 16);
+
+  const updatePayload: Record<string, unknown> = {
+    title: input.title,
+    scheduled_date: scheduledDate,
+    scheduled_time: scheduledTime,
+    status: "booked",
+  };
+  if (input.description) {
+    updatePayload.description = input.description;
+  }
+  if (input.assignedEngineer) {
+    updatePayload.assigned_engineer = input.assignedEngineer;
+  }
+
+  const { error } = await supabase
+    .schema("crm")
+    .from("jobs")
+    .update(updatePayload)
+    .eq("id", input.jobId)
+    .eq("tenant_id", alias.tenant_id);
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function createJobFromBooking(
   supabase: SupabaseClient,
   alias: WorkspaceAlias,
@@ -1037,15 +1076,16 @@ export async function executePlatformCommand(
         await attachAppointmentToCustomer(supabase, alias, refreshedLink.booking_appointment_id, refreshedLink.customer_id);
       }
 
+      const assignedEngineer = pickString(payload, [
+        "booking_resource_name",
+        "resource_name",
+        "engineer_name",
+        "assigned_engineer",
+      ]);
+
       // Auto-create a job so it appears in the engineer diary.
       // Only create when a customer is known and no job has been linked yet.
       if (refreshedLink?.customer_id && !refreshedLink.job_id) {
-        const assignedEngineer = pickString(payload, [
-          "booking_resource_name",
-          "resource_name",
-          "engineer_name",
-          "assigned_engineer",
-        ]);
         const jobId = await createJobFromBooking(supabase, alias, {
           customerId: refreshedLink.customer_id,
           leadId: refreshedLink.lead_id,
@@ -1061,6 +1101,21 @@ export async function executePlatformCommand(
         });
         if (refreshedLink.booking_appointment_id) {
           await attachAppointmentToJob(supabase, alias, refreshedLink.booking_appointment_id, jobId);
+        }
+      } else if (refreshedLink?.job_id) {
+        // A job was already linked (e.g. merged onto an existing one during
+        // LinkConversationToCustomerOrJob). Refresh its schedule + title +
+        // status from the incoming booking so the diary reflects the new slot
+        // instead of the old one.
+        await syncJobScheduleFromBooking(supabase, alias, {
+          jobId: refreshedLink.job_id,
+          title: buildBookingTitle(payload),
+          description: buildLeadNotes(payload) || null,
+          startsAt,
+          assignedEngineer,
+        });
+        if (refreshedLink.booking_appointment_id) {
+          await attachAppointmentToJob(supabase, alias, refreshedLink.booking_appointment_id, refreshedLink.job_id);
         }
       }
 

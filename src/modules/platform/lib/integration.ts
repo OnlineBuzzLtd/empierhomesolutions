@@ -73,13 +73,16 @@ export function derivePlatformCommandsFromEvent(event: PlatformEventEnvelope): P
         }),
       ];
     case "BookingConfirmed":
+      // Link first so the conversation has a customer_id before the appointment
+      // runs, which lets CreateOrUpdateAppointment create a diary job on the
+      // same pass instead of leaving it orphaned until a later event.
       return [
-        buildCommandFromEvent(event, "CreateOrUpdateAppointment", {
-          booking_status: "confirmed",
-          ...event.payload,
-        }),
         buildCommandFromEvent(event, "LinkConversationToCustomerOrJob", {
           link_reason: "booking_confirmed",
+          ...event.payload,
+        }),
+        buildCommandFromEvent(event, "CreateOrUpdateAppointment", {
+          booking_status: "confirmed",
           ...event.payload,
         }),
       ];

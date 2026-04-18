@@ -1016,7 +1016,23 @@ export async function executePlatformCommand(
         });
       }
 
-      const refreshedLink = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
+      let refreshedLink = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
+
+      // Self-heal: if the Link command hasn't run (or didn't resolve a customer
+      // for any reason), try to resolve one here so a diary job can be created
+      // on this pass instead of being dropped silently.
+      if (refreshedLink && !refreshedLink.customer_id) {
+        const fallbackCustomer = await resolveCustomerForPayload(supabase, alias, payload);
+        if (fallbackCustomer) {
+          await upsertPlatformConversationLink(supabase, alias, {
+            conversationId,
+            customerId: fallbackCustomer.id,
+            latestEventAt: startsAt,
+          });
+          refreshedLink = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
+        }
+      }
+
       if (refreshedLink?.booking_appointment_id && refreshedLink.customer_id) {
         await attachAppointmentToCustomer(supabase, alias, refreshedLink.booking_appointment_id, refreshedLink.customer_id);
       }

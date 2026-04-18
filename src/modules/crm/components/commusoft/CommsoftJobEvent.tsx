@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CommsoftBottomNav } from "@/modules/crm/components/commusoft/CommsoftHome";
 import { CommsoftJobActions } from "@/modules/crm/components/commusoft/CommsoftJobActions";
-import { formatDate, formatDateTime } from "@/modules/crm/lib/format";
+import { formatDate, formatDateTime, formatScheduledTime } from "@/modules/crm/lib/format";
 import type {
   Attachment,
   EngineerAiAssistState,
@@ -131,7 +131,7 @@ export function CommsoftJobEvent({
             <p className="text-xs font-semibold text-slate-500">Diary event :</p>
             <p className="mt-1 text-sm text-slate-800">
               {formatDate(job.scheduled_date)}
-              {job.scheduled_time ? ` (${job.scheduled_time})` : ""}
+              {job.scheduled_time ? ` (${formatScheduledTime(job.scheduled_date, job.scheduled_time)})` : ""}
             </p>
           </div>
         ) : null}

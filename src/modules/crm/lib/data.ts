@@ -9,6 +9,35 @@ import { buildReportsSummary } from "@/modules/crm/lib/reporting";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import type { CrmMode } from "@/modules/crm/lib/demo";
 
+/**
+ * Decides which CRM route the Calendar "Open" button should open for an
+ * appointment row. We prefer the most specific linked entity because a job
+ * detail page is more useful than a calendar re-load, and the leads inbox is
+ * more useful than a dead-end.
+ *
+ * Exported so the ordering/fallback logic can be unit-tested without wiring a
+ * Supabase fixture for listAppointmentsForCalendar.
+ */
+export function deriveAppointmentEntityLink(appointment: {
+  job_id: string | null;
+  customer_id: string | null;
+  customer?: { id: string } | null;
+  lead_id: string | null;
+  lead?: { id: string } | null;
+}): string {
+  if (appointment.job_id) {
+    return `/jobs/${appointment.job_id}`;
+  }
+  const customerId = appointment.customer?.id ?? appointment.customer_id;
+  if (customerId) {
+    return `/customers/${customerId}`;
+  }
+  if (appointment.lead?.id ?? appointment.lead_id) {
+    return "/leads";
+  }
+  return "/calendar";
+}
+
 function emptyDashboard(): DashboardData {
   return {
     openJobsCount: 0,
@@ -654,7 +683,11 @@ export async function listJobs(mode?: CrmMode) {
     .from("jobs")
     .select("*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)");
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
-  const { data } = await jobsQuery.order("scheduled_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
+  // Jobs behave like an inbox: the top of the list should be the most recently
+  // submitted booking, not "what's next on the diary" (that's the Calendar
+  // page's job). Tie-break on scheduled_date so two jobs created in the same
+  // instant still sort deterministically.
+  const { data } = await jobsQuery.order("created_at", { ascending: false }).order("scheduled_date", { ascending: false, nullsFirst: false });
   const jobs = (data ?? []) as JobWithRelations[];
   const jobIds = jobs.map((job) => job.id);
   const [assigneesByJobId, phasesByJobId, variationsByJobId] = await Promise.all([
@@ -889,6 +922,14 @@ export async function listAppointmentsForCalendar(filters?: {
   const items: CalendarItem[] = [];
 
   for (const appointment of (appointments ?? []) as Array<Appointment & { customer?: CalendarItem["customer"]; lead?: CalendarItem["lead"] }>) {
+    const appointmentEntityLink = deriveAppointmentEntityLink({
+      job_id: appointment.job_id,
+      customer_id: appointment.customer_id,
+      customer: appointment.customer,
+      lead_id: appointment.lead_id,
+      lead: appointment.lead,
+    });
+
     for (const occurrence of expandAppointmentOccurrences(appointment, start, end)) {
       const owner = occurrence.assigned_to ? usersById.get(occurrence.assigned_to) ?? null : null;
       items.push({
@@ -898,7 +939,7 @@ export async function listAppointmentsForCalendar(filters?: {
         lead: appointment.lead ?? null,
         owner: owner ? { id: owner.id, full_name: owner.full_name, role: owner.role } : null,
         recurrence_origin_id: appointment.id,
-        entity_link: "/calendar",
+        entity_link: appointmentEntityLink,
       });
     }
   }

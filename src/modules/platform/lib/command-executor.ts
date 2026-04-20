@@ -114,6 +114,47 @@ function normalizeComparableText(value: string | null) {
   return normalized.length > 0 ? normalized : null;
 }
 
+function formatPhoneForDisplay(phone: string) {
+  // Keep this dumb: we just want a stable, human-readable fragment to stick
+  // onto "Customer ..." so the row is identifiable on /jobs and /customers
+  // until a real name arrives. Preserve a leading "+" for E.164 numbers,
+  // otherwise strip punctuation so we don't get "Customer (077) 1234-5678".
+  const trimmed = phone.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D+/g, "");
+  if (digits.length === 0) {
+    return trimmed;
+  }
+  return hasPlus ? `+${digits}` : digits;
+}
+
+function deriveCustomerDisplayName(options: {
+  fullName: string | null;
+  phone: string | null;
+  email: string | null;
+}) {
+  if (options.fullName) {
+    return options.fullName;
+  }
+  if (options.phone) {
+    const formatted = formatPhoneForDisplay(options.phone);
+    if (formatted) {
+      return `Customer ${formatted}`;
+    }
+  }
+  if (options.email) {
+    const local = options.email.split("@")[0]?.trim();
+    if (local) {
+      return local;
+    }
+    return options.email;
+  }
+  return "Unknown customer";
+}
+
 function splitNameParts(value: string | null) {
   const fullName = value?.trim().split(/\s+/).filter(Boolean);
   if (!fullName || fullName.length === 0) {
@@ -402,18 +443,27 @@ async function createCustomerFromPayload(
   const phone = pickString(payload, ["customerPhone", "identity_phone", "from"]);
   const email = pickString(payload, ["customerEmail", "identity_email"]);
 
-  if (!fullName || (!phone && !email)) {
+  // We still require *some* identity (phone, email, or explicit name) to avoid
+  // creating empty shell records, but we no longer insist on a captured name.
+  // WhatsApp / SMS bookings routinely confirm before the bot has asked for a
+  // name and we'd rather have a placeholder row we can upgrade later than lose
+  // the Job entirely. updateCustomerFromPayload patches full_name once a real
+  // name shows up on a subsequent event.
+  if (!fullName && !phone && !email) {
     return null;
   }
+
+  const displayName = deriveCustomerDisplayName({ fullName, phone, email });
+  const parsedParts = splitNameParts(fullName ?? displayName);
 
   const { data, error } = await supabase
     .schema("crm")
     .from("customers")
     .insert({
       tenant_id: alias.tenant_id,
-      full_name: fullName,
-      first_name: firstName ?? splitNameParts(fullName).firstName,
-      last_name: lastName ?? splitNameParts(fullName).lastName,
+      full_name: displayName,
+      first_name: firstName ?? parsedParts.firstName,
+      last_name: lastName ?? parsedParts.lastName,
       phone,
       email,
       address_line1: pickString(payload, ["serviceAddressLine1", "address_line1"]),

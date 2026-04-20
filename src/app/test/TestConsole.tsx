@@ -412,10 +412,19 @@ export function TestConsole() {
     setWebchatBusy(true);
     setWebchatError(null);
     try {
+      const stableIdentifier = `dev-test-${selectedTenantSlug}`;
+      const stableEmail = webchatForm.email.trim().length > 0
+        ? webchatForm.email.trim()
+        : `${stableIdentifier}@test.local`;
       const res = await fetch("/api/dev/webchat/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...webchatForm, tenant: selectedTenantSlug }),
+        body: JSON.stringify({
+          ...webchatForm,
+          email: stableEmail,
+          identifierValue: stableIdentifier,
+          tenant: selectedTenantSlug,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         session?: { conversation?: { id?: string }; messages?: WebchatSession["messages"]; replyMessage?: { body?: string } };
@@ -443,6 +452,60 @@ export function TestConsole() {
       ]);
     } catch (error) {
       setWebchatError(error instanceof Error ? error.message : "Failed to start webchat.");
+    } finally {
+      setWebchatBusy(false);
+    }
+  }
+
+  async function handleEndWebchat() {
+    const conversationId = webchat?.conversationId;
+    if (!conversationId) {
+      setWebchat(null);
+      setWebchatBody("");
+      return;
+    }
+    setWebchatBusy(true);
+    setWebchatError(null);
+    try {
+      const res = await fetch(
+        `/api/dev/webchat/sessions/${encodeURIComponent(conversationId)}/close`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            tenant: selectedTenantSlug,
+            closeReason: "test_harness",
+            source: "dev_test_console",
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        session?: {
+          conversationId?: string;
+          previousStatus?: string;
+          status?: string;
+          alreadyClosed?: boolean;
+        };
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to end webchat session.");
+      }
+      appendLog([
+        {
+          id: `wc:end:${conversationId}:${Date.now()}`,
+          kind: "webchat",
+          at: new Date().toISOString(),
+          summary: `webchat ended · conversation ${conversationId.slice(0, 8)}${
+            data.session?.alreadyClosed ? " (already closed)" : ""
+          }`,
+          raw: data.session,
+        },
+      ]);
+      setWebchat(null);
+      setWebchatBody("");
+    } catch (error) {
+      setWebchatError(error instanceof Error ? error.message : "Failed to end webchat session.");
     } finally {
       setWebchatBusy(false);
     }
@@ -662,13 +725,11 @@ export function TestConsole() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              setWebchat(null);
-                              setWebchatBody("");
-                            }}
+                            onClick={handleEndWebchat}
+                            disabled={webchatBusy}
                             style={styles.button}
                           >
-                            End session
+                            {webchatBusy ? "ending…" : "End session"}
                           </button>
                         </div>
                       </>

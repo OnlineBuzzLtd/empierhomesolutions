@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  createCustomerJourneysWebchatSession,
+  closeCustomerJourneysWebchatSession,
   getCustomerJourneysRuntimeLink,
 } from "@/modules/crm/lib/customerjourneys";
 import { getCrmEnv } from "@/modules/crm/lib/env";
@@ -11,13 +11,15 @@ import { assertDevRouteAuthorized, isDevRouteAuthGrant } from "@/modules/crm/lib
 const DEFAULT_TENANT_ID = "11111111-1111-4111-8111-111111111111";
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const createSchema = z.object({
-  identifierValue: z.string().trim().min(1, "Identifier value is required.").optional(),
-  fullName: z.string().trim().optional(),
-  email: z.union([z.literal(""), z.string().email()]).optional(),
-  openingMessage: z.string().trim().min(1, "Opening message is required."),
-  tenant: z.string().trim().min(1).optional(),
-});
+const closeSchema = z
+  .object({
+    tenant: z.string().trim().min(1).optional(),
+    closeReason: z
+      .enum(["customer_ended", "operator_closed", "timeout", "resolved", "test_harness"])
+      .optional(),
+    source: z.string().trim().min(1).max(64).optional(),
+  })
+  .default({});
 
 async function resolveTenantId(
   supabase: ReturnType<typeof createCrmServiceRoleClient>,
@@ -36,14 +38,22 @@ async function resolveTenantId(
   return data.id;
 }
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   const auth = await assertDevRouteAuthorized();
   if (!isDevRouteAuthGrant(auth)) {
     return auth.response;
   }
 
-  const body = await request.json().catch(() => null);
-  const parsed = createSchema.safeParse(body);
+  const { id } = await context.params;
+  if (!uuidPattern.test(id)) {
+    return NextResponse.json({ error: "Invalid conversation id." }, { status: 400 });
+  }
+
+  const raw = await request.json().catch(() => ({}));
+  const parsed = closeSchema.safeParse(raw ?? {});
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid payload." },
@@ -59,17 +69,15 @@ export async function POST(request: Request) {
       : await resolveTenantId(supabase, parsed.data.tenant);
     const link = await getCustomerJourneysRuntimeLink(supabase, tenantId);
 
-    const response = await createCustomerJourneysWebchatSession(link, {
-      identifierValue: parsed.data.identifierValue?.trim() || `dev-test-${Date.now()}`,
-      fullName: parsed.data.fullName?.trim() || undefined,
-      email: parsed.data.email?.trim() || undefined,
-      openingMessage: parsed.data.openingMessage,
-      source: "dev_test",
+    const result = await closeCustomerJourneysWebchatSession(link, {
+      conversationId: id,
+      closeReason: parsed.data.closeReason ?? "customer_ended",
+      source: parsed.data.source ?? "dev_test_console",
     });
 
-    return NextResponse.json({ session: response });
+    return NextResponse.json({ session: result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to open webchat session.";
+    const message = error instanceof Error ? error.message : "Failed to close webchat session.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

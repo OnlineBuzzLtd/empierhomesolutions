@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
-
-function isLocalOrDevEnabled() {
-  if (process.env.DEV_TEST_UI_ENABLED === "1") return true;
-  return process.env.NODE_ENV !== "production";
-}
+import { assertDevRouteAuthorized, isDevRouteAuthGrant } from "@/modules/crm/lib/dev-auth";
 
 export async function GET() {
-  if (!isLocalOrDevEnabled()) {
-    return NextResponse.json(
-      { error: "Dev tenant list is disabled. Set DEV_TEST_UI_ENABLED=1 or run in development." },
-      { status: 403 },
-    );
+  const auth = await assertDevRouteAuthorized();
+  if (!isDevRouteAuthGrant(auth)) {
+    return auth.response;
   }
 
   const env = getCrmEnv();

@@ -6,6 +6,7 @@ import {
 } from "@/modules/crm/lib/customerjourneys";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
+import { assertDevRouteAuthorized, isDevRouteAuthGrant } from "@/modules/crm/lib/dev-auth";
 
 const TENANT_1_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -14,13 +15,10 @@ const sendSchema = z.object({
   body: z.string().trim().min(1, "Message body is required."),
 });
 
-function isLocalOrDevEnabled() {
-  return process.env.DEV_TEST_UI_ENABLED === "1" || process.env.NODE_ENV !== "production";
-}
-
 export async function POST(request: Request) {
-  if (!isLocalOrDevEnabled()) {
-    return NextResponse.json({ error: "Dev test UI is disabled." }, { status: 403 });
+  const auth = await assertDevRouteAuthorized();
+  if (!isDevRouteAuthGrant(auth)) {
+    return auth.response;
   }
 
   const body = await request.json().catch(() => null);
@@ -40,6 +38,7 @@ export async function POST(request: Request) {
     const response = await appendCustomerJourneysWebchatMessage(link, {
       conversationId: parsed.data.conversationId,
       body: parsed.data.body,
+      source: "dev_test",
     });
 
     return NextResponse.json({ session: response });

@@ -5,6 +5,7 @@ import {
 } from "@/modules/crm/lib/customerjourneys";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
+import { assertDevRouteAuthorized, isDevRouteAuthGrant } from "@/modules/crm/lib/dev-auth";
 import { listPlatformConversationRecords } from "@/modules/platform/lib/repository";
 
 const DEFAULT_TENANT_ID = "11111111-1111-4111-8111-111111111111";
@@ -12,13 +13,6 @@ const DEFAULT_TENANT_SLUG = "empire-home-solutions";
 const DEFAULT_TENANT_NAME = "Empire Home Solutions";
 
 type RawRow = Record<string, unknown>;
-
-function isLocalOrDevEnabled() {
-  if (process.env.DEV_TEST_UI_ENABLED === "1") {
-    return true;
-  }
-  return process.env.NODE_ENV !== "production";
-}
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -77,11 +71,9 @@ async function fetchRecent(
 }
 
 export async function GET(request: Request) {
-  if (!isLocalOrDevEnabled()) {
-    return NextResponse.json(
-      { error: "Dev test feed is disabled. Set DEV_TEST_UI_ENABLED=1 or run in development." },
-      { status: 403 },
-    );
+  const auth = await assertDevRouteAuthorized();
+  if (!isDevRouteAuthGrant(auth)) {
+    return auth.response;
   }
 
   const url = new URL(request.url);

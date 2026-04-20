@@ -243,6 +243,53 @@ function createFixtureWebchatSession(input: {
   return buildFixtureWebchatSessionResponse(session);
 }
 
+export type WebchatSessionCloseReason =
+  | "customer_ended"
+  | "operator_closed"
+  | "timeout"
+  | "resolved"
+  | "test_harness";
+
+export type WebchatSessionCloseResult = {
+  conversationId: string;
+  previousStatus: string;
+  status: string;
+  closeReason: WebchatSessionCloseReason;
+  closedAt: string;
+  alreadyClosed: boolean;
+};
+
+function closeFixtureWebchatSession(input: {
+  conversationId: string;
+  closeReason: WebchatSessionCloseReason;
+}): WebchatSessionCloseResult {
+  const session = customerJourneysFixtureSessions.get(input.conversationId);
+  const now = new Date().toISOString();
+  if (!session) {
+    return {
+      conversationId: input.conversationId,
+      previousStatus: "unknown",
+      status: "unknown",
+      closeReason: input.closeReason,
+      closedAt: now,
+      alreadyClosed: true,
+    };
+  }
+
+  const previousState = session.bookingState?.currentState ?? "active";
+  const alreadyClosed = previousState === "resolved";
+  session.bookingState = { currentState: "resolved" };
+
+  return {
+    conversationId: input.conversationId,
+    previousStatus: alreadyClosed ? "resolved" : "active",
+    status: "resolved",
+    closeReason: input.closeReason,
+    closedAt: now,
+    alreadyClosed,
+  };
+}
+
 function appendFixtureWebchatMessage(input: {
   conversationId: string;
   body: string;
@@ -729,6 +776,7 @@ export async function createCustomerJourneysWebchatSession(
     fullName?: string;
     email?: string;
     openingMessage: string;
+    source?: string;
   },
 ) {
   if (getCrmEnv().crmE2ePlatformFixturesEnabled) {
@@ -746,6 +794,7 @@ export async function createCustomerJourneysWebchatSession(
       fullName: input.fullName,
       email: input.email,
       openingMessage: input.openingMessage,
+      ...(input.source ? { source: input.source } : {}),
     },
     buildRuntimeHeaders(link),
   );
@@ -757,6 +806,7 @@ export async function appendCustomerJourneysWebchatMessage(
     conversationId: string;
     body: string;
     metadata?: Record<string, unknown>;
+    source?: string;
   },
 ) {
   if (getCrmEnv().crmE2ePlatformFixturesEnabled) {
@@ -776,6 +826,38 @@ export async function appendCustomerJourneysWebchatMessage(
       conversationId: input.conversationId,
       body: input.body,
       metadata: input.metadata ?? {},
+      ...(input.source ? { source: input.source } : {}),
+    },
+    buildRuntimeHeaders(link),
+  );
+}
+
+export async function closeCustomerJourneysWebchatSession(
+  link: CustomerJourneysRuntimeLink | null,
+  input: {
+    conversationId: string;
+    closeReason?: WebchatSessionCloseReason;
+    source?: string;
+  },
+): Promise<WebchatSessionCloseResult> {
+  const closeReason: WebchatSessionCloseReason = input.closeReason ?? "customer_ended";
+
+  if (getCrmEnv().crmE2ePlatformFixturesEnabled) {
+    return closeFixtureWebchatSession({
+      conversationId: input.conversationId,
+      closeReason,
+    });
+  }
+
+  requireRuntimeLink(link);
+  const baseUrl = getRuntimeBaseUrl(link)!;
+
+  return postJson<WebchatSessionCloseResult>(
+    `${baseUrl}/v1/webchat/sessions/${encodeURIComponent(input.conversationId)}/close`,
+    {
+      tenantId: link.customerjourneys_tenant_id,
+      closeReason,
+      ...(input.source ? { source: input.source } : {}),
     },
     buildRuntimeHeaders(link),
   );

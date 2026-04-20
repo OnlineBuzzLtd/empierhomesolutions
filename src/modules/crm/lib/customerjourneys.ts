@@ -57,6 +57,7 @@ export type ChannelTestRuntimeSnapshot = {
   runtime: CustomerJourneysRuntimeSurface | null;
   recentRecords: PlatformConversationRecord[];
   runtimeConfigured: boolean;
+  usingFixtures: boolean;
 };
 
 export type CustomerJourneysProvisioningInput = {
@@ -69,6 +70,13 @@ type FixtureWebchatMessage = {
   body: string;
   direction: "inbound" | "outbound" | "system";
   createdAt: string;
+};
+
+type FixtureCapturedSlots = {
+  service: string | null;
+  postcode: string | null;
+  name: string | null;
+  timePreference: string | null;
 };
 
 type FixtureWebchatSession = {
@@ -86,9 +94,70 @@ type FixtureWebchatSession = {
   bookingState: {
     currentState: string;
   } | null;
+  captured: FixtureCapturedSlots;
   messages: FixtureWebchatMessage[];
   record: PlatformConversationRecord;
 };
+
+const UK_POSTCODE_REGEX = /\b([A-Z]{1,2}\d[A-Z\d]?)\s?(\d[A-Z]{2})\b/i;
+
+function extractPostcode(text: string): string | null {
+  const match = text.match(UK_POSTCODE_REGEX);
+  if (!match) {
+    return null;
+  }
+  return `${match[1].toUpperCase()} ${match[2].toUpperCase()}`;
+}
+
+// Fuzzy service matcher tolerates common typos like "boilder" -> "boiler",
+// "plummer" -> "plumber" by matching a short stem instead of requiring an
+// exact word. Keeping this intentionally narrow so names/addresses don't get
+// misidentified as services.
+function extractService(text: string): string | null {
+  const lowered = text.toLowerCase();
+  const rules: Array<{ pattern: RegExp; key: string }> = [
+    { pattern: /\bboi?l[dr]?e?r?\b/, key: "boiler" },
+    { pattern: /\bplumb|plumm/, key: "plumbing" },
+    { pattern: /\bheat(?:ing)?\b/, key: "heating" },
+    { pattern: /\bradiator/, key: "radiator" },
+    { pattern: /\b(?:gas\s*(?:leak|safety|check)|leak)\b/, key: "emergency-callout" },
+    { pattern: /\bemergency\b/, key: "emergency-callout" },
+    { pattern: /\belectric(?:ian|al)?\b/, key: "electrical" },
+  ];
+  for (const rule of rules) {
+    if (rule.pattern.test(lowered)) {
+      return rule.key;
+    }
+  }
+  return null;
+}
+
+function extractTimePreference(text: string): string | null {
+  const lowered = text.toLowerCase();
+  const patterns = [
+    /\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b/,
+    /\btoday\b|\btomorrow\b|\btonight\b|\bthis\s+week\b|\bnext\s+week\b/,
+    /\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/,
+    /\b(?:morning|afternoon|evening)\b/,
+  ];
+  for (const pattern of patterns) {
+    if (pattern.test(lowered)) {
+      return text.trim();
+    }
+  }
+  return null;
+}
+
+function looksLikeBareAddress(text: string): boolean {
+  if (extractPostcode(text)) {
+    return false;
+  }
+  return /\d+\s+[a-z].{2,}\b(?:lane|road|street|st|rd|ln|ave|avenue|close|way|drive|dr)\b/i.test(text);
+}
+
+function isAffirmativeConfirmation(text: string): boolean {
+  return /\b(?:yes|yep|yeah|sure|ok(?:ay)?|please|sounds good|book\s*it|confirm|go\s*ahead)\b/i.test(text);
+}
 
 const customerJourneysFixtureSessions = new Map<string, FixtureWebchatSession>();
 
@@ -193,6 +262,14 @@ function createFixtureWebchatSession(input: {
   const bookingStartsAt = "2026-04-10T10:00:00.000Z";
   const bookingEndsAt = "2026-04-10T11:00:00.000Z";
   const bookingTitle = "Booked visit: Thu 10:00-11:00";
+  const providedName = input.fullName?.trim() ? input.fullName.trim() : null;
+  const captured: FixtureCapturedSlots = {
+    service: extractService(input.openingMessage),
+    postcode: extractPostcode(input.openingMessage),
+    name: providedName,
+    timePreference: extractTimePreference(input.openingMessage),
+  };
+  const opening = composeFixtureReply(captured, input.openingMessage, { bookedAlready: false });
   const messages: FixtureWebchatMessage[] = [
     {
       id: randomUUID(),
@@ -202,7 +279,7 @@ function createFixtureWebchatSession(input: {
     },
     {
       id: randomUUID(),
-      body: "I can help with that. What postcode is the property in?",
+      body: opening.body,
       direction: "outbound",
       createdAt: fixtureTimestamp(1),
     },
@@ -221,8 +298,9 @@ function createFixtureWebchatSession(input: {
     bookingStartsAt,
     bookingEndsAt,
     bookingState: {
-      currentState: "capturing_identity",
+      currentState: opening.nextState,
     },
+    captured,
     messages,
     record: createFixtureConversationRecord({
       conversationId,
@@ -290,6 +368,97 @@ function closeFixtureWebchatSession(input: {
   };
 }
 
+function composeFixtureReply(
+  captured: FixtureCapturedSlots,
+  inboundText: string,
+  options: { bookedAlready?: boolean } = {},
+): { body: string; nextState: string; confirm: boolean } {
+  // Never repeat or confirm a booking twice.
+  if (options.bookedAlready) {
+    return {
+      body: "Your visit is already booked for Thursday 10:00-11:00. Anything else I can help with?",
+      nextState: "confirmed",
+      confirm: false,
+    };
+  }
+
+  const hasService = Boolean(captured.service);
+  const hasPostcode = Boolean(captured.postcode);
+  const hasName = Boolean(captured.name);
+  const hasTime = Boolean(captured.timePreference);
+
+  const asksForAvailability = /\b(avail|availabil|avaiable|slot|when|book|next\s+option|what.?s\s+next)\b/i.test(
+    inboundText,
+  );
+  const addressWithoutPostcode = looksLikeBareAddress(inboundText);
+
+  // If the user volunteered just a street address (no postcode), acknowledge
+  // but explicitly ask for the postcode rather than pretending we captured it.
+  if (addressWithoutPostcode && !hasPostcode) {
+    return {
+      body: "Thanks for the address. I still need the UK postcode to check availability - could you share it? (e.g. IG1 3SW)",
+      nextState: "capturing_identity",
+      confirm: false,
+    };
+  }
+
+  // If the user asks about availability but we don't yet have postcode or
+  // service, refuse to invent slots and ask for the missing field.
+  if (asksForAvailability && (!hasPostcode || !hasService)) {
+    if (!hasService) {
+      return {
+        body: "I can check availability once I know what you need. Is this a boiler service, plumbing, or something else?",
+        nextState: "capturing_identity",
+        confirm: false,
+      };
+    }
+    return {
+      body: "I can check availability once I have the postcode. What postcode is the property in?",
+      nextState: "capturing_identity",
+      confirm: false,
+    };
+  }
+
+  if (!hasService) {
+    return {
+      body: "Happy to help. What service do you need - boiler, plumbing, or something else?",
+      nextState: "capturing_identity",
+      confirm: false,
+    };
+  }
+
+  if (!hasPostcode) {
+    return {
+      body: "I can help with that. What postcode is the property in?",
+      nextState: "capturing_identity",
+      confirm: false,
+    };
+  }
+
+  if (!hasName) {
+    return {
+      body: "Thanks. Can I take your full name for the booking?",
+      nextState: "capturing_identity",
+      confirm: false,
+    };
+  }
+
+  if (!hasTime) {
+    return {
+      body: "Great - I have Thursday 10:00-11:00 available. Would that work?",
+      nextState: "capturing_time",
+      confirm: false,
+    };
+  }
+
+  // All four captured: confirm the booking.
+  return {
+    body: "Booked for Thursday 10:00-11:00. We have your service visit locked in.",
+    nextState: "confirmed",
+    confirm: true,
+  };
+}
+
 function appendFixtureWebchatMessage(input: {
   conversationId: string;
   body: string;
@@ -307,22 +476,70 @@ function appendFixtureWebchatMessage(input: {
   };
   session.messages.push(inboundMessage);
 
-  const looksBookable = /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/i.test(input.body) || /\b(yes|book|confirm)\b/i.test(input.body);
+  const previouslyBooked = session.bookingState?.currentState === "confirmed";
+
+  // Merge any newly captured fields from this turn. Only accept postcode
+  // writes when the regex actually matches a UK postcode (so "178 wansted
+  // lane" never becomes a postcode). Service / time accept typos via the
+  // fuzzy matchers defined above.
+  const newPostcode = extractPostcode(input.body);
+  if (newPostcode && !session.captured.postcode) {
+    session.captured.postcode = newPostcode;
+  }
+  const newService = extractService(input.body);
+  if (newService && !session.captured.service) {
+    session.captured.service = newService;
+  }
+  const newTime = extractTimePreference(input.body);
+  if (newTime && !session.captured.timePreference) {
+    session.captured.timePreference = newTime;
+  }
+  // A name is only accepted when the bot just asked for one. We infer that
+  // by checking the last outbound message for a name prompt, and we reject
+  // bare affirmatives / postcodes / addresses.
+  if (!session.captured.name) {
+    const lastOutbound = [...session.messages]
+      .reverse()
+      .find((m) => m.direction === "outbound");
+    const askedForName = Boolean(
+      lastOutbound && /\b(?:name|full\s*name)\b/i.test(lastOutbound.body),
+    );
+    const trimmed = input.body.trim();
+    const looksLikeName =
+      askedForName &&
+      trimmed.length >= 2 &&
+      trimmed.length <= 60 &&
+      !extractPostcode(trimmed) &&
+      !looksLikeBareAddress(trimmed) &&
+      !isAffirmativeConfirmation(trimmed) &&
+      /^[A-Za-z][A-Za-z'\-\s.]*$/.test(trimmed);
+    if (looksLikeName) {
+      session.captured.name = trimmed;
+    }
+  }
+  // Treat an explicit "yes/confirm/ok" reply to a time proposal as capturing
+  // the time slot, so the booking can close even without a user-typed day.
+  if (!session.captured.timePreference && isAffirmativeConfirmation(input.body)) {
+    const lastOutbound = [...session.messages]
+      .reverse()
+      .find((m) => m.direction === "outbound");
+    if (lastOutbound && /\b\d{1,2}:\d{2}\b/.test(lastOutbound.body)) {
+      session.captured.timePreference = "Thursday 10:00-11:00";
+    }
+  }
+
+  const reply = composeFixtureReply(session.captured, input.body, {
+    bookedAlready: previouslyBooked,
+  });
   const replyMessage: FixtureWebchatMessage = {
     id: randomUUID(),
-    body: looksBookable
-      ? "Booked for Thursday 10:00-11:00. We have your service visit locked in."
-      : "Thanks. I can keep going once you share the postcode or confirm the slot.",
+    body: reply.body,
     direction: "outbound",
     createdAt: fixtureTimestamp(session.messages.length + 1),
   };
   session.messages.push(replyMessage);
 
-  if (looksBookable) {
-    session.bookingState = {
-      currentState: "confirmed",
-    };
-  }
+  session.bookingState = { currentState: reply.nextState };
 
   return {
     message: inboundMessage,
@@ -408,6 +625,7 @@ function buildCustomerJourneysFixtureSnapshot() {
         ]
       : fixtures.conversationRecords,
     runtimeConfigured: true,
+    usingFixtures: true,
   } satisfies ChannelTestRuntimeSnapshot;
 }
 
@@ -719,6 +937,7 @@ export async function loadChannelTestRuntimeSnapshot(
       runtime: null,
       recentRecords,
       runtimeConfigured: isCustomerJourneysRuntimeConfigured(),
+      usingFixtures: false,
     } satisfies ChannelTestRuntimeSnapshot;
   }
 
@@ -732,6 +951,7 @@ export async function loadChannelTestRuntimeSnapshot(
     runtime,
     recentRecords,
     runtimeConfigured: isCustomerJourneysRuntimeConfigured(),
+    usingFixtures: false,
   } satisfies ChannelTestRuntimeSnapshot;
 }
 

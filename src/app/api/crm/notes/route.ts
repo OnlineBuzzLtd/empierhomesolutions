@@ -1,5 +1,5 @@
 import { noteSchema } from "@/modules/crm/lib/validation";
-import { jsonError, jsonSuccess, parseJsonBody, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, parseJsonBody, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
   const parsed = await parseJsonBody(request, noteSchema);
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   const payload = {
     ...parsed.data,
-    created_by: user?.id ?? null,
+    created_by: resolveCreatedByUserId(user),
   };
 
   const { data, error } = await supabase.schema("crm").from("notes").insert(payload).select("*").single();

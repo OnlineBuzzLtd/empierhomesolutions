@@ -1,5 +1,5 @@
 import { expenseSchema } from "@/modules/crm/lib/validation";
-import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
   const payload = {
     ...parsed.data,
-    created_by: user?.id ?? null,
+    created_by: resolveCreatedByUserId(user),
   };
 
   const { data, error } = await supabase.schema("crm").from("expenses").insert(payload).select("*").single();

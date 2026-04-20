@@ -1,5 +1,5 @@
 import { jobVariationSchema } from "@/modules/crm/lib/validation";
-import { jsonError, jsonSuccess, normalizeBlankFields, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, normalizeBlankFields, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -31,7 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         description: parsed.data.description ?? null,
         estimated_value: parsed.data.estimated_value,
         status: parsed.data.status,
-        created_by: user.id,
+        created_by: resolveCreatedByUserId(user),
         approved_at: approvedAt,
       })
       .select("*")

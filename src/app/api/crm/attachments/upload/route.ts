@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
-import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { normalizeAttachmentType } from "@/modules/crm/lib/attachments";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       file_name: file.name,
       file_url: fileName,
       file_type: fileType,
-      created_by: user?.id ?? null,
+      created_by: resolveCreatedByUserId(user),
     })
     .select("*")
     .single();

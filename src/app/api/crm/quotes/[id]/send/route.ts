@@ -1,4 +1,4 @@
-import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +40,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       validUntil: data.valid_until,
       status: "sent",
       changeSummary: "Quote sent to customer",
-      createdBy: user.id,
+      createdBy: resolveCreatedByUserId(user),
     });
 
     return jsonSuccess({ quote: data });

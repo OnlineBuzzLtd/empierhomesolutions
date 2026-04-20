@@ -1,5 +1,5 @@
 import { quoteSchema } from "@/modules/crm/lib/validation";
-import { computeFinancials, jsonError, jsonSuccess, nextQuoteNumber, parseLineItems, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { computeFinancials, jsonError, jsonSuccess, nextQuoteNumber, parseLineItems, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
 
 export async function POST(request: Request) {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       validUntil: parsed.data.valid_until ?? null,
       status: parsed.data.status,
       changeSummary: "Initial version",
-      createdBy: user.id,
+      createdBy: resolveCreatedByUserId(user),
     });
 
     return jsonSuccess({ quote: data });

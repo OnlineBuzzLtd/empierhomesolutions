@@ -32,20 +32,23 @@ type CrmNavItem = {
   addonKey?: "ai_comms_hub";
 };
 
-const baseNavItems: CrmNavItem[] = [
+const coreNavItems: CrmNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "⊞" },
   { href: "/leads", label: "Leads", icon: "🧲" },
   { href: "/customers", label: "Customers", icon: "👤" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/calendar", label: "Calendar", icon: "🗓" },
+  { href: "/quotes", label: "Quotes", icon: "📋" },
+  { href: "/invoices", label: "Invoices", icon: "📄" },
+  { href: "/staff", label: "Staff", icon: "🪪" },
+];
+
+const addonNavItems: CrmNavItem[] = [
   { href: "/inbox", label: "Inbox", icon: "📨", addonKey: "ai_comms_hub" },
   { href: "/calls", label: "Calls", icon: "☎️", addonKey: "ai_comms_hub" },
   { href: "/automations", label: "Automations", icon: "⚡", addonKey: "ai_comms_hub" },
   { href: "/ai-settings", label: "AI Settings", icon: "🧠", addonKey: "ai_comms_hub" },
   { href: "/ai-hub", label: "AI Hub", icon: "🤖", addonKey: "ai_comms_hub" },
-  { href: "/quotes", label: "Quotes", icon: "📋" },
-  { href: "/invoices", label: "Invoices", icon: "📄" },
-  { href: "/staff", label: "Staff", icon: "🪪" },
 ];
 
 const engineerNavItems: CrmNavItem[] = [
@@ -67,8 +70,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const navItems = isEngineer
     ? engineerNavItems
     : userCanManageSettings(session.profile?.role)
-      ? [...baseNavItems, { href: "/reports", label: "Reports", icon: "📈" }, { href: "/settings", label: "Settings", icon: "⚙️" }]
-      : baseNavItems;
+      ? [...coreNavItems, { href: "/reports", label: "Reports", icon: "📈" }, { href: "/settings", label: "Settings", icon: "⚙️" }, ...addonNavItems]
+      : [...coreNavItems, ...addonNavItems];
   const modeBadgeClassName = demoState.active ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
   const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
   const crmDisplayName = session.branding?.crm_display_name ?? (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");

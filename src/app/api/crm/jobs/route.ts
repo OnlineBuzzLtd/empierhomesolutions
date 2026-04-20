@@ -1,6 +1,6 @@
 import { jobSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
-import { jsonError, jsonSuccess, normalizeBlankFields, parseIdList, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, normalizeBlankFields, parseIdList, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
     const payload = {
       ...parsed.data,
-      created_by: user?.id ?? null,
+      created_by: resolveCreatedByUserId(user),
       assigned_engineer_ids: undefined,
     };
 

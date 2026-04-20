@@ -1,5 +1,5 @@
 import { quoteAcceptanceSchema } from "@/modules/crm/lib/validation";
-import { jsonError, jsonSuccess, normalizeBlankFields, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, normalizeBlankFields, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
@@ -68,7 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       validUntil: quote.valid_until,
       status: "accepted",
       changeSummary: "Customer accepted quote",
-      createdBy: user.id,
+      createdBy: resolveCreatedByUserId(user),
     });
 
     await enqueueCrmPlatformEvent(supabase, {

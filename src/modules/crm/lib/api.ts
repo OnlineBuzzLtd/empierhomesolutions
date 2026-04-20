@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { ZodSchema } from "zod";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { getCrmSession } from "@/modules/crm/lib/auth";
+import { getCrmEnv } from "@/modules/crm/lib/env";
 import { buildInvoiceNumber, buildQuoteNumber } from "@/modules/crm/lib/numbers";
 import type { CrmRole, LineItem, Tenant, TenantBranding, TenantMembership, TenantSettings, UserProfile } from "@/modules/crm/types";
 
@@ -72,6 +73,11 @@ export function computeFinancials(lineItems: LineItem[], vatRate: number) {
   const subtotal = lineItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.unit_price), 0);
   const total = subtotal + subtotal * vatRate;
   return { subtotal, total };
+}
+
+export function resolveCreatedByUserId(user: Pick<User, "id"> | null | undefined) {
+  const env = getCrmEnv();
+  return env.crmE2ePlatformFixturesEnabled ? null : user?.id ?? null;
 }
 
 async function nextCrmSequence(sequenceKey: string) {

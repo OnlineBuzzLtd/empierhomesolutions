@@ -34,6 +34,19 @@ export type CustomerJourneysChannelStatus = {
   reason: string | null;
 };
 
+export type CustomerJourneysCalendarHealth = {
+  healthy: boolean;
+  resourceCount: number;
+  activeConnections: number;
+  preferredResourceId: string | null;
+  lastError: string | null;
+  reason:
+    | "ok"
+    | "no_booking_resources"
+    | "no_active_calendar_connection"
+    | "adapter_build_failed";
+};
+
 export type CustomerJourneysRuntimeSurface = {
   tenant: {
     id: string;
@@ -43,6 +56,7 @@ export type CustomerJourneysRuntimeSurface = {
   } | null;
   runtimeMode: "platform_ai" | "legacy_fallback" | null;
   bookingResourceCount: number;
+  calendarHealth: CustomerJourneysCalendarHealth | null;
   issues: string[];
   channels: {
     webchat: CustomerJourneysChannelStatus;
@@ -580,6 +594,14 @@ function buildCustomerJourneysFixtureSnapshot() {
     },
     runtimeMode: "platform_ai",
     bookingResourceCount: 2,
+    calendarHealth: {
+      healthy: true,
+      resourceCount: 2,
+      activeConnections: 1,
+      preferredResourceId: null,
+      lastError: null,
+      reason: "ok",
+    },
     issues: [],
     channels: {
       webchat: {
@@ -842,6 +864,26 @@ export async function fetchCustomerJourneysRuntimeSurface(link: CustomerJourneys
   const webchat = asRecord(channels.webchat);
   const issues = Array.isArray(body.issues) ? body.issues.flatMap((value) => (typeof value === "string" ? [value] : [])) : [];
 
+  const calendarHealthRaw = asRecord(body.calendarHealth);
+  const calendarHealthReason = asString(calendarHealthRaw.reason);
+  const calendarHealth: CustomerJourneysCalendarHealth | null =
+    Object.keys(calendarHealthRaw).length === 0
+      ? null
+      : {
+          healthy: asBoolean(calendarHealthRaw.healthy),
+          resourceCount: Number(calendarHealthRaw.resourceCount ?? 0),
+          activeConnections: Number(calendarHealthRaw.activeConnections ?? 0),
+          preferredResourceId: asString(calendarHealthRaw.preferredResourceId),
+          lastError: asString(calendarHealthRaw.lastError),
+          reason:
+            calendarHealthReason === "ok" ||
+            calendarHealthReason === "no_booking_resources" ||
+            calendarHealthReason === "no_active_calendar_connection" ||
+            calendarHealthReason === "adapter_build_failed"
+              ? calendarHealthReason
+              : "ok",
+        };
+
   return {
     tenant: asString(tenant.id)
       ? {
@@ -856,6 +898,7 @@ export async function fetchCustomerJourneysRuntimeSurface(link: CustomerJourneys
         ? body.runtimeMode
         : null,
     bookingResourceCount: Number(body.bookingResourceCount ?? 0),
+    calendarHealth,
     issues,
     channels: {
       webchat: {

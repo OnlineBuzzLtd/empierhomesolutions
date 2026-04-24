@@ -1,0 +1,124 @@
+name: Canary — synthetic booking flows
+
+# Runs `scripts/live-empire-channel-tests.mts` nightly against the live
+# platform-api. It exercises SMS, WhatsApp, Webchat, and the ElevenLabs
+# managed voice agent end-to-end (each scenario asserts a booking row
+# lands in the DB and CRM materialization happens).
+#
+# On failure:
+#   - the job fails (visible in the Actions tab)
+#   - a GitHub issue is created or updated with the failure log
+#
+# Secrets expected on the repo:
+#   - GCP_SA_KEY: service account JSON with `secretmanager.secretAccessor`
+#     on customer-journeys-ai (the canary script reads twilio/elevenlabs/db
+#     secrets via `gcloud secrets versions access latest`).
+#   - NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — CRM smoke checks
+#     poll the Supabase project directly to verify event propagation.
+#
+# Override LIVE_TEST_PLATFORM_TENANT_ID to target a staging tenant once a
+# dedicated staging project exists (plan Phase 4b).
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # 02:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      tenant_id:
+        description: "Override platform tenant id (defaults to Empire prod tenant)"
+        type: string
+        required: false
+
+concurrency:
+  group: canary-nightly
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Run live channel tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LIVE_TEST_PLATFORM_TENANT_ID: ${{ github.event.inputs.tenant_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: customer-journeys-ai
+
+      - name: Run canary
+        id: canary
+        run: npm run test:canary 2>&1 | tee canary.log
+
+      - name: Upload canary log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-log-${{ github.run_id }}
+          path: canary.log
+          retention-days: 30
+
+      - name: Create or update failure issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const log = fs.existsSync("canary.log")
+              ? fs.readFileSync("canary.log", "utf8").slice(-6000)
+              : "(no log captured)";
+            const title = `Canary failure — ${new Date().toISOString().slice(0, 10)}`;
+            const body = [
+              `Canary run failed: ${context.runId}`,
+              "",
+              `**Workflow**: ${context.workflow}`,
+              `**Trigger**: ${context.eventName}`,
+              `**Run**: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              "",
+              "Last 6k chars of canary.log:",
+              "```",
+              log,
+              "```"
+            ].join("\n");
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "canary-failure",
+              per_page: 1
+            });
+
+            if (open.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: open[0].number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["canary-failure", "production"]
+              });
+            }

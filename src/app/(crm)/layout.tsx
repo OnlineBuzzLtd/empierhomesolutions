@@ -6,7 +6,7 @@ import "../globals.css";
 import { DemoPanel } from "@/modules/crm/components/demo/DemoPanel";
 import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider";
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
-import { getAddonState } from "@/modules/crm/lib/addons";
+import { CrmSidebarNav, CrmTopNav, type CrmNavGroup, type CrmNavItem } from "@/modules/crm/components/layout/CrmNav";
 import { getCrmSession, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { LogoutButton } from "@/modules/crm/components/layout/LogoutButton";
@@ -25,14 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-type CrmNavItem = {
-  href: string;
-  label: string;
-  icon: string;
-  addonKey?: "ai_comms_hub";
-};
-
-const coreNavItems: CrmNavItem[] = [
+const operationsItems: CrmNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "⊞" },
   { href: "/leads", label: "Leads", icon: "🧲" },
   { href: "/customers", label: "Customers", icon: "👤" },
@@ -43,15 +36,20 @@ const coreNavItems: CrmNavItem[] = [
   { href: "/staff", label: "Staff", icon: "🪪" },
 ];
 
-const addonNavItems: CrmNavItem[] = [
-  { href: "/inbox", label: "Inbox", icon: "📨", addonKey: "ai_comms_hub" },
-  { href: "/calls", label: "Calls", icon: "☎️", addonKey: "ai_comms_hub" },
-  { href: "/automations", label: "Automations", icon: "⚡", addonKey: "ai_comms_hub" },
-  { href: "/ai-settings", label: "AI Settings", icon: "🧠", addonKey: "ai_comms_hub" },
-  { href: "/ai-hub", label: "AI Hub", icon: "🤖", addonKey: "ai_comms_hub" },
+const aiItems: CrmNavItem[] = [
+  { href: "/inbox", label: "Inbox", icon: "📨" },
+  { href: "/calls", label: "Calls", icon: "☎️" },
+  { href: "/automations", label: "Automations", icon: "⚡" },
+  { href: "/ai-settings", label: "AI Settings", icon: "🧠" },
+  { href: "/ai-hub", label: "AI Hub", icon: "🤖" },
 ];
 
-const engineerNavItems: CrmNavItem[] = [
+const adminItems: CrmNavItem[] = [
+  { href: "/reports", label: "Reports", icon: "📈" },
+  { href: "/settings", label: "Settings", icon: "⚙️" },
+];
+
+const engineerItems: CrmNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/calendar", label: "Calendar", icon: "🗓" },
@@ -60,18 +58,28 @@ const engineerNavItems: CrmNavItem[] = [
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const pathname = requestHeaders.get("x-crm-pathname") ?? "";
-  const [session, aiHubAddon] = await Promise.all([getCrmSession(), getAddonState("ai_comms_hub")]);
+  const session = await getCrmSession();
   const demoState = await getCrmDemoState();
   const setup = getCrmSetupState();
   const canManageDemo = userCanManageSettings(session.profile?.role) && !session.profile?.is_demo && session.settings?.demo_mode_enabled !== false;
   const isEngineer = session.profile?.role === "engineer";
   const uiMode = isEngineer ? await getUiPreference() : "classic";
   const isCommsoftMode = isEngineer && uiMode === "commusoft";
-  const navItems = isEngineer
-    ? engineerNavItems
+
+  const groups: CrmNavGroup[] = isEngineer
+    ? [{ label: "Field", items: engineerItems }]
     : userCanManageSettings(session.profile?.role)
-      ? [...coreNavItems, { href: "/reports", label: "Reports", icon: "📈" }, { href: "/settings", label: "Settings", icon: "⚙️" }, ...addonNavItems]
-      : [...coreNavItems, ...addonNavItems];
+      ? [
+          { label: "Operations", items: operationsItems },
+          { label: "AI", items: aiItems },
+          { label: "Admin", items: adminItems },
+        ]
+      : [
+          { label: "Operations", items: operationsItems },
+          { label: "AI", items: aiItems },
+        ];
+  const topNavItems = groups.flatMap((g) => g.items);
+
   const modeBadgeClassName = demoState.active ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
   const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
   const crmDisplayName = session.branding?.crm_display_name ?? (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
@@ -114,23 +122,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">{businessName}</p>
               <p className="mt-1 text-lg font-bold">{crmDisplayName}</p>
             </div>
-            <nav className="flex-1 space-y-1 px-3 py-4">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-                >
-                  <span>{item.icon}</span>
-                  <span>{item.label}</span>
-                  {item.addonKey === "ai_comms_hub" && !aiHubAddon.enabled ? (
-                    <span className="ml-auto rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">
-                      Add-on
-                    </span>
-                  ) : null}
-                </Link>
-              ))}
-            </nav>
+            <CrmSidebarNav groups={groups} />
             <div className="border-t border-slate-800 px-5 py-4">
               <p className="text-xs text-slate-500">Logged in as</p>
               <p className="mt-1 text-sm font-semibold text-white">{session.profile?.full_name ?? session.user.email}</p>
@@ -156,20 +148,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                 </div>
                 <div className="flex items-center gap-2">
                   {session.tenant && tenantOptions.length > 1 ? <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} /> : null}
-                  <div className="hidden gap-1 lg:flex">
-                    {navItems.map((item) => (
-                      <Link key={item.href} href={item.href} className="rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
-                        <span className="inline-flex items-center gap-2">
-                          <span>{item.label}</span>
-                          {item.addonKey === "ai_comms_hub" && !aiHubAddon.enabled ? (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700">
-                              Add-on
-                            </span>
-                          ) : null}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
+                  <CrmTopNav items={topNavItems} />
                   <DemoModeToggle canManage={canManageDemo} />
                   <LogoutButton />
                 </div>

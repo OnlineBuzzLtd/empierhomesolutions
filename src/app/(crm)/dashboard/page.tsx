@@ -2,8 +2,6 @@ import Link from "next/link";
 import { EngineerDashboard } from "@/modules/crm/components/dashboard/EngineerDashboard";
 import { CommsoftHome } from "@/modules/crm/components/commusoft/CommsoftHome";
 import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
-import { getAddonState, resolveAiHubViewState } from "@/modules/crm/lib/addons";
-import { getAiHubProvider } from "@/modules/crm/lib/ai-hub";
 import { getDashboardData, getEngineerDashboardData } from "@/modules/crm/lib/data";
 import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -11,7 +9,7 @@ import { formatCurrency } from "@/modules/crm/lib/format";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
-import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { requireCrmUser } from "@/modules/crm/lib/auth";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { getUiPreference } from "@/app/actions/ui-preference";
 
@@ -35,9 +33,7 @@ export default async function DashboardPage() {
     return <CommsoftHome data={data} engineerName={session.profile.full_name} />;
   }
 
-  const provider = getAiHubProvider();
-  const [data, addon, aiMetrics] = await Promise.all([getDashboardData(demoState.mode), getAddonState("ai_comms_hub"), provider.getAggregateMetrics()]);
-  const aiHubViewState = resolveAiHubViewState(addon, session.profile?.role);
+  const data = await getDashboardData(demoState.mode);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -54,42 +50,6 @@ export default async function DashboardPage() {
           <StatCard label="Open Leads" value={String(data.newLeadCount)} sub="new / follow-up workload" />
         </div>
       </DemoAnchor>
-
-      {!addon.enabled ? (
-        <section className="rounded-3xl border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.96),rgba(255,255,255,0.98))] p-5 shadow-lg shadow-amber-100/60">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Paid Add-On Preview</p>
-              <h2 className="mt-2 text-xl font-bold text-slate-900">AI Hub</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Turn missed calls, SMS, WhatsApp, and website chats into qualified CRM activity automatically. The demo shows the comms journey and the CRM updates side by side.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/ai-hub" className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-                {aiHubViewState === "demo" ? "Watch Add-On Demo" : "View Add-On"}
-              </Link>
-              {userCanManageSettings(session.profile?.role) ? (
-                <a
-                  href={addon.cta_url ?? "https://customerjourneys.ai/en-GB/demo"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Upgrade
-                </a>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Missed Calls Recovered" value={String(aiMetrics.missed_calls_recovered)} sub="monthly demo KPI" />
-            <StatCard label="Bookings Captured" value={String(aiMetrics.bookings_captured)} sub="monthly demo KPI" />
-            <StatCard label="Leads Qualified" value={String(aiMetrics.leads_qualified)} sub="monthly demo KPI" />
-            <StatCard label="Response Time" value={`${aiMetrics.average_response_minutes} min`} sub="average first reply" />
-          </div>
-        </section>
-      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

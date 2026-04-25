@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { groupAttachmentsByBucket, isImageAttachment, normalizeAttachmentType } from "@/modules/crm/lib/attachments";
-import { resolveAiHubViewState, resolveEngineerAiAssistState } from "@/modules/crm/lib/addons";
+import { resolveEngineerAiAssistState } from "@/modules/crm/lib/addons";
 import { buildAiHubAggregateMetrics } from "@/modules/crm/lib/ai-hub";
 import { buildAssetReminderItems, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
 import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
@@ -157,23 +157,19 @@ describe("crm ai hub helpers", () => {
     });
   });
 
-  it("resolves the AI Hub state from add-on and role", () => {
+  it("AI features are unlocked for every role now that gating is removed", () => {
     const addon: AddonState = {
       addon_key: "ai_comms_hub",
-      enabled: false,
+      enabled: true,
       demo_enabled: true,
       display_name: "AI Hub",
-      price_label: "From GBP 299/mo per company",
+      price_label: "",
       cta_url: null,
-      summary: "Demo add-on",
+      summary: "AI Hub",
     };
 
-    expect(resolveAiHubViewState(addon, "sales")).toBe("locked");
-    expect(resolveAiHubViewState(addon, "management")).toBe("demo");
-    expect(resolveAiHubViewState({ ...addon, enabled: true }, "sales")).toBe("enabled");
-    expect(resolveEngineerAiAssistState(addon, "engineer", false)).toBe("locked");
-    expect(resolveEngineerAiAssistState(addon, "engineer", true)).toBe("demo");
-    expect(resolveEngineerAiAssistState({ ...addon, enabled: true }, "engineer", false)).toBe("enabled");
+    expect(resolveEngineerAiAssistState(addon, "engineer", false)).toBe("enabled");
+    expect(resolveEngineerAiAssistState(addon, "sales", false)).toBe("enabled");
   });
 });
 

@@ -65,6 +65,26 @@ export default async function CalendarPage({
           ))}
         </div>
       </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <Link
+          href="/calendar"
+          className="rounded-full bg-slate-900 px-3 py-1.5 font-medium text-white"
+        >
+          Week view
+        </Link>
+        <Link
+          href="/calendar/availability"
+          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Availability
+        </Link>
+        <Link
+          href="/calendar/schedule"
+          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Dispatch board
+        </Link>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
         <SectionCard title="Upcoming Schedule" demoAnchor="calendar-schedule">

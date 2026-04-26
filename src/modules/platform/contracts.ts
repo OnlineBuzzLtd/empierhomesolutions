@@ -7,6 +7,13 @@ export const platformCommandTypes = [
   "CreateOrUpdateAppointment",
   "CreateEscalationTask",
   "LinkConversationToCustomerOrJob",
+  // Canonical Phase 2.2 commands — consume the signed booking.* / lead.*
+  // events emitted by the platform-api outbox and fold them into
+  // crm.appointments / crm.leads via external_id + source='platform'.
+  "UpsertAppointmentFromPlatformBooking",
+  "CancelAppointmentFromPlatformBooking",
+  "UpsertLeadFromPlatform",
+  "RecordResourceAvailabilityChange",
 ] as const;
 export type PlatformCommandType = (typeof platformCommandTypes)[number];
 
@@ -26,6 +33,14 @@ export const platformEventTypes = [
   "QuoteAccepted",
   "InvoiceOverdue",
   "WorkspaceSettingsChanged",
+  // Canonical domain events from the platform-api outbox. Must match the
+  // strings published by `services/platform-api/.../crm-platform-events.ts`.
+  "booking.held",
+  "booking.confirmed",
+  "booking.cancelled",
+  "booking.rescheduled",
+  "lead.upserted",
+  "resource.availability_changed",
 ] as const;
 export type PlatformEventType = (typeof platformEventTypes)[number];
 

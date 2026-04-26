@@ -921,7 +921,7 @@ describe("crm api routes", () => {
     expect(body.profile.role).toBe("engineer");
   });
 
-  it("creates a new tenant through the public signup route", async () => {
+  it("creates a new tenant through the invite-mode signup route", async () => {
     const setCookie = vi.fn();
     const createUser = vi.fn().mockResolvedValue({
       data: {
@@ -938,6 +938,9 @@ describe("crm api routes", () => {
       tenant: { id: "tenant-2", slug: "acme-heating", name: "Acme Heating", status: "active" },
       warnings: [],
     });
+
+    const previousInviteCode = process.env.SIGNUP_INVITE_CODE;
+    process.env.SIGNUP_INVITE_CODE = "invite-123";
 
     vi.doMock("next/headers", () => ({
       cookies: vi.fn().mockResolvedValue({
@@ -963,40 +966,50 @@ describe("crm api routes", () => {
       createTenantWorkspace,
     }));
 
-    const route = await import("@/app/api/crm/onboarding/signup/route");
-    expect(route.POST).toBeTypeOf("function");
-    const response = (await route.POST(
-      new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({
-          business_name: "Acme Heating",
-          slug: "acme-heating",
-          full_name: "Owner User",
-          email: "owner@example.com",
-          password: "password123",
+    try {
+      const route = await import("@/app/api/crm/onboarding/signup/route");
+      expect(route.POST).toBeTypeOf("function");
+      const response = (await route.POST(
+        new Request("http://localhost", {
+          method: "POST",
+          body: JSON.stringify({
+            business_name: "Acme Heating",
+            slug: "acme-heating",
+            full_name: "Owner User",
+            email: "owner@example.com",
+            password: "password-abc-123",
+            invite_code: "invite-123",
+          }),
+          headers: { "Content-Type": "application/json" },
         }),
-        headers: { "Content-Type": "application/json" },
-      }),
-    )) as Response;
-    const body = await response.json();
+      )) as Response;
+      const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(createUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "owner@example.com",
-        email_confirm: true,
-      }),
-    );
-    expect(createTenantWorkspace).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        name: "Acme Heating",
-        slug: "acme-heating",
-        clone_from_source: true,
-      }),
-    );
-    expect(setCookie).toHaveBeenCalled();
-    expect(body.tenant.slug).toBe("acme-heating");
+      expect(response.status).toBe(200);
+      expect(createUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "owner@example.com",
+          email_confirm: false,
+        }),
+      );
+      expect(createTenantWorkspace).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          name: "Acme Heating",
+          slug: "acme-heating",
+          clone_from_source: true,
+        }),
+      );
+      expect(setCookie).toHaveBeenCalled();
+      expect(body.tenant.slug).toBe("acme-heating");
+      expect(body.mode).toBe("invite");
+    } finally {
+      if (previousInviteCode === undefined) {
+        delete process.env.SIGNUP_INVITE_CODE;
+      } else {
+        process.env.SIGNUP_INVITE_CODE = previousInviteCode;
+      }
+    }
   });
 
   it("allows managers to start demo mode and sets the demo cookie", async () => {

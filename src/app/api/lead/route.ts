@@ -2,16 +2,9 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { leadRequestSchema, submitLeadToWebhook } from "@/modules/forms/api/submitLead";
 import { getServerEnv, publicEnv } from "@/lib/env";
-
-type RateLimitEntry = {
-  count: number;
-  expiresAt: number;
-};
-
-const WINDOW_MS = 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 4;
-
-const rateLimitStore = new Map<string, RateLimitEntry>();
+import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { validateRequestOrigin } from "@/lib/origin";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 function getClientIp(headerStore: Awaited<ReturnType<typeof headers>>) {
   const forwardedFor = headerStore.get("x-forwarded-for");
@@ -20,20 +13,6 @@ function getClientIp(headerStore: Awaited<ReturnType<typeof headers>>) {
   }
 
   return headerStore.get("x-real-ip") ?? "unknown";
-}
-
-function isRateLimited(ip: string) {
-  const now = Date.now();
-  const current = rateLimitStore.get(ip);
-
-  if (!current || current.expiresAt <= now) {
-    rateLimitStore.set(ip, { count: 1, expiresAt: now + WINDOW_MS });
-    return false;
-  }
-
-  current.count += 1;
-  rateLimitStore.set(ip, current);
-  return current.count > MAX_REQUESTS_PER_WINDOW;
 }
 
 async function fireServerConversion(leadType: string, service?: string, location?: string) {
@@ -62,7 +41,27 @@ export async function POST(request: Request) {
   const headerStore = await headers();
   const ip = getClientIp(headerStore);
 
-  if (isRateLimited(ip)) {
+  const originCheck = validateRequestOrigin(request);
+  if (!originCheck.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: {
+          code: "invalid_origin",
+          message: "Origin is not allowed.",
+        },
+      },
+      { status: 403 },
+    );
+  }
+
+  const rateKey = `lead:${ip}`;
+  const decision = await consumeRateLimit(rateKey, {
+    tokens: 4,
+    window: "1 m",
+    prefix: "rl:lead",
+  });
+  if (!decision.ok) {
     return NextResponse.json(
       {
         ok: false,
@@ -71,12 +70,47 @@ export async function POST(request: Request) {
           message: "Too many requests, try again in a minute.",
         },
       },
-      { status: 429 },
+      { status: 429, headers: rateLimitHeaders(decision) },
     );
   }
 
   const payload = await request.json().catch(() => null);
-  const parsed = leadRequestSchema.safeParse(payload);
+
+  // Extract Turnstile token if present; supports either top-level or nested under
+  // `turnstileToken` / `cf-turnstile-response` (the Turnstile widget default name).
+  const turnstileToken =
+    (payload && typeof payload === "object"
+      ? ((payload as Record<string, unknown>).turnstileToken ??
+        (payload as Record<string, unknown>)["cf-turnstile-response"])
+      : null) as string | null | undefined;
+
+  const turnstile = await verifyTurnstileToken(turnstileToken, ip === "unknown" ? null : ip);
+  if (!turnstile.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: {
+          code: "bot_check_failed",
+          message: "Could not verify you are human. Please reload the page and try again.",
+        },
+      },
+      { status: 403 },
+    );
+  }
+
+  // Sanitize payload: drop `turnstileToken` / `cf-turnstile-response` before schema parse.
+  let sanitizedPayload: unknown = payload;
+  if (payload && typeof payload === "object") {
+    const { turnstileToken: _t, ["cf-turnstile-response"]: _c, ...rest } = payload as Record<string, unknown>;
+    sanitizedPayload = {
+      ...rest,
+      // The client MAY still send `origin` in the payload for backwards compat,
+      // but we do not trust it — server-side origin is the source of truth.
+      origin: originCheck.origin ?? (rest as Record<string, unknown>).origin,
+    };
+  }
+
+  const parsed = leadRequestSchema.safeParse(sanitizedPayload);
 
   if (!parsed.success) {
     return NextResponse.json(
@@ -91,13 +125,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const submission = await submitLeadToWebhook(parsed.data);
+  // Overwrite payload origin with validated header origin (defence in depth).
+  const leadData = { ...parsed.data, origin: originCheck.origin ?? parsed.data.origin };
+
+  const submission = await submitLeadToWebhook(leadData);
 
   if (!submission.ok) {
     return NextResponse.json({ ok: false, error: submission.error }, { status: submission.status });
   }
 
-  await fireServerConversion(parsed.data.leadType, parsed.data.service, parsed.data.location);
+  await fireServerConversion(leadData.leadType, leadData.service, leadData.location);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(decision) });
 }

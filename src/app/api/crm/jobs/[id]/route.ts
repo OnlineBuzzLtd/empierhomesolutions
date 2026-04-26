@@ -1,12 +1,27 @@
 import { jobSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
-import { jsonError, jsonSuccess, normalizeBlankFields, parseIdList, requireCrmApiUser } from "@/modules/crm/lib/api";
+import {
+  jsonError,
+  jsonSuccess,
+  normalizeBlankFields,
+  parseIdList,
+  requireCrmApiUser,
+} from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
-async function syncJobAssignees(supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>, tenantId: string, jobId: string, userProfileIds: string[]) {
+async function syncJobAssignees(
+  supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>,
+  tenantId: string,
+  jobId: string,
+  userProfileIds: string[],
+) {
   const uniqueIds = [...new Set(userProfileIds)];
-  const { error: deleteError } = await supabase.schema("crm").from("job_assignees").delete().eq("job_id", jobId);
+  const { error: deleteError } = await supabase
+    .schema("crm")
+    .from("job_assignees")
+    .delete()
+    .eq("job_id", jobId);
   if (deleteError) {
     throw deleteError;
   }
@@ -25,19 +40,45 @@ async function syncJobAssignees(supabase: Awaited<ReturnType<typeof import("@/mo
     throw insertError;
   }
 
-  const { data: profiles, error: profilesError } = await supabase.schema("crm").from("user_profiles").select("id, full_name").in("id", uniqueIds);
+  const { data: profiles, error: profilesError } = await supabase
+    .schema("crm")
+    .from("user_profiles")
+    .select("id, full_name")
+    .in("id", uniqueIds);
   if (profilesError) {
     throw profilesError;
   }
 
-  return ((profiles ?? []) as Array<{ id: string; full_name: string | null }>).map((profile) => profile.full_name?.trim()).filter(Boolean).join(", ");
+  return ((profiles ?? []) as Array<{ id: string; full_name: string | null }>)
+    .map((profile) => profile.full_name?.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
-async function getComplianceBlockers(supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>, jobId: string) {
+async function getComplianceBlockers(
+  supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>,
+  jobId: string,
+) {
   const [hazards, checklists, certificates] = await Promise.all([
-    supabase.schema("crm").from("job_hazards").select("id, title").eq("job_id", jobId).in("status", ["active", "mitigated"]),
-    supabase.schema("crm").from("job_checklists").select("id, title").eq("job_id", jobId).eq("status", "required").eq("is_mandatory", true),
-    supabase.schema("crm").from("job_certificates").select("id, title").eq("job_id", jobId).eq("status", "draft"),
+    supabase
+      .schema("crm")
+      .from("job_hazards")
+      .select("id, title")
+      .eq("job_id", jobId)
+      .in("status", ["active", "mitigated"]),
+    supabase
+      .schema("crm")
+      .from("job_checklists")
+      .select("id, title")
+      .eq("job_id", jobId)
+      .eq("status", "required")
+      .eq("is_mandatory", true),
+    supabase
+      .schema("crm")
+      .from("job_certificates")
+      .select("id, title")
+      .eq("job_id", jobId)
+      .eq("status", "draft"),
   ]);
 
   const blockers: Array<{ type: "hazard" | "checklist" | "certificate"; label: string }> = [
@@ -78,7 +119,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { data: existing } = await supabase
       .schema("crm")
       .from("jobs")
-      .select("service_id, job_type_id, status, scheduled_date, scheduled_time, customer_id, lead_id, title, started_at")
+      .select(
+        "service_id, job_type_id, status, scheduled_date, scheduled_time, customer_id, lead_id, title, started_at",
+      )
       .eq("id", id)
       .single();
     const assignedEngineerIds = parseIdList(body.assigned_engineer_ids);
@@ -97,7 +140,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!validation.valid) {
         const messages = [
           validation.missingFields.length ? `required fields: ${validation.missingFields.join(", ")}` : null,
-          validation.missingDocuments.length ? `required documents: ${validation.missingDocuments.join(", ")}` : null,
+          validation.missingDocuments.length
+            ? `required documents: ${validation.missingDocuments.join(", ")}`
+            : null,
         ].filter(Boolean);
         return jsonError(`Cannot move job forward. Missing ${messages.join(" and ")}.`);
       }
@@ -115,13 +160,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    const transitioningToInProgress = parsed.data.status === "in_progress" && existing?.status !== "in_progress";
+    const transitioningToInProgress =
+      parsed.data.status === "in_progress" && existing?.status !== "in_progress";
     const updatePayload = {
       ...parsed.data,
       assigned_engineer_ids: undefined,
       ...(transitioningToInProgress && !existing?.started_at ? { started_at: new Date().toISOString() } : {}),
     };
-    const { data, error } = await supabase.schema("crm").from("jobs").update(updatePayload).eq("id", id).select("*").single();
+    const { data, error } = await supabase
+      .schema("crm")
+      .from("jobs")
+      .update(updatePayload)
+      .eq("id", id)
+      .select("*")
+      .single();
     if (error) {
       return jsonError(error.message, 500);
     }
@@ -154,6 +206,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         (parsed.data.scheduled_time !== undefined && parsed.data.scheduled_time !== existing.scheduled_time));
 
     if (schedulingChanged) {
+      // CRM can emit a reschedule event for downstream consumers, but the
+      // native CustomerJourneys calendar remains the authoritative booking and
+      // availability source until a full round-trip sync is implemented and
+      // verified end-to-end.
       const occurredAt = String(updatedJob.updated_at ?? new Date().toISOString());
       const tenantId = String(tenant.id ?? updatedJob.tenant_id ?? "");
       await enqueueCrmPlatformEvent(supabase, {

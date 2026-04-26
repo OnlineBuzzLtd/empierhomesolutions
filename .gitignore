@@ -44,3 +44,10 @@ next-env.d.ts
 
 # supabase local CLI state
 supabase/.temp/
+
+# private / internal-only docs (never commit)
+/docs/private/
+/.production-security-review.md
+
+# Claude Code per-project state (local IDE config; do not share)
+/.claude/

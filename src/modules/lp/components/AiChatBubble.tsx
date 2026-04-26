@@ -279,10 +279,22 @@ export function AiChatBubble() {
           return;
         }
 
-        const normalized = normalizeSession(result.session);
-        if (normalized) {
-          setMessages(normalized.messages);
-          setBookingState(normalized.bookingState?.currentState ?? null);
+        // /messages returns { message, replyMessage } (not a full session
+        // like /sessions does). Normalise both and append to the transcript,
+        // replacing the optimistic outbound bubble with the persisted one.
+        const turnRecord = asRecord(result.session);
+        const userMessage = normalizeMessage(turnRecord.message);
+        const agentReply = normalizeMessage(turnRecord.replyMessage);
+        setMessages((prev) => {
+          const without = prev.filter((m) => m.id !== optimistic.id);
+          const next = [...without];
+          if (userMessage) next.push(userMessage);
+          if (agentReply) next.push(agentReply);
+          return next;
+        });
+        const bookingStateRecord = asRecord(turnRecord.bookingState);
+        if (typeof bookingStateRecord.currentState === "string") {
+          setBookingState(bookingStateRecord.currentState);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Message couldn't be delivered.");

@@ -134,71 +134,86 @@ export function AiChatBubble() {
     });
   }, [registerHandlers]);
 
-  // Restore conversation from localStorage on first open.
-  const startOrRestoreSession = useCallback(async () => {
-    if (session || sessionStarting) return;
+  // Open the panel + start a session at most once per "open" event.
+  // Earlier this was a useCallback whose deps included session+sessionStarting,
+  // which meant every state update created a new function reference, which
+  // re-fired this effect and looped on errors. Now the effect runs exactly
+  // once when `open` flips true, and is cancellable on unmount/close. Errors
+  // surface as toasts; the user retries by closing and reopening.
+  const sessionRef = useRef<ChatSession | null>(null);
+  sessionRef.current = session;
+
+  useEffect(() => {
+    if (!open) return;
+    if (sessionRef.current) return;
+
+    let cancelled = false;
+    fireGtmEvent("webchat_opened");
     setSessionStarting(true);
     setError(null);
 
     const visitorId = getOrCreateVisitorId();
     const existingConversationId = getConversationId();
 
-    try {
-      const response = await fetch("/api/public/webchat/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          visitorId,
-          openingMessage: existingConversationId
-            ? "(restoring conversation)"
-            : "Hi, I have a question.",
-          pagePath: typeof window !== "undefined" ? window.location.pathname + window.location.search : undefined,
-        }),
-      });
+    (async () => {
+      try {
+        const response = await fetch("/api/public/webchat/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            visitorId,
+            openingMessage: existingConversationId
+              ? "(restoring conversation)"
+              : "Hi, I have a question.",
+            pagePath: typeof window !== "undefined" ? window.location.pathname + window.location.search : undefined,
+          }),
+        });
 
-      const result = (await response.json().catch(() => null)) as
-        | { ok: true; session: unknown }
-        | { ok: false; error?: { code: string; message: string } }
-        | null;
+        if (cancelled) return;
 
-      if (!response.ok || !result || !("ok" in result) || !result.ok) {
-        const errorCode = result && "error" in result ? result.error?.code : undefined;
-        const errorMessage =
-          (result && "error" in result && result.error?.message) ||
-          (response.status === 429
-            ? `We're getting a lot of messages — please call ${businessDetails.primaryPhoneDisplay} or try again in a minute.`
-            : "Couldn't reach our team. Please try again or call us.");
-        setError(errorMessage);
-        if (errorCode === "rate_limited") {
-          fireGtmEvent("webchat_closed", { reason: "rate_limited" });
+        const result = (await response.json().catch(() => null)) as
+          | { ok: true; session: unknown }
+          | { ok: false; error?: { code: string; message: string } }
+          | null;
+
+        if (cancelled) return;
+
+        if (!response.ok || !result || !("ok" in result) || !result.ok) {
+          const errorMessage =
+            (result && "error" in result && result.error?.message) ||
+            (response.status === 429
+              ? `We're getting a lot of chat requests — please call ${businessDetails.primaryPhoneDisplay} or try again in a minute.`
+              : "Couldn't reach our team. Please try again or call us.");
+          setError(errorMessage);
+          return;
         }
-        return;
+
+        const normalized = normalizeSession(result.session);
+        if (!normalized) {
+          setError("The chat returned an unexpected response. Please try again.");
+          return;
+        }
+
+        setSession({
+          conversationId: normalized.conversationId,
+          messages: [],
+          bookingState: normalized.bookingState,
+        });
+        setMessages(normalized.messages);
+        setBookingState(normalized.bookingState?.currentState ?? null);
+        setConversationId(normalized.conversationId);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Couldn't reach our team. Please try again.");
+      } finally {
+        if (!cancelled) setSessionStarting(false);
       }
+    })();
 
-      const normalized = normalizeSession(result.session);
-      if (!normalized) {
-        setError("The chat returned an unexpected response. Please try again.");
-        return;
-      }
-
-      setSession({ conversationId: normalized.conversationId, messages: [], bookingState: normalized.bookingState });
-      setMessages(normalized.messages);
-      setBookingState(normalized.bookingState?.currentState ?? null);
-      setConversationId(normalized.conversationId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't reach our team. Please try again.");
-    } finally {
-      setSessionStarting(false);
-    }
-  }, [session, sessionStarting]);
-
-  // When the panel opens for the first time, fire the open event + spin up
-  // a session if we don't have one yet.
-  useEffect(() => {
-    if (!open) return;
-    fireGtmEvent("webchat_opened");
-    void startOrRestoreSession();
-  }, [open, startOrRestoreSession]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Auto-scroll transcript to the bottom on new messages.
   useEffect(() => {

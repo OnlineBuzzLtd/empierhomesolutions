@@ -1,10 +1,13 @@
 import { Suspense, type ReactNode } from "react";
+import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import Script from "next/script";
 import { ChevronDown, House, PhoneCall } from "lucide-react";
 import { businessDetails } from "@/lib/business";
 import { publicEnv } from "@/lib/env";
+import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
+import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { StickyCallBar } from "@/modules/lp/components/StickyCallBar";
 import { AnalyticsTracker } from "@/modules/tracking/AnalyticsTracker";
@@ -17,21 +20,30 @@ const ga4Inline = publicEnv.ga4Id
   ? `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${publicEnv.ga4Id}',{send_page_view:false});`
   : "";
 
-export default function LpLayout({ children }: { children: ReactNode }) {
+export default async function LpLayout({ children }: { children: ReactNode }) {
+  const headerStore = await headers();
+  const nonce = headerStore.get("x-nonce") ?? undefined;
   return (
-    <>
+    <ChatToggleProvider>
       {publicEnv.gtmId ? (
-        <Script id="gtm-loader" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: gtmInline }} />
+        <Script
+          id="gtm-loader"
+          strategy="afterInteractive"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: gtmInline }}
+        />
       ) : null}
       {publicEnv.ga4Id ? (
         <>
           <Script
             src={`https://www.googletagmanager.com/gtag/js?id=${publicEnv.ga4Id}`}
             strategy="afterInteractive"
+            nonce={nonce}
           />
           <Script
             id="ga4-loader"
             strategy="afterInteractive"
+            nonce={nonce}
             dangerouslySetInnerHTML={{ __html: ga4Inline }}
           />
         </>
@@ -159,6 +171,7 @@ export default function LpLayout({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <AnalyticsTracker />
       </Suspense>
-    </>
+      <AiChatBubble />
+    </ChatToggleProvider>
   );
 }

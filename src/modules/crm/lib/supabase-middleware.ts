@@ -3,10 +3,19 @@ import { createServerClient } from "@supabase/ssr";
 import { crmDemoCookieName, isCrmDemoMutationBlocked } from "@/modules/crm/lib/demo";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 
-export async function updateCrmSession(request: NextRequest) {
+type UpdateCrmSessionOptions = {
+  /**
+   * Optional pre-populated request headers. The parent middleware uses this to
+   * forward the generated CSP nonce (and any other per-request metadata) into
+   * the downstream request context before CRM-specific headers are added.
+   */
+  requestHeaders?: Headers;
+};
+
+export async function updateCrmSession(request: NextRequest, options: UpdateCrmSessionOptions = {}) {
   const env = getCrmEnv();
   const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-  const requestHeaders = new Headers(request.headers);
+  const requestHeaders = options.requestHeaders ?? new Headers(request.headers);
   requestHeaders.set("x-crm-pathname", request.nextUrl.pathname);
   requestHeaders.set("x-crm-next", nextPath);
 

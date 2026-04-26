@@ -54,16 +54,16 @@ function requireTwilio() {
   };
 }
 
-function requireCjAdmin() {
+function requireCjControlPlane() {
   const env = getCrmEnv();
-  if (!env.customerJourneysPlatformApiBaseUrl || !env.customerJourneysAdminApiToken) {
+  if (!env.customerJourneysPlatformApiBaseUrl || !env.customerJourneysInternalApiToken) {
     throw new Error(
-      "CustomerJourneys admin API is not configured (CUSTOMERJOURNEYS_PLATFORM_API_BASE_URL / CUSTOMERJOURNEYS_ADMIN_API_TOKEN).",
+      "CustomerJourneys internal control plane is not configured (CUSTOMERJOURNEYS_PLATFORM_API_BASE_URL / CUSTOMERJOURNEYS_INTERNAL_API_TOKEN).",
     );
   }
   return {
     baseUrl: env.customerJourneysPlatformApiBaseUrl.replace(/\/+$/, ""),
-    token: env.customerJourneysAdminApiToken,
+    token: env.customerJourneysInternalApiToken,
   };
 }
 
@@ -101,7 +101,7 @@ async function twilioFetch<T = unknown>(
   return body as T;
 }
 
-async function cjAdminFetch<T = unknown>(
+async function cjInternalFetch<T = unknown>(
   path: string,
   init: RequestInit & { baseUrl: string; token: string },
 ): Promise<T> {
@@ -110,7 +110,7 @@ async function cjAdminFetch<T = unknown>(
     ...rest,
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${token}`,
+      "x-internal-service-token": token,
       accept: "application/json",
       ...(rest.headers ?? {}),
     },
@@ -126,7 +126,7 @@ async function cjAdminFetch<T = unknown>(
     const message =
       (body && typeof body === "object" && "message" in body && typeof (body as { message: unknown }).message === "string"
         ? (body as { message: string }).message
-        : text) || `CJ admin request failed: ${response.status}`;
+        : text) || `CJ internal request failed: ${response.status}`;
     throw new Error(`${path}: ${message}`);
   }
   return body as T;
@@ -345,18 +345,20 @@ export async function registerWhatsAppSender(
 }
 
 async function attachMessagingToCjTenant(
-  cj: ReturnType<typeof requireCjAdmin>,
+  cj: ReturnType<typeof requireCjControlPlane>,
   cjTenantId: string,
   twilio: ReturnType<typeof requireTwilio>,
   messagingServiceSid: string,
+  phoneNumber: string | null,
 ) {
-  await cjAdminFetch(`/v1/admin/tenants/${cjTenantId}/messaging-connection`, {
+  await cjInternalFetch(`/v1/internal/crm/tenants/${cjTenantId}/messaging-connection`, {
     method: "POST",
     body: JSON.stringify({
       provider: "twilio",
       twilioAccountSid: twilio.accountSid,
       twilioAuthToken: twilio.authToken,
       messagingServiceSid,
+      phoneNumber,
       smsEnabled: true,
       whatsappEnabled: true,
     }),
@@ -366,13 +368,13 @@ async function attachMessagingToCjTenant(
 }
 
 async function attachVoiceToCjTenant(
-  cj: ReturnType<typeof requireCjAdmin>,
+  cj: ReturnType<typeof requireCjControlPlane>,
   cjTenantId: string,
   twilio: ReturnType<typeof requireTwilio>,
   phoneNumberSid: string,
   e164: string,
 ) {
-  await cjAdminFetch(`/v1/admin/tenants/${cjTenantId}/voice-connection`, {
+  await cjInternalFetch(`/v1/internal/crm/tenants/${cjTenantId}/voice-connection`, {
     method: "POST",
     body: JSON.stringify({
       provider: "twilio",
@@ -387,12 +389,12 @@ async function attachVoiceToCjTenant(
 }
 
 async function attachWhatsAppSenderToCjTenant(
-  cj: ReturnType<typeof requireCjAdmin>,
+  cj: ReturnType<typeof requireCjControlPlane>,
   cjTenantId: string,
   senderId: string,
   displayNumber: string | null,
 ) {
-  await cjAdminFetch(`/v1/admin/tenants/${cjTenantId}/whatsapp-sender`, {
+  await cjInternalFetch(`/v1/internal/crm/tenants/${cjTenantId}/whatsapp-sender`, {
     method: "POST",
     body: JSON.stringify({
       provider: "twilio",
@@ -433,7 +435,8 @@ async function waitForRuntimeReady(
 
 /**
  * Idempotent orchestrator: ensures the Twilio artifacts exist for the tenant,
- * ensures they are attached to the tenant's CJ tenant via the CJ admin API,
+ * ensures they are attached to the tenant's CJ tenant via the internal
+ * CustomerJourneys control plane,
  * then polls the CJ runtime surface until all channels are ready (or surfaces
  * warnings if not).
  */
@@ -509,13 +512,19 @@ export async function ensureTenantTwilioProvisioning(
     });
   }
 
-  // 4. Attach to CJ tenant via CJ admin endpoints.
+  // 4. Attach to the linked platform tenant via the internal control plane.
   try {
-    const cj = requireCjAdmin();
+    const cj = requireCjControlPlane();
     const twilio = requireTwilio();
     if (messagingServiceSid) {
       try {
-        await attachMessagingToCjTenant(cj, link.customerjourneys_tenant_id, twilio, messagingServiceSid);
+        await attachMessagingToCjTenant(
+          cj,
+          link.customerjourneys_tenant_id,
+          twilio,
+          messagingServiceSid,
+          voiceNumberE164,
+        );
       } catch (error) {
         warnings.push({
           step: "cj.attachMessaging",

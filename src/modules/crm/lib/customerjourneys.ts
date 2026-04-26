@@ -677,7 +677,12 @@ function buildWhatsAppDeepLink(number: string | null) {
 }
 
 function getRuntimeBaseUrl(link: CustomerJourneysRuntimeLink | null) {
-  return normalizeBaseUrl(link?.platform_api_base_url) ?? normalizeBaseUrl(getCrmEnv().customerJourneysPlatformApiBaseUrl);
+  const env = getCrmEnv();
+  return (
+    normalizeBaseUrl(env.customerJourneysPlatformApiBaseUrlOverride) ??
+    normalizeBaseUrl(link?.platform_api_base_url) ??
+    normalizeBaseUrl(env.customerJourneysPlatformApiBaseUrl)
+  );
 }
 
 export function isCustomerJourneysRuntimeConfigured() {
@@ -687,7 +692,7 @@ export function isCustomerJourneysRuntimeConfigured() {
 
 export function isCustomerJourneysProvisioningConfigured() {
   const env = getCrmEnv();
-  return Boolean(env.customerJourneysPlatformApiBaseUrl && env.customerJourneysAdminApiToken);
+  return Boolean(env.customerJourneysPlatformApiBaseUrl && env.customerJourneysInternalApiToken);
 }
 
 export async function getCustomerJourneysRuntimeLink(supabase: SupabaseClient, tenantId: string) {
@@ -758,20 +763,20 @@ export async function upsertCustomerJourneysRuntimeLink(
 export async function provisionCustomerJourneysTenant(input: CustomerJourneysProvisioningInput) {
   const env = getCrmEnv();
   const baseUrl = normalizeBaseUrl(env.customerJourneysPlatformApiBaseUrl);
-  const adminToken = env.customerJourneysAdminApiToken;
+  const internalToken = env.customerJourneysInternalApiToken;
 
-  if (!baseUrl || !adminToken) {
+  if (!baseUrl || !internalToken) {
     return {
       tenantId: null,
-      warning: "CustomerJourneys admin provisioning is not configured.",
+      warning: "CustomerJourneys internal-service provisioning is not configured.",
     };
   }
 
-  const response = await fetch(`${baseUrl}/v1/admin/tenants`, {
+  const response = await fetch(`${baseUrl}/v1/internal/crm/tenants`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${adminToken}`,
+      "x-internal-service-token": internalToken,
     },
     body: JSON.stringify({
       slug: input.tenant.slug,

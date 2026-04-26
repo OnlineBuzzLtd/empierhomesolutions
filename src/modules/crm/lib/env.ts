@@ -12,12 +12,20 @@ export function getCrmEnv() {
   const liveAgentToken = normalizeEnv(process.env.AGENTIC_LIVE_AGENT_TOKEN);
   const liveAgentTimeoutMs = Number.parseInt(process.env.AGENTIC_LIVE_AGENT_TIMEOUT_MS ?? "15000", 10);
   const customerJourneysPlatformApiBaseUrl = normalizeEnv(process.env.CUSTOMERJOURNEYS_PLATFORM_API_BASE_URL);
+  const customerJourneysPlatformApiBaseUrlOverride = normalizeEnv(
+    process.env.CUSTOMERJOURNEYS_PLATFORM_API_BASE_URL_OVERRIDE,
+  );
   const customerJourneysAdminApiToken = normalizeEnv(process.env.CUSTOMERJOURNEYS_ADMIN_API_TOKEN);
   const customerJourneysInternalApiToken = normalizeEnv(process.env.CUSTOMERJOURNEYS_INTERNAL_API_TOKEN);
   const twilioAccountSid = normalizeEnv(process.env.TWILIO_ACCOUNT_SID);
   const twilioAuthToken = normalizeEnv(process.env.TWILIO_AUTH_TOKEN);
   const twilioDefaultNumberPoolSid = normalizeEnv(process.env.TWILIO_DEFAULT_NUMBER_POOL_SID);
   const crmE2ePlatformFixturesEnabled = process.env.CRM_E2E_PLATFORM_FIXTURES === "1";
+  const vercelApiToken = normalizeEnv(process.env.VERCEL_API_TOKEN);
+  const vercelProjectId = normalizeEnv(process.env.VERCEL_PROJECT_ID);
+  const vercelTeamId = normalizeEnv(process.env.VERCEL_TEAM_ID);
+  const crmTenantRootDomain =
+    normalizeEnv(process.env.CRM_TENANT_ROOT_DOMAIN) ?? "crm.customerjourneys.ai";
 
   return {
     url,
@@ -29,6 +37,7 @@ export function getCrmEnv() {
     liveAgentToken,
     liveAgentTimeoutMs: Number.isFinite(liveAgentTimeoutMs) && liveAgentTimeoutMs > 0 ? liveAgentTimeoutMs : 15000,
     customerJourneysPlatformApiBaseUrl,
+    customerJourneysPlatformApiBaseUrlOverride,
     customerJourneysAdminApiToken,
     customerJourneysInternalApiToken,
     customerJourneysBridgeEnabled: Boolean(customerJourneysPlatformApiBaseUrl),
@@ -37,6 +46,10 @@ export function getCrmEnv() {
     twilioDefaultNumberPoolSid,
     twilioProvisioningEnabled: Boolean(twilioAccountSid && twilioAuthToken),
     crmE2ePlatformFixturesEnabled,
+    vercelApiToken,
+    vercelProjectId,
+    vercelTeamId,
+    crmTenantRootDomain,
     enabled: Boolean(url && publishableKey),
     adminEnabled: Boolean(url && serviceRoleKey),
   };

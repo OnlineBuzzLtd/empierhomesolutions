@@ -286,7 +286,6 @@ Configuration is centralized in `src/modules/crm/lib/env.ts`.
 ### 10.5 CustomerJourneys Bridge
 
 - `CUSTOMERJOURNEYS_PLATFORM_API_BASE_URL`
-- `CUSTOMERJOURNEYS_ADMIN_API_TOKEN`
 - `CUSTOMERJOURNEYS_INTERNAL_API_TOKEN`
 
 ### 10.7 Live Runtime Event Bridge

@@ -6,6 +6,7 @@ import "../globals.css";
 import { DemoPanel } from "@/modules/crm/components/demo/DemoPanel";
 import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider";
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
+import { CommsoftAccountMenu } from "@/modules/crm/components/commusoft/CommsoftAccountMenu";
 import { CrmSidebarNav, CrmTopNav, type CrmNavGroup, type CrmNavItem } from "@/modules/crm/components/layout/CrmNav";
 import { getCrmSession, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -108,6 +109,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <DemoModeProvider state={demoState}>
         <div className="min-h-screen bg-white text-slate-900">
           {children}
+          <CommsoftAccountMenu
+            fullName={session.profile?.full_name ?? session.user.email ?? "Engineer"}
+            email={session.user.email ?? ""}
+            role={session.profile?.role ?? null}
+          />
         </div>
       </DemoModeProvider>
     );

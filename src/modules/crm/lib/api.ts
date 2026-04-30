@@ -5,6 +5,7 @@ import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { getCrmSession } from "@/modules/crm/lib/auth";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { buildInvoiceNumber, buildQuoteNumber } from "@/modules/crm/lib/numbers";
+import { computeQuoteRollup } from "@/modules/crm/lib/quote-rollup";
 import type { CrmRole, LineItem, Tenant, TenantBranding, TenantMembership, TenantSettings, UserProfile } from "@/modules/crm/types";
 
 export function jsonError(message: string, status = 400) {
@@ -70,9 +71,15 @@ export function normalizeBlankFields<T extends Record<string, unknown>>(value: T
 }
 
 export function computeFinancials(lineItems: LineItem[], vatRate: number) {
-  const subtotal = lineItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.unit_price), 0);
-  const total = subtotal + subtotal * vatRate;
-  return { subtotal, total };
+  const rollup = computeQuoteRollup(lineItems, vatRate);
+  return {
+    subtotal: rollup.subtotal,
+    total: rollup.total,
+    total_cost: rollup.total_cost,
+    total_profit: rollup.total_profit,
+    total_margin_percent:
+      rollup.total_margin_percent === null ? null : Number((rollup.total_margin_percent / 100).toFixed(4)),
+  };
 }
 
 export function resolveCreatedByUserId(user: Pick<User, "id"> | null | undefined) {

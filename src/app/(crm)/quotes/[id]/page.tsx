@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { ApiActionButton } from "@/modules/crm/components/forms/ApiActionButton";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
-import { QuoteCreateForm } from "@/modules/crm/components/forms/QuoteCreateForm";
+import { QuoteBuilder } from "@/modules/crm/components/forms/QuoteBuilder";
+import { PaymentPlanEditor } from "@/modules/crm/components/forms/PaymentPlanEditor";
+import { PublicLinkPanel } from "@/modules/crm/components/forms/PublicLinkPanel";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
@@ -12,20 +14,30 @@ import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { formatCurrency, formatDate, formatDateTime } from "@/modules/crm/lib/format";
 import { getQuoteDetail, listAttachmentsForEntity, listCustomers, listJobs, listProducts } from "@/modules/crm/lib/data";
 import { invoiceScheduleStatusConfig, quoteStatusConfig } from "@/modules/crm/lib/status";
+import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
+import type { Package, PackageItem } from "@/modules/crm/types";
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireCrmUser();
   const { id } = await params;
-  const [quote, attachments, customers, jobs, products] = await Promise.all([
+  const supabase = await createCrmServerClient();
+  const [quote, attachments, customers, jobs, products, packagesQuery] = await Promise.all([
     getQuoteDetail(id),
     listAttachmentsForEntity("quote", id),
     listCustomers(),
     listJobs(),
     listProducts(),
+    supabase
+      .schema("crm")
+      .from("packages")
+      .select("*, items:package_items(*)")
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
   ]);
   if (!quote) {
     notFound();
   }
+  const packages = (packagesQuery.data ?? []) as Array<Package & { items?: PackageItem[] }>;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -105,20 +117,38 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         </div>
       </SectionCard>
 
+      <SectionCard title="Quote Builder" demoAnchor="quote-builder">
+        <QuoteBuilder
+          customers={customers}
+          jobs={jobs}
+          products={products}
+          packages={packages}
+          initialQuote={quote}
+          endpoint={`/api/crm/quotes/${quote.id}`}
+          submitLabel="Save new version"
+        />
+      </SectionCard>
+
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <SectionCard title="Revise Quote / Estimate">
-          <QuoteCreateForm
-            customers={customers}
-            jobs={jobs}
-            products={products}
-            initialQuote={quote}
-            endpoint={`/api/crm/quotes/${quote.id}`}
-            submitLabel="Save New Version"
-            includeChangeSummary
+        <SectionCard title="Payment plan">
+          <PaymentPlanEditor
+            quoteId={quote.id}
+            quoteTotal={Number(quote.total ?? 0)}
+            initialDepositPercent={25}
+            initialStages={[]}
+            initialFinalDays={30}
           />
         </SectionCard>
 
         <div className="space-y-6">
+          <SectionCard title="Public preview link">
+            <PublicLinkPanel
+              quoteId={quote.id}
+              initialToken={quote.public_token ?? null}
+              initialExpiresAt={quote.public_token_expires_at ?? null}
+            />
+          </SectionCard>
+
           <SectionCard title="Acceptance">
             {quote.acceptance ? (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-slate-700">

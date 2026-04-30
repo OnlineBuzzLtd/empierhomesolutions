@@ -463,10 +463,83 @@ export type Appointment = {
   created_at: string;
 };
 
+export type LineItemKind = "line" | "section_header" | "package_rollup";
+export type LineItemPackageRole = "rollup" | "component";
+
 export type LineItem = {
   description: string;
   qty: number;
   unit_price: number;
+  unit_cost?: number | null;
+  markup_percent?: number | null;
+  product_id?: string | null;
+  package_id?: string | null;
+  package_role?: LineItemPackageRole | null;
+  section_id?: string | null;
+  kind?: LineItemKind | null;
+};
+
+export type Package = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  default_markup_percent: number | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  items?: PackageItem[];
+};
+
+export type PackageItem = {
+  id: string;
+  tenant_id: string;
+  package_id: string;
+  product_id: string | null;
+  description: string;
+  qty: number;
+  unit_cost: number | null;
+  unit_price: number;
+  sort_order: number;
+};
+
+export type PaymentPlanStage = {
+  label: string;
+  percent: number;
+  due_offset_days: number;
+};
+
+export type PaymentPlan = {
+  deposit_percent: number;
+  deposit_label?: string;
+  deposit_due_offset_days?: number;
+  stages: PaymentPlanStage[];
+  final: {
+    label: string;
+    due_offset_days: number;
+  };
+};
+
+export type PublicQuoteView = {
+  id: string;
+  quote_number: string;
+  document_type: QuoteDocumentType;
+  line_items: LineItem[];
+  subtotal: number;
+  vat_rate: number;
+  total: number;
+  status: QuoteStatus;
+  valid_until: string | null;
+  customer_name: string | null;
+  tenant_name: string | null;
+  invoice_schedules: Array<{
+    label: string;
+    payment_type: PaymentType;
+    percentage: number | null;
+    fixed_amount: number | null;
+    due_offset_days: number;
+  }>;
 };
 
 export type Quote = {
@@ -481,8 +554,15 @@ export type Quote = {
   vat_rate: number;
   vat_category: string;
   total: number;
+  total_cost?: number | null;
+  total_profit?: number | null;
+  total_margin_percent?: number | null;
   status: QuoteStatus;
   valid_until: string | null;
+  public_token?: string | null;
+  public_token_expires_at?: string | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;

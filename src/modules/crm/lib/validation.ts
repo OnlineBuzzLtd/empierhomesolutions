@@ -19,10 +19,86 @@ function parseCheckboxIdList(value: unknown) {
   return [] as string[];
 }
 
+const lineItemKinds = ["line", "section_header", "package_rollup"] as const;
+const lineItemPackageRoles = ["rollup", "component"] as const;
+
 export const lineItemSchema = z.object({
-  description: z.string().min(2),
-  qty: z.coerce.number().positive(),
+  description: z.string().min(1),
+  qty: z.coerce.number().nonnegative(),
   unit_price: z.coerce.number().nonnegative(),
+  unit_cost: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nonnegative().nullable()).optional(),
+  markup_percent: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable()).optional(),
+  product_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable()).optional(),
+  package_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable()).optional(),
+  package_role: z.enum(lineItemPackageRoles).nullable().optional(),
+  section_id: z.preprocess(emptyStringToNull, z.string().nullable()).optional(),
+  kind: z.enum(lineItemKinds).nullable().optional(),
+});
+
+export const packageItemSchema = z.object({
+  id: z.string().uuid().optional(),
+  product_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  description: z.string().min(1),
+  qty: z.coerce.number().positive(),
+  unit_cost: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nonnegative().nullable()).optional(),
+  unit_price: z.coerce.number().nonnegative(),
+  sort_order: z.coerce.number().int().nonnegative().default(0),
+});
+
+export const packageSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().optional().nullable(),
+  default_markup_percent: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable()).optional(),
+  is_active: z.coerce.boolean().default(true),
+  items: z.array(packageItemSchema).default([]),
+});
+
+export const paymentPlanSchema = z
+  .object({
+    deposit_percent: z.coerce.number().min(0).max(100),
+    deposit_label: z.string().min(1).default("Deposit"),
+    deposit_due_offset_days: z.coerce.number().int().min(0).default(0),
+    stages: z
+      .array(
+        z.object({
+          label: z.string().min(1),
+          percent: z.coerce.number().min(0).max(100),
+          due_offset_days: z.coerce.number().int().min(0).default(14),
+        }),
+      )
+      .default([]),
+    final: z.object({
+      label: z.string().min(1).default("Final payment"),
+      due_offset_days: z.coerce.number().int().min(0).default(30),
+    }),
+  })
+  .superRefine((value, ctx) => {
+    const total = value.deposit_percent + value.stages.reduce((sum, stage) => sum + stage.percent, 0);
+    if (total > 100.001) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deposit_percent"],
+        message: "Deposit + stages cannot exceed 100%.",
+      });
+    }
+  });
+
+export const publicAcceptSchema = z.object({
+  accepted_by_name: z.string().min(2),
+  accepted_by_email: z.string().email().optional().or(z.literal("")).nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export const publicRejectSchema = z.object({
+  reason: z.string().min(2).max(2000).optional().nullable(),
+});
+
+export const quoteRejectionSchema = z.object({
+  reason: z.string().min(2).max(2000),
+});
+
+export const publicLinkRequestSchema = z.object({
+  ttl_days: z.coerce.number().int().min(1).max(365).default(30),
 });
 
 export const customerSchema = z.object({

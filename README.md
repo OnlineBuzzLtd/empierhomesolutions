@@ -135,7 +135,7 @@ Landing pages:
 - service and location LP routing
 - content loading and validation
 - hero, pricing, coverage, FAQ, trust, and quote form modules
-- attribution capture, GTM/GA4 hooks, JSON-LD, and lead submission API
+- attribution capture, site-wide GTM / GA4 / Google Ads (`AW-18033964938`) tags, JSON-LD, and lead submission API
 - latest approved copy updates to logos, mobile form copy, and areas page messaging
 
 CRM:

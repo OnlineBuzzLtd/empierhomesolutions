@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-05-07
+
+### Added
+
+- Site-wide Google Tag Manager + Google Analytics 4 loading: GTM/GA4 `<Script>` blocks moved from `src/app/(lp)/layout.tsx` into the root `src/app/layout.tsx` so every public route fires (not just `/lp/*`)
+- `NEXT_PUBLIC_GOOGLE_ADS_ID` env var + direct `gtag.js` install for Google Ads (`AW-18033964938` for Empire Home Solutions). Lives alongside GTM so conversion-tag detection works regardless of GTM publish state
+- `src/modules/tracking/analyticsScripts.ts` — shared helpers `buildGtmInline` / `buildGa4Inline` / `buildGoogleAdsInline` used by the root layout
+
+### Changed
+
+- `src/app/layout.tsx` — converted to async server component; reads CSP nonce via `headers()` and renders GTM, GA4, and Google Ads loaders gated on their respective env vars
+- `src/app/(lp)/layout.tsx` — removed the now-duplicated GTM/GA4 Script blocks (and the unused `headers` / `Script` / `publicEnv` imports). Prevents double-firing on `/lp/*` routes
+- `src/lib/security-headers.ts` — extended CSP `connect-src` (`www.google.com`, `googleads.g.doubleclick.net`, `stats.g.doubleclick.net`) and `frame-src` (`td.doubleclick.net`, `bid.g.doubleclick.net`) to permit Google Ads conversion + remarketing endpoints
+- `src/lib/env.ts` — added `NEXT_PUBLIC_GOOGLE_ADS_ID` to public env schema, exposed as `publicEnv.googleAdsId`
+
 ## 2026-04-16
 
 ### Added

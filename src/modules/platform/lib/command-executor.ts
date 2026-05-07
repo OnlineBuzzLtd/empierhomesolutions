@@ -789,6 +789,7 @@ async function createAppointment(
     confirmationSmsSentAt?: string | null;
     notificationStatus?: string | null;
     notificationFailureReason?: string | null;
+    postcodeStatus?: string | null;
   },
 ) {
   const { data, error } = await supabase
@@ -809,6 +810,7 @@ async function createAppointment(
       confirmation_sms_sent_at: input.confirmationSmsSentAt ?? null,
       notification_status: input.notificationStatus ?? null,
       notification_failure_reason: input.notificationFailureReason ?? null,
+      postcode_status: input.postcodeStatus ?? null,
       reminder_offset_minutes: null,
       recurrence_rule: null,
     })
@@ -1352,6 +1354,25 @@ export async function executePlatformCommand(
       const startsAt = toIsoString(pickString(payload, ["booking_start_at", "starts_at"]), command.issued_at);
       const endsAt = toIsoString(pickString(payload, ["booking_end_at", "ends_at"]), addMinutes(startsAt, 60));
 
+      // EHS-V-001: derive postcode_status so the engineer diary shows a
+      // "needs verification" badge when a voice booking confirmed without a
+      // postcode (CJ-V-001 makes postcode soft-optional for voice because
+      // UK postcodes are unreliable over ASR).
+      const bookingChannel = pickString(payload, [
+        "channel",
+        "originating_channel",
+        "latest_channel",
+      ]);
+      const bookingPostcode = pickString(payload, [
+        "customer_postcode",
+        "postcode",
+      ]);
+      const postcodeStatus = bookingPostcode
+        ? "captured"
+        : bookingChannel === "voice"
+          ? "needs_verification"
+          : null;
+
       if (link.lead_id) {
         await updateLeadStatus(supabase, alias, link.lead_id, "booked", buildLeadNotes(payload) || null, payload);
         if (link.customer_id) {
@@ -1370,6 +1391,7 @@ export async function executePlatformCommand(
           confirmationSmsSentAt: pickString(payload, ["confirmation_sms_sent_at"]),
           notificationStatus: pickString(payload, ["notification_status"]),
           notificationFailureReason: pickString(payload, ["notification_failure_reason"]),
+          postcodeStatus: postcodeStatus,
         });
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,
@@ -1390,6 +1412,9 @@ export async function executePlatformCommand(
             starts_at: startsAt,
             ends_at: endsAt,
             status: "scheduled",
+            // Only overwrite postcode_status when we have new info
+            // (otherwise leave whatever a previous BookingConfirmed set).
+            ...(postcodeStatus ? { postcode_status: postcodeStatus } : {}),
           })
           .eq("id", link.booking_appointment_id)
           .eq("tenant_id", alias.tenant_id);

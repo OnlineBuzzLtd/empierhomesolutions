@@ -54,6 +54,11 @@ export function EngineerFieldView({
   const customerAddress = [job.customer?.address_line1, job.customer?.postcode].filter(Boolean).join(", ");
   const directionsAddress = siteAddress || customerAddress || "Address not set";
   const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(directionsAddress)}`;
+  // EHS-V-001 badge: voice bookings can confirm without a postcode (the
+  // CJ runtime drops postcode from required-identity for voice because
+  // UK postcodes are unreliable over ASR). Engineers should phone-confirm
+  // the address before dispatch.
+  const postcodeNeedsVerification = !job.site?.postcode && !job.customer?.postcode;
   const expenseTotal = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
   const pendingMandatoryChecklists = (job.checklists ?? []).filter(
@@ -140,6 +145,20 @@ export function EngineerFieldView({
           <InfoRow label="Customer" value={job.customer?.full_name ?? "Not set"} />
           <InfoRow label="Phone" value={job.customer?.phone ?? "Not set"} />
           <InfoRow label="Address" value={directionsAddress} />
+          {postcodeNeedsVerification ? (
+            <div className="border-t border-slate-100 py-3">
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3">
+                <span aria-hidden className="text-base leading-none text-amber-600">⚠</span>
+                <div className="text-xs">
+                  <p className="font-semibold text-amber-900">Postcode not captured</p>
+                  <p className="mt-0.5 text-amber-800">
+                    Booking arrived without a postcode (typically voice — UK postcodes are unreliable over ASR).
+                    Phone the customer to confirm the address before dispatch.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {job.site_contact ? <InfoRow label="Site contact" value={job.site_contact.full_name} /> : null}
           <InfoRow label="Date" value={job.scheduled_date ? formatDate(job.scheduled_date) : "TBC"} />
           <InfoRow label="Time" value={job.scheduled_time ?? "TBC"} />

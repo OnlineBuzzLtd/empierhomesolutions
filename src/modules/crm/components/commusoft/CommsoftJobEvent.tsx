@@ -39,6 +39,10 @@ export function CommsoftJobEvent({
   const customerAddress = [job.customer?.address_line1, job.customer?.postcode].filter(Boolean).join(", ");
   const displayAddress = siteAddress || customerAddress || "Address not set";
   const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayAddress)}`;
+  // EHS-V-001 badge trigger: voice bookings can confirm without a
+  // postcode (see appointment.postcode_status = "needs_verification").
+  // Engineers should phone-confirm the address before dispatch.
+  const postcodeNeedsVerification = !job.site?.postcode && !job.customer?.postcode;
 
   const mandatoryChecklists = (job.checklists ?? []).filter(
     (c) => c.is_mandatory && c.status !== "completed",
@@ -86,6 +90,18 @@ export function CommsoftJobEvent({
             <div className="space-y-2">
               <InfoRow bold label="Name" value={job.customer?.full_name ?? "Not set"} />
               <InfoRow label="Address" value={displayAddress} />
+              {postcodeNeedsVerification ? (
+                <div className="mt-1 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2">
+                  <span aria-hidden className="text-base leading-none text-amber-600">⚠</span>
+                  <div className="text-xs">
+                    <p className="font-semibold text-amber-900">Postcode not captured</p>
+                    <p className="text-amber-800">
+                      Booking arrived without a postcode (typically voice — UK postcodes are unreliable over ASR).
+                      Phone the customer to confirm the address before dispatch.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               {job.site?.access_notes ? (
                 <div>
                   <span className="text-xs font-semibold text-amber-700">Access: </span>

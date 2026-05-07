@@ -4,7 +4,7 @@ import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import type { LeadCustomerMatchResult, LeadDedupeResult, LeadStatus } from "@/modules/crm/types";
 import type { Attribution } from "@/modules/tracking/attribution";
-import { resolveLandingPageTenantId } from "@/modules/forms/api/landing-tenant";
+import { resolveLandingPageTenantId, tenantIdFromSlug } from "@/modules/forms/api/landing-tenant";
 import { z } from "zod";
 
 const WEBSITE_INTAKE_SOURCE = "website";
@@ -314,7 +314,10 @@ async function createCustomer(
   return customer.id;
 }
 
-async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
+async function submitLeadToCrm(
+  lead: LeadRequest,
+  options: { tenantSlug?: string | null } = {},
+): Promise<LeadSubmitResult> {
   const crmEnv = getCrmEnv();
   if (!crmEnv.adminEnabled) {
     return {
@@ -334,7 +337,25 @@ async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {
   let tenantId: string;
 
   try {
-    tenantId = await resolveLandingPageTenantId(admin);
+    if (options.tenantSlug) {
+      const resolved = await tenantIdFromSlug(admin, options.tenantSlug);
+      if (!resolved) {
+        // Slug came from middleware host parsing but doesn't match any
+        // tenant row. Fail loud — don't silently fall through to Empire,
+        // which would mis-route a genuine multi-tenant submission.
+        return {
+          ok: false,
+          status: 400,
+          error: {
+            code: "tenant_not_found",
+            message: `Tenant '${options.tenantSlug}' is not registered.`,
+          },
+        };
+      }
+      tenantId = resolved;
+    } else {
+      tenantId = await resolveLandingPageTenantId(admin);
+    }
   } catch (error) {
     return {
       ok: false,
@@ -536,7 +557,10 @@ export type LeadSubmitResult =
       };
     };
 
-export async function submitLeadToWebhook(lead: LeadRequest): Promise<LeadSubmitResult> {
+export async function submitLeadToWebhook(
+  lead: LeadRequest,
+  options: { tenantSlug?: string | null } = {},
+): Promise<LeadSubmitResult> {
   if (!isAllowedOrigin(lead.origin)) {
     return {
       ok: false,
@@ -559,7 +583,7 @@ export async function submitLeadToWebhook(lead: LeadRequest): Promise<LeadSubmit
     };
   }
 
-  const crmSubmission = await submitLeadToCrm(lead);
+  const crmSubmission = await submitLeadToCrm(lead, { tenantSlug: options.tenantSlug });
   if (crmSubmission.ok) {
     return crmSubmission;
   }

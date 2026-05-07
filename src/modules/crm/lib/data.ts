@@ -2,6 +2,7 @@ import { addDays, endOfDay, isAfter, parseISO, startOfDay } from "date-fns";
 import type { Appointment, Attachment, CalendarItem, Customer, CustomerAsset, CustomerWithCounts, CustomFieldDefinition, DashboardData, EngineerDashboardData, EngineerDashboardJob, Expense, Invoice, InvoiceSchedule, InvoiceWithRelations, JobAssignee, JobCertificate, JobChecklist, JobHazard, JobPhase, JobType, JobVariation, JobWithRelations, LeadWithRelations, Note, Payment, Product, PurchaseOrder, Quote, QuoteAcceptance, QuoteTemplate, QuoteVersion, QuoteWithRelations, ReportsSummary, RequiredDocumentRule, Service, Site, SiteContact, StaffDirectoryEntry, Supplier, SupplierReconciliation, UserCertification, UserProfile } from "@/modules/crm/types";
 import { createCrmServerClient, createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { applyCrmModeFilter, crmDemoScenarioKey } from "@/modules/crm/lib/demo";
+import { runCrmList } from "@/modules/crm/lib/data-runner";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { buildAssetReminderItems, buildLeadFollowUpItem, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
 import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
@@ -421,24 +422,35 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   const leadsQuery = supabase.schema("crm").from("leads").select("id, status");
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
 
-  const [{ data: todaysJobs }, { data: activeJobs }, { data: invoices }, { data: recentCustomers }, { data: leads }] =
-    await Promise.all([
+  const [todaysJobs, activeJobs, invoiceRows, recentCustomers, leads] = await Promise.all([
+    runCrmList<JobWithRelations>(
+      "getDashboardData.todaysJobs",
       todaysJobsQuery.eq("scheduled_date", todayDate).order("scheduled_time"),
+    ),
+    runCrmList<JobWithRelations>(
+      "getDashboardData.activeJobs",
       activeJobsQuery.in("status", ["enquiry", "booked", "in_progress"]).order("scheduled_date"),
-      invoicesQuery,
+    ),
+    runCrmList<{ total: number | string | null; status: string }>("getDashboardData.invoices", invoicesQuery),
+    runCrmList<Customer>(
+      "getDashboardData.recentCustomers",
       recentCustomersQuery.eq("archived", false).order("created_at", { ascending: false }).limit(5),
+    ),
+    runCrmList<{ id: string; status: string }>(
+      "getDashboardData.leads",
       leadsQuery.in("status", ["new", "contacted", "follow_up"]),
-    ]);
-
-  const invoiceRows = (invoices ?? []) as Array<{ total: number | string | null; status: string }>;
+    ),
+  ]);
 
   return {
-    openJobsCount: (activeJobs ?? []).length,
-    todaysJobs: (todaysJobs ?? []) as JobWithRelations[],
-    unpaidInvoicesTotal: invoiceRows.filter((invoice) => invoice.status === "unpaid").reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
-    newLeadCount: (leads ?? []).length,
-    recentCustomers: (recentCustomers ?? []) as Customer[],
-    activeJobs: (activeJobs ?? []) as JobWithRelations[],
+    openJobsCount: activeJobs.length,
+    todaysJobs,
+    unpaidInvoicesTotal: invoiceRows
+      .filter((invoice) => invoice.status === "unpaid")
+      .reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
+    newLeadCount: leads.length,
+    recentCustomers,
+    activeJobs,
   };
 }
 
@@ -544,8 +556,10 @@ export async function listLeads(mode?: CrmMode) {
       "*, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
-  const { data } = await leadsQuery.order("created_at", { ascending: false });
-  return (data ?? []) as LeadWithRelations[];
+  return runCrmList<LeadWithRelations>(
+    "listLeads",
+    leadsQuery.order("created_at", { ascending: false }),
+  );
 }
 
 export async function listCustomers(mode?: CrmMode) {
@@ -559,11 +573,16 @@ export async function listCustomers(mode?: CrmMode) {
   filterByMode(customersQuery, context.mode, context.scenarioKey);
   const jobsQuery = supabase.schema("crm").from("jobs").select("customer_id, status");
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
-  const { data: customers } = await customersQuery.eq("archived", false).order("created_at", { ascending: false });
-  const { data: jobs } = await jobsQuery;
+  const [customers, jobs] = await Promise.all([
+    runCrmList<Customer>(
+      "listCustomers.customers",
+      customersQuery.eq("archived", false).order("created_at", { ascending: false }),
+    ),
+    runCrmList<{ customer_id: string; status: string }>("listCustomers.jobs", jobsQuery),
+  ]);
 
   const counts = new Map<string, { total: number; active: number }>();
-  ((jobs ?? []) as Array<{ customer_id: string; status: string }>).forEach((job) => {
+  jobs.forEach((job) => {
     const entry = counts.get(job.customer_id) ?? { total: 0, active: 0 };
     entry.total += 1;
     if (["enquiry", "booked", "in_progress"].includes(job.status)) {
@@ -572,7 +591,7 @@ export async function listCustomers(mode?: CrmMode) {
     counts.set(job.customer_id, entry);
   });
 
-  return ((customers ?? []) as Customer[]).map((customer) => {
+  return customers.map((customer) => {
     const count = counts.get(customer.id) ?? { total: 0, active: 0 };
     return {
       ...customer,
@@ -591,8 +610,10 @@ export async function listSites(mode?: CrmMode) {
   const supabase = await createCrmServerClient();
   const sitesQuery = supabase.schema("crm").from("sites").select("*, customer:customers(id, full_name)");
   filterByMode(sitesQuery, context.mode, context.scenarioKey);
-  const { data } = await sitesQuery.order("is_primary", { ascending: false }).order("label", { ascending: true });
-  return (data ?? []) as Array<Site & { customer?: Pick<Customer, "id" | "full_name"> | null }>;
+  return runCrmList<Site & { customer?: Pick<Customer, "id" | "full_name"> | null }>(
+    "listSites",
+    sitesQuery.order("is_primary", { ascending: false }).order("label", { ascending: true }),
+  );
 }
 
 export async function listSiteContacts(mode?: CrmMode) {
@@ -604,8 +625,10 @@ export async function listSiteContacts(mode?: CrmMode) {
   const supabase = await createCrmServerClient();
   const contactsQuery = supabase.schema("crm").from("site_contacts").select("*, site:sites(id, label, customer_id)");
   filterByMode(contactsQuery, context.mode, context.scenarioKey);
-  const { data } = await contactsQuery.order("is_primary", { ascending: false }).order("full_name", { ascending: true });
-  return (data ?? []) as Array<SiteContact & { site?: Pick<Site, "id" | "label" | "customer_id"> | null }>;
+  return runCrmList<SiteContact & { site?: Pick<Site, "id" | "label" | "customer_id"> | null }>(
+    "listSiteContacts",
+    contactsQuery.order("is_primary", { ascending: false }).order("full_name", { ascending: true }),
+  );
 }
 
 export async function getCustomerDetail(id: string, mode?: CrmMode) {
@@ -687,8 +710,10 @@ export async function listJobs(mode?: CrmMode) {
   // submitted booking, not "what's next on the diary" (that's the Calendar
   // page's job). Tie-break on scheduled_date so two jobs created in the same
   // instant still sort deterministically.
-  const { data } = await jobsQuery.order("created_at", { ascending: false }).order("scheduled_date", { ascending: false, nullsFirst: false });
-  const jobs = (data ?? []) as JobWithRelations[];
+  const jobs = await runCrmList<JobWithRelations>(
+    "listJobs",
+    jobsQuery.order("created_at", { ascending: false }).order("scheduled_date", { ascending: false, nullsFirst: false }),
+  );
   const jobIds = jobs.map((job) => job.id);
   const [assigneesByJobId, phasesByJobId, variationsByJobId] = await Promise.all([
     listJobAssigneesByJobIds(jobIds, context.mode),
@@ -787,8 +812,10 @@ export async function listQuotes(mode?: CrmMode) {
     .from("quotes")
     .select("*, customer:customers(id, full_name, address_line1, postcode, phone), job:jobs(id, title)");
   filterByMode(quotesQuery, context.mode, context.scenarioKey);
-  const { data } = await quotesQuery.order("created_at", { ascending: false });
-  const quotes = (data ?? []) as QuoteWithRelations[];
+  const quotes = await runCrmList<QuoteWithRelations>(
+    "listQuotes",
+    quotesQuery.order("created_at", { ascending: false }),
+  );
   const quoteIds = quotes.map((quote) => quote.id);
   const [versionsByQuoteId, acceptancesByQuoteId, schedulesByQuoteId] = await Promise.all([
     listQuoteVersionsByQuoteIds(quoteIds, context.mode),
@@ -844,8 +871,10 @@ export async function listInvoices(mode?: CrmMode) {
     .from("invoices")
     .select("*, customer:customers(id, full_name, address_line1, postcode, phone), job:jobs(id, title)");
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
-  const { data } = await invoicesQuery.order("created_at", { ascending: false });
-  return (data ?? []) as InvoiceWithRelations[];
+  return runCrmList<InvoiceWithRelations>(
+    "listInvoices",
+    invoicesQuery.order("created_at", { ascending: false }),
+  );
 }
 
 export async function getInvoiceDetail(id: string, mode?: CrmMode) {

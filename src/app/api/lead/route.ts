@@ -128,7 +128,13 @@ export async function POST(request: Request) {
   // Overwrite payload origin with validated header origin (defence in depth).
   const leadData = { ...parsed.data, origin: originCheck.origin ?? parsed.data.origin };
 
-  const submission = await submitLeadToWebhook(leadData);
+  // Multi-tenant routing: middleware stamps `x-tenant-slug` on every request
+  // based on the host header (see `src/lib/tenant-host.ts`). When present the
+  // submission is routed to that tenant; null means apex marketing host or
+  // a Vercel preview URL, which falls back to the default Empire tenant.
+  const tenantSlug = headerStore.get("x-tenant-slug");
+
+  const submission = await submitLeadToWebhook(leadData, { tenantSlug });
 
   if (!submission.ok) {
     return NextResponse.json({ ok: false, error: submission.error }, { status: submission.status });

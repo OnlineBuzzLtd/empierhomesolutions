@@ -1,0 +1,53 @@
+name: security-audit
+
+# Runs the quarterly dependency + static audit cadence required by the
+# Phase 4 compliance baseline. Fires weekly on Monday 06:00 UTC plus any
+# manual dispatch. Failure posts to the default workflow notification
+# channel — escalate to the on-call rota.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependency-audit:
+    name: npm audit (prod)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --omit=dev
+      - name: npm audit
+        run: npm audit --omit=dev --audit-level=high
+
+  codeql:
+    name: CodeQL static analysis
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        language: ["javascript-typescript"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@v3
+
+  secrets-scan:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

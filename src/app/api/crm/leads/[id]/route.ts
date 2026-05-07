@@ -2,6 +2,8 @@ import { leadSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { publishLeadUpdateToPlatform } from "@/modules/crm/lib/platform-sync";
+import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,6 +50,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     entityId: id,
     values: extractCustomFieldValues(body),
   });
+
+  // Fire-and-forget: keep the platform-api's voice-agent snapshot in sync with
+  // the latest CRM edit. Errors never block the operator — the outbox on the
+  // platform-api side will re-hydrate on the next booking event anyway.
+  void (async () => {
+    try {
+      const serviceRole = createCrmServiceRoleClient();
+      await publishLeadUpdateToPlatform(serviceRole, auth.session.tenant.id, {
+        lead_id: id,
+        status: parsed.data.status ?? null,
+        source: parsed.data.source ?? null,
+        notes: parsed.data.notes ?? null,
+        problem_description: parsed.data.problem_description ?? null,
+        urgency_level: parsed.data.urgency_level ?? null,
+        preferred_date_text: parsed.data.preferred_date_text ?? null,
+        preferred_time_window: parsed.data.preferred_time_window ?? null,
+        affected_area: parsed.data.affected_area ?? null,
+      });
+    } catch {
+      // Intentionally swallow — see note above.
+    }
+  })();
 
   return jsonSuccess({ lead: data });
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Section } from "@/modules/ui/Section";
+import { Turnstile } from "@/modules/ui/Turnstile";
 import { getAttribution } from "@/modules/tracking/attribution";
 import { pushDataLayer, trackFormEvent } from "@/modules/tracking/pushDataLayer";
 
@@ -38,7 +39,13 @@ export function QuoteForm({
   const [submitState, setSubmitState] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
   const attribution = useMemo(() => getAttribution(), []);
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+  const handleTurnstileToken = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -115,6 +122,7 @@ export function QuoteForm({
           leadType,
           origin: window.location.origin,
           attribution,
+          turnstileToken,
         }),
       });
 
@@ -227,6 +235,10 @@ export function QuoteForm({
         <input type="hidden" name="gclid" value={attribution.gclid ?? ""} readOnly />
         <input type="hidden" name="msclkid" value={attribution.msclkid ?? ""} readOnly />
         <input type="hidden" name="landing_url" value={attribution.landing_url ?? ""} readOnly />
+
+        {turnstileSiteKey ? (
+          <Turnstile siteKey={turnstileSiteKey} onToken={handleTurnstileToken} size="normal" />
+        ) : null}
 
         <button
           type="submit"

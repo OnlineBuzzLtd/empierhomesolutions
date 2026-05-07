@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ServiceSlug } from "@/modules/lp/types";
+import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
+import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { buildLpPath, locationGroups, normalizeLocationSlug } from "@/modules/lp/content/locationCatalog";
 
@@ -21,7 +23,8 @@ const locationGroupMap = new Map(locationGroups.map((group) => [group.postcodeAr
 
 export default function AreasWeCoverPage() {
   return (
-    <main className="min-h-screen bg-[var(--ehs-surface)]">
+    <ChatToggleProvider>
+      <main className="min-h-screen bg-[var(--ehs-surface)]">
       <section className="px-4 py-10 md:py-14">
         <div className="mx-auto max-w-6xl space-y-8">
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-[var(--ehs-card-shadow)] md:p-7">
@@ -103,6 +106,8 @@ export default function AreasWeCoverPage() {
         </div>
       </section>
       <SiteFooter />
-    </main>
+      </main>
+      <AiChatBubble />
+    </ChatToggleProvider>
   );
 }

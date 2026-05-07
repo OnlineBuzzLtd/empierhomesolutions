@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getServerEnv } from "@/lib/env";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { getCrmSession } from "@/modules/crm/lib/auth";
 import type { CrmRole } from "@/modules/crm/types";
@@ -20,14 +21,18 @@ export type DevRouteAuthDenial = {
 const DEV_ROUTE_ALLOWED_ROLES: ReadonlyArray<CrmRole> = ["management", "admin"];
 
 function isEnabledByEnvFlag() {
-  return process.env.DEV_TEST_UI_ENABLED === "1" || process.env.NODE_ENV !== "production";
+  const env = getServerEnv();
+  // Dev routes are ALWAYS disabled in production regardless of env overrides.
+  // Previously a DEV_TEST_UI_ENABLED=1 slip could open dev-only surfaces on
+  // prod; we now ignore the flag when NEXT_PUBLIC_APP_ENV === "production".
+  if (env.isProduction) return false;
+  return env.devTestUiEnabled || !env.isProduction;
 }
 
 function isLocalBypassAllowed() {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    process.env.DEV_TEST_BYPASS_AUTH === "1"
-  );
+  const env = getServerEnv();
+  if (env.isProduction) return false;
+  return process.env.DEV_TEST_BYPASS_AUTH === "1";
 }
 
 /**

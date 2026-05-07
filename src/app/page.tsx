@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2, Clock3, House, PhoneCall, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
+import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
+import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 
 const coreServices = [
@@ -77,7 +79,8 @@ const bannerItems = [
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-[var(--ehs-surface)]">
+    <ChatToggleProvider>
+      <main className="min-h-screen bg-[var(--ehs-surface)]">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3.5">
           <Link href="/" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
@@ -345,6 +348,8 @@ export default function HomePage() {
       </section>
 
       <SiteFooter />
-    </main>
+      </main>
+      <AiChatBubble />
+    </ChatToggleProvider>
   );
 }

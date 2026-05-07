@@ -15,7 +15,6 @@ import type {
 } from "@/modules/platform/lib/repository";
 import { getPlatformConversationLink, getWorkspaceAlias } from "@/modules/platform/lib/repository";
 
-export const liveFrontDeskTesterTenantId = "11111111-1111-4111-8111-111111111111";
 
 const liveConversationChannelSchema = z.enum(["sms", "whatsapp", "web_chat"]);
 export type LiveConversationChannel = z.infer<typeof liveConversationChannelSchema>;
@@ -187,7 +186,10 @@ export function normalizePlatformConversationChannel(channel: LiveConversationCh
 }
 
 export function canAccessLiveFrontDeskTester(input: { tenantId?: string | null; role?: string | null | undefined }) {
-  return input.tenantId === liveFrontDeskTesterTenantId && (input.role === "management" || input.role === "admin");
+  if (!input.tenantId) {
+    return false;
+  }
+  return input.role === "management" || input.role === "admin";
 }
 
 export async function listRecentLiveFrontDeskSessions(

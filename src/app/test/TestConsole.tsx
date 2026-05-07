@@ -20,6 +20,18 @@ type FeedResponse = {
       tenant: { id: string; name: string; slug: string } | null;
       runtimeMode: "platform_ai" | "legacy_fallback" | null;
       bookingResourceCount: number;
+      calendarHealth: {
+        healthy: boolean;
+        resourceCount: number;
+        activeConnections: number;
+        preferredResourceId: string | null;
+        lastError: string | null;
+        reason:
+          | "ok"
+          | "no_booking_resources"
+          | "no_active_calendar_connection"
+          | "adapter_build_failed";
+      } | null;
       issues: string[];
       channels: {
         webchat: ChannelDetails;
@@ -625,6 +637,19 @@ export function TestConsole() {
 
         {feedError ? <div style={styles.errorBanner}>feed error: {feedError}</div> : null}
 
+        {feed?.runtime.surface?.calendarHealth && !feed.runtime.surface.calendarHealth.healthy ? (
+          <div style={styles.calendarBanner}>
+            <strong>Booking diary offline.</strong>{" "}
+            {feed.runtime.surface.calendarHealth.reason === "no_booking_resources"
+              ? "No booking_resources configured for this tenant."
+              : `${feed.runtime.surface.calendarHealth.activeConnections} active calendar connections · ${feed.runtime.surface.calendarHealth.resourceCount} booking resources.`}
+            {feed.runtime.surface.calendarHealth.lastError
+              ? ` Last error: ${feed.runtime.surface.calendarHealth.lastError}.`
+              : null}{" "}
+            Voice/webchat bookings will hand off until this is fixed in /integrations.
+          </div>
+        ) : null}
+
         <section style={styles.metaGrid}>
           <MetaCell label="crm_tenant_id" value={headerInfo?.crmTenantId ?? "—"} />
           <MetaCell label="customerjourneys_tenant_id" value={headerInfo?.runtimeTenantId ?? "—"} />
@@ -1095,6 +1120,15 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #c33",
     padding: "6px 10px",
     color: "#8a1a1a",
+  },
+  calendarBanner: {
+    background: "#ffecec",
+    border: "2px solid #c33",
+    padding: "10px 14px",
+    color: "#5a1010",
+    borderRadius: 4,
+    fontSize: 13,
+    lineHeight: 1.5,
   },
   errorInline: {
     color: "#8a1a1a",

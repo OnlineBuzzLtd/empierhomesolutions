@@ -47,7 +47,18 @@ export async function getCrmSession() {
     .order("is_owner", { ascending: false })
     .order("created_at", { ascending: true });
 
-  const resolvedMemberships = (memberships ?? []) as Array<TenantMembership & { tenant?: Tenant | null }>;
+  const rawMemberships = (memberships ?? []) as Array<TenantMembership & { tenant?: (Tenant & { deleted_at?: string | null; status?: string | null }) | null }>;
+  // Filter out soft-deleted or archived tenants so suspended workspaces
+  // cannot be resumed by simply picking a cookie value. Explicitly
+  // suspended tenants remain visible so a platform_admin can still see
+  // the status banner before resuming them.
+  const resolvedMemberships = rawMemberships.filter((entry) => {
+    const t = entry.tenant;
+    if (!t) return false;
+    if (t.deleted_at) return false;
+    if (t.status === "archived") return false;
+    return true;
+  });
   const membership =
     resolvedMemberships.find((entry) => entry.tenant_id === requestedTenantId) ??
     resolvedMemberships[0] ??

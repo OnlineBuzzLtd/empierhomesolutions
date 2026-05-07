@@ -2,310 +2,890 @@
 /**
  * live-empire-channel-tests.mts
  *
- * Runs 6 real end-to-end scenario tests across all live channels for the
- * Empire Home Solutions tenant against the production platform-api.
+ * Runs live end-to-end channel checks against the production platform-api and
+ * validates three things for each scenario:
+ *   1. routing resolved to the expected tenant
+ *   2. platform booking state reached the expected outcome
+ *   3. CRM materialization landed for the exact tenant/conversation
  *
- * Tests:
- *   T1 — SMS         — new customer, boiler service, full happy-path booking
- *   T2 — SMS         — escalation: customer asks to speak to a real person
- *   T3 — WhatsApp    — emergency burst pipe, ASAP slot
- *   T4 — Webchat     — FAQ first ("do you do boiler installations?") then books
- *   T5 — Voice       — single first-name only ("James") — tests sanitizeCustomerName fix
- *   T6 — Voice       — standard two-word name ("John Smith") — baseline confirm
- *
- * After each test: prints full transcript, platform booking state, and verifies
- * that platform events landed in the Empire CRM Supabase.
- *
- * Usage:
- *   npx tsx scripts/live-empire-channel-tests.mts
- *
- * Requires: gcloud CLI authenticated against customer-journeys-ai project
+ * The runner derives active channel wiring from live platform data rather than
+ * hard-coding stale tenant ownership. Empire is the default acceptance tenant,
+ * but the target tenant can be overridden with LIVE_TEST_PLATFORM_TENANT_ID.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { requireCrmScriptConfig } from "./crm-env.mjs";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-const PLATFORM_API_URL = "https://customerjourneys-platform-api-cnz7crlx2a-nw.a.run.app";
-
-// Empire tenant — voice + webchat only (no Twilio SMS/WhatsApp provisioned)
-const EMPIRE_TENANT_ID = "b469a9fe-546d-4baa-9f87-3487c7c4afc1";
-const EMPIRE_NUMBER = "+441895725151";
-
-// DK Plumbing — has active Twilio SMS/WhatsApp connection; used for text-channel tests
-const DK_TENANT_ID = "75d76e43-4e5e-4568-8ff2-e2594c9818f9";
-const DK_NUMBER = "+447401248976";
-
-// Platform Supabase (AI messages, booking state, bookings)
-const PLATFORM_SB_URL = "https://wplzciiucskeumugbpwv.supabase.co";
-const PLATFORM_SB_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwbHpjaWl1Y3NrZXVtdWdicHd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzAzNzc4NywiZXhwIjoyMDg4NjEzNzg3fQ.2bPCmQOOyuVL0zShOaGpkToMj_n1dAUB5KS-aQUBrdc";
-
-// Empire CRM Supabase (platform_event_log, appointments, jobs)
-const CRM_SB_URL = "https://dodttkkkmxsqfewuahqi.supabase.co";
-const CRM_SB_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvZHR0a2trbXhzcWZld3VhaHFpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzMwNzk3OSwiZXhwIjoyMDg4ODgzOTc5fQ.pIke6BblnFlPAMUJe-VBjUupnJUyfuqPuvF4XKZrNsc";
-const CRM_TENANT_ID = "11111111-1111-4111-8111-111111111111";
+const PLATFORM_API_URL =
+  process.env.PLATFORM_API_URL ?? "https://customerjourneys-platform-api-cnz7crlx2a-nw.a.run.app";
+const PLATFORM_REPO = "/Users/shehzadiqbal/Customer Journeys AI v1/customerjourneys-site";
+const DEFAULT_PLATFORM_TENANT_ID = "b469a9fe-546d-4baa-9f87-3487c7c4afc1";
 
 const DEFAULT_POLL_MS = 25_000;
 const POLL_INTERVAL_MS = 700;
 const BETWEEN_TURNS_MS = 900;
 
-// ─── Secrets ──────────────────────────────────────────────────────────────────
+let PLATFORM_DB_URL = "";
+let CRM_ADMIN: SupabaseClient | null = null;
+let LIVE_TARGET: LiveTenantTarget | null = null;
 
-function gcloudSecret(name: string): string {
-  return execSync(
-    `gcloud secrets versions access latest --secret="${name}" --project=customer-journeys-ai`,
-    {
-      encoding: "utf8",
-      env: { ...process.env, CLOUDSDK_CORE_DISABLE_PROMPTS: "1", CLOUDSDK_SURVEY_DISABLE: "1" },
-    }
-  ).trim();
-}
+type TranscriptLine = { role: "customer" | "ai"; text: string };
+type TextRecoveryProfile = {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  postcode?: string;
+  address?: string;
+  affectedArea?: string;
+  problemDescription?: string;
+  preferredTime?: string;
+};
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function platformGet<T>(path: string): Promise<T[]> {
-  const res = await fetch(`${PLATFORM_SB_URL}/rest/v1/${path}`, {
-    headers: { apikey: PLATFORM_SB_KEY, Authorization: `Bearer ${PLATFORM_SB_KEY}` },
-  });
-  if (!res.ok) throw new Error(`Platform GET ${path} → ${res.status} ${await res.text()}`);
-  return res.json() as Promise<T[]>;
-}
-
-async function crmGet<T>(path: string, schema = "public"): Promise<T[]> {
-  const res = await fetch(`${CRM_SB_URL}/rest/v1/${path}`, {
-    headers: {
-      apikey: CRM_SB_KEY,
-      Authorization: `Bearer ${CRM_SB_KEY}`,
-      "Accept-Profile": schema,
-    },
-  });
-  if (!res.ok) throw new Error(`CRM GET ${path} → ${res.status} ${await res.text()}`);
-  return res.json() as Promise<T[]>;
-}
-
-// ─── Row types ────────────────────────────────────────────────────────────────
-
-interface MsgRow {
-  id: string;
+type PlatformConversationRow = {
   conversation_id: string;
-  body: string;
-  direction: string;
-  created_at: string;
-}
-interface LeadRow {
-  id: string;
-  phone_number: string;
-  full_name: string | null;
-}
-interface ConvRow {
-  id: string;
   lead_id: string;
-}
-interface BsRow {
+  tenant_id: string;
+  tenant_name: string;
+  status: string | null;
+  created_at: string;
+};
+
+type BookingStateRow = {
   conversation_id: string;
   current_state: string;
   collected_data: Record<string, unknown>;
   waiting_for: string[];
   confirmed_slots: string[];
-}
-interface BookingRow {
+};
+
+type BookingRow = {
   id: string;
   booking_status: string;
   start_time: string;
-}
-interface PlatformEventRow {
+};
+
+type MessageRow = {
   id: string;
-  event_type: string;
-  status: string;
+  conversation_id: string;
+  body: string;
+  direction: string;
   created_at: string;
+};
+
+type ActiveConnectionRow = {
+  tenant_id: string;
+  tenant_name: string;
+  integration_type: "messaging" | "voice";
+  provider_key: string;
+  phone_number: string | null;
+  webhook_base_url: string | null;
+};
+
+type CrmRuntimeLinkRow = {
+  crm_tenant_id: string;
+  customerjourneys_tenant_id: string;
+};
+
+type WorkspaceAliasRow = {
   workspace_id: string;
-}
-interface AppointmentRow {
+  tenant_id: string;
+};
+
+type PlatformEventRow = {
+  event_id: string;
+  event_type: string;
+  aggregate_id: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+  tenant_id: string;
+};
+
+type AppointmentRow = {
   id: string;
   starts_at: string;
   status: string;
   title: string | null;
-}
-interface JobRow {
+  tenant_id: string;
+};
+
+type JobRow = {
   id: string;
   title: string | null;
   status: string;
+  tenant_id: string;
+};
+
+type PlatformConversationLinkRow = {
+  tenant_id: string;
+  conversation_id: string;
+  customer_id: string | null;
+  lead_id: string | null;
+  job_id: string | null;
+  callback_appointment_id: string | null;
+  booking_appointment_id: string | null;
+  latest_channel: string | null;
+};
+
+type LiveTenantTarget = {
+  platformTenantId: string;
+  platformTenantName: string;
+  messagingNumber: string;
+  voiceNumber: string;
+  crmTenantId: string;
+  crmWorkspaceId: string;
+  messagingProvider: string;
+  voiceProvider: string;
+};
+
+type CrmEvidence = {
+  events: PlatformEventRow[];
+  appointment: AppointmentRow | null;
+  job: JobRow | null;
+  link: PlatformConversationLinkRow | null;
+  mismatches: string[];
+};
+
+type Verdict = {
+  passed: boolean;
+  note: string;
+};
+
+type CrmExpectation = "conversation" | "booking" | "booking_or_handoff";
+
+type TestResult = {
+  name: string;
+  channel: string;
+  passed: boolean;
+  failReason?: string;
+  transcript: TranscriptLine[];
+  routingVerdict: Verdict;
+  platformVerdict: Verdict;
+  crmVerdict: Verdict;
+};
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── Platform Supabase helpers ────────────────────────────────────────────────
-
-async function resolveConv(
-  from: string,
-  tenantId = EMPIRE_TENANT_ID
-): Promise<{ leadId: string; convId: string } | null> {
-  const cleaned = from.replace(/^whatsapp:/, "");
-  const leads = await platformGet<LeadRow>(
-    `leads?tenant_id=eq.${tenantId}&phone_number=eq.${encodeURIComponent(cleaned)}&order=created_at.desc&limit=1`
-  );
-  if (!leads[0]) return null;
-  const convs = await platformGet<ConvRow>(
-    `conversations?lead_id=eq.${leads[0].id}&order=created_at.desc&limit=1`
-  );
-  if (!convs[0]) return null;
-  return { leadId: leads[0].id, convId: convs[0].id };
+function gcloudSecret(name: string) {
+  return execSync(
+    `gcloud secrets versions access latest --secret="${name}" --project=customer-journeys-ai`,
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CLOUDSDK_CORE_DISABLE_PROMPTS: "1",
+        CLOUDSDK_SURVEY_DISABLE: "1",
+      },
+    }
+  ).trim();
 }
 
-async function resolveConvByEmail(
+function normalizeDialablePhone(value: string) {
+  const stripped = value.replace(/^whatsapp:/i, "").replace(/[^\d+]/g, "");
+  if (stripped.startsWith("+")) {
+    return `+${stripped.slice(1).replace(/\D/g, "")}`;
+  }
+  return stripped.replace(/\D/g, "");
+}
+
+function getCrmAdminClient() {
+  if (CRM_ADMIN) {
+    return CRM_ADMIN;
+  }
+
+  const crm = requireCrmScriptConfig(true);
+  CRM_ADMIN = createClient(crm.supabaseUrl!, crm.serviceRoleKey!, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+  return CRM_ADMIN;
+}
+
+function platformDbQuery<T>(sql: string, params: unknown[]): T[] {
+  if (!PLATFORM_DB_URL) {
+    throw new Error("PLATFORM_DB_URL is not loaded");
+  }
+
+  const script = `
+    import { Client } from "pg";
+
+    const client = new Client({ connectionString: process.env.PLATFORM_DB_URL });
+    await client.connect();
+    try {
+      const sql = process.env.PLATFORM_DB_SQL ?? "";
+      const params = JSON.parse(process.env.PLATFORM_DB_PARAMS ?? "[]");
+      const result = await client.query(sql, params);
+      process.stdout.write(JSON.stringify(result.rows));
+    } finally {
+      await client.end();
+    }
+  `;
+
+  const output = execFileSync("node", ["--input-type=module", "-e", script], {
+    cwd: PLATFORM_REPO,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PLATFORM_DB_URL,
+      PLATFORM_DB_SQL: sql,
+      PLATFORM_DB_PARAMS: JSON.stringify(params),
+    },
+  });
+
+  return JSON.parse(output) as T[];
+}
+
+function requireLiveTarget() {
+  if (!LIVE_TARGET) {
+    throw new Error("Live tenant target is not resolved");
+  }
+  return LIVE_TARGET;
+}
+
+async function resolveLiveTarget() {
+  const platformTenantId = process.env.LIVE_TEST_PLATFORM_TENANT_ID ?? DEFAULT_PLATFORM_TENANT_ID;
+  const connections = platformDbQuery<ActiveConnectionRow>(
+    `select
+        t.id as tenant_id,
+        t.name as tenant_name,
+        ic.integration_type,
+        ic.provider_key,
+        ic.config ->> 'phoneNumber' as phone_number,
+        ic.config ->> 'webhookBaseUrl' as webhook_base_url
+      from integration_connections ic
+      join tenants t on t.id = ic.tenant_id
+      where t.id = $1
+        and ic.status = 'active'
+        and ic.integration_type in ('messaging', 'voice')
+      order by ic.integration_type, ic.updated_at desc, ic.created_at desc`,
+    [platformTenantId]
+  );
+
+  const messaging = connections.find((row) => row.integration_type === "messaging" && row.phone_number);
+  const voice = connections.find((row) => row.integration_type === "voice" && row.phone_number);
+
+  if (!messaging) {
+    throw new Error(`No active messaging connection with an inbound number found for tenant ${platformTenantId}`);
+  }
+  if (!voice) {
+    throw new Error(`No active voice connection with an inbound number found for tenant ${platformTenantId}`);
+  }
+
+  const crm = getCrmAdminClient();
+  const { data: runtimeLink, error: runtimeLinkError } = await crm
+    .schema("crm")
+    .from("customerjourneys_runtime_links")
+    .select("crm_tenant_id, customerjourneys_tenant_id")
+    .eq("customerjourneys_tenant_id", platformTenantId)
+    .maybeSingle<CrmRuntimeLinkRow>();
+
+  if (runtimeLinkError) {
+    throw runtimeLinkError;
+  }
+  if (!runtimeLink?.crm_tenant_id) {
+    throw new Error(`No CRM runtime link found for platform tenant ${platformTenantId}`);
+  }
+
+  const { data: alias, error: aliasError } = await crm
+    .schema("crm")
+    .from("workspace_aliases")
+    .select("workspace_id, tenant_id")
+    .eq("tenant_id", runtimeLink.crm_tenant_id)
+    .maybeSingle<WorkspaceAliasRow>();
+
+  if (aliasError) {
+    throw aliasError;
+  }
+  if (!alias?.workspace_id) {
+    throw new Error(`No CRM workspace alias found for CRM tenant ${runtimeLink.crm_tenant_id}`);
+  }
+
+  LIVE_TARGET = {
+    platformTenantId,
+    platformTenantName: messaging.tenant_name,
+    messagingNumber: messaging.phone_number!,
+    voiceNumber: voice.phone_number!,
+    crmTenantId: runtimeLink.crm_tenant_id,
+    crmWorkspaceId: alias.workspace_id,
+    messagingProvider: messaging.provider_key,
+    voiceProvider: voice.provider_key,
+  };
+
+  return LIVE_TARGET;
+}
+
+async function resolveConversationByPhone(
+  phoneNumber: string,
+  tenantId = requireLiveTarget().platformTenantId
+) {
+  const rows = platformDbQuery<{ lead_id: string; conv_id: string }>(
+    `select l.id as lead_id, c.id as conv_id
+       from leads l
+       join conversations c on c.lead_id = l.id
+      where l.tenant_id = $1
+        and l.phone_number = $2
+      order by c.created_at desc
+      limit 1`,
+    [tenantId, normalizeDialablePhone(phoneNumber)]
+  );
+
+  if (!rows[0]) {
+    return null;
+  }
+
+  return {
+    leadId: rows[0].lead_id,
+    convId: rows[0].conv_id,
+  };
+}
+
+async function resolveConversationByEmail(
   email: string,
-  tenantId = EMPIRE_TENANT_ID
-): Promise<{ leadId: string; convId: string } | null> {
-  const leads = await platformGet<LeadRow>(
-    `leads?tenant_id=eq.${tenantId}&email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=1`
+  tenantId = requireLiveTarget().platformTenantId
+) {
+  const rows = platformDbQuery<{ lead_id: string; conv_id: string }>(
+    `select l.id as lead_id, c.id as conv_id
+       from leads l
+       join conversations c on c.lead_id = l.id
+      where l.tenant_id = $1
+        and l.email = $2
+      order by c.created_at desc
+      limit 1`,
+    [tenantId, email]
   );
-  if (!leads[0]) return null;
-  const convs = await platformGet<ConvRow>(
-    `conversations?lead_id=eq.${leads[0].id}&order=created_at.desc&limit=1`
-  );
-  if (!convs[0]) return null;
-  return { leadId: leads[0].id, convId: convs[0].id };
+
+  if (!rows[0]) {
+    return null;
+  }
+
+  return {
+    leadId: rows[0].lead_id,
+    convId: rows[0].conv_id,
+  };
 }
 
-async function pollReply(
-  convId: string,
-  after: Date,
-  timeoutMs = DEFAULT_POLL_MS
-): Promise<MsgRow | null> {
+async function pollResolveConversationByPhone(
+  phoneNumber: string,
+  tenantId = requireLiveTarget().platformTenantId,
+  timeoutMs = 12_000
+) {
   const deadline = Date.now() + timeoutMs;
-  const afterIso = after.toISOString();
   while (Date.now() < deadline) {
+    const resolved = await resolveConversationByPhone(phoneNumber, tenantId);
+    if (resolved) {
+      return resolved;
+    }
     await sleep(POLL_INTERVAL_MS);
-    const rows = await platformGet<MsgRow>(
-      `messages?conversation_id=eq.${convId}&direction=eq.outbound&created_at=gt.${encodeURIComponent(afterIso)}&order=created_at.asc&limit=1`
-    );
-    if (rows[0]?.body) return rows[0];
   }
   return null;
 }
 
-async function fetchPlatformState(convId: string) {
-  const [bsRows, bookings] = await Promise.all([
-    platformGet<BsRow>(`booking_state?conversation_id=eq.${convId}&limit=1`),
-    platformGet<BookingRow>(
-      `bookings?conversation_id=eq.${convId}&order=created_at.desc&limit=3`
+async function pollReply(conversationId: string, after: Date, timeoutMs = DEFAULT_POLL_MS) {
+  const deadline = Date.now() + timeoutMs;
+  const afterIso = after.toISOString();
+
+  while (Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS);
+    const rows = platformDbQuery<MessageRow>(
+      `select id, conversation_id, body, direction, created_at
+         from messages
+        where conversation_id = $1
+          and direction = 'outbound'
+          and created_at > $2::timestamptz
+        order by created_at asc
+        limit 1`,
+      [conversationId, afterIso]
+    );
+    if (rows[0]?.body) {
+      return rows[0];
+    }
+  }
+
+  return null;
+}
+
+async function fetchPlatformConversationState(conversationId: string): Promise<{
+  conversation: PlatformConversationRow | null;
+  bookingState: BookingStateRow | null;
+  bookings: BookingRow[];
+}> {
+  const [conversationRows, stateRows, bookings] = await Promise.all([
+    Promise.resolve(
+      platformDbQuery<PlatformConversationRow>(
+        `select
+            c.id as conversation_id,
+            l.id as lead_id,
+            l.tenant_id,
+            t.name as tenant_name,
+            c.status,
+            c.created_at
+         from conversations c
+         join leads l on l.id = c.lead_id
+         join tenants t on t.id = l.tenant_id
+         where c.id = $1
+         limit 1`,
+        [conversationId]
+      )
+    ),
+    Promise.resolve(
+      platformDbQuery<BookingStateRow>(
+        `select conversation_id, current_state, collected_data, waiting_for, confirmed_slots
+           from booking_state
+          where conversation_id = $1
+          order by updated_at desc
+          limit 1`,
+        [conversationId]
+      )
+    ),
+    Promise.resolve(
+      platformDbQuery<BookingRow>(
+        `select id, booking_status, start_time
+           from bookings
+          where conversation_id = $1
+          order by created_at desc
+          limit 3`,
+        [conversationId]
+      )
     ),
   ]);
-  return { bs: bsRows[0] ?? null, bookings };
+
+  return {
+    conversation: conversationRows[0] ?? null,
+    bookingState: stateRows[0] ?? null,
+    bookings,
+  };
 }
 
-// ─── CRM Supabase helpers ─────────────────────────────────────────────────────
+function extractCorrelationIds(payload: Record<string, unknown>) {
+  return {
+    conversationId:
+      (typeof payload.conversation_id === "string" && payload.conversation_id) ||
+      (typeof payload.conversationId === "string" && payload.conversationId) ||
+      null,
+    bookingId:
+      (typeof payload.booking_id === "string" && payload.booking_id) ||
+      (typeof payload.bookingId === "string" && payload.bookingId) ||
+      null,
+  };
+}
 
-async function fetchCrmEvents(since: Date): Promise<PlatformEventRow[]> {
+async function fetchCrmEvidenceExact(
+  since: Date,
+  conversationId: string | null,
+  bookingId: string | null,
+  timeoutMs = 12_000
+): Promise<CrmEvidence> {
+  const crm = getCrmAdminClient();
+  const target = requireLiveTarget();
   const sinceIso = since.toISOString();
-  return crmGet<PlatformEventRow>(
-    `platform_event_log?tenant_id=eq.${CRM_TENANT_ID}&created_at=gt.${encodeURIComponent(sinceIso)}&order=created_at.asc&limit=20`,
-    "crm"
-  );
-}
 
-async function fetchCrmAppointments(since: Date): Promise<AppointmentRow[]> {
-  const sinceIso = since.toISOString();
-  return crmGet<AppointmentRow>(
-    `appointments?tenant_id=eq.${CRM_TENANT_ID}&created_at=gt.${encodeURIComponent(sinceIso)}&order=created_at.desc&limit=5`,
-    "crm"
-  );
-}
+  const queryOnce = async (): Promise<CrmEvidence> => {
+    const { data: eventsData, error: eventsError } = await crm
+      .schema("crm")
+      .from("platform_event_log")
+      .select("event_id, event_type, aggregate_id, payload, created_at, tenant_id")
+      .eq("tenant_id", target.crmTenantId)
+      .gt("created_at", sinceIso)
+      .order("created_at", { ascending: true })
+      .limit(100);
 
-async function fetchCrmJobs(since: Date): Promise<JobRow[]> {
-  const sinceIso = since.toISOString();
-  return crmGet<JobRow>(
-    `jobs?tenant_id=eq.${CRM_TENANT_ID}&created_at=gt.${encodeURIComponent(sinceIso)}&order=created_at.desc&limit=5`,
-    "crm"
-  );
-}
+    if (eventsError) {
+      throw eventsError;
+    }
 
-function printCrmVerification(
-  events: PlatformEventRow[],
-  appointments: AppointmentRow[],
-  jobs: JobRow[]
-) {
-  const eventTypes = events.map((e) => e.event_type);
-  const checkMark = (name: string) => (eventTypes.includes(name) ? "✓" : "✗");
-  console.log(
-    `  CRM events:       ConversationStarted ${checkMark("ConversationStarted")}  ConversationQualified ${checkMark("ConversationQualified")}  BookingConfirmed ${checkMark("BookingConfirmed")}`
-  );
-  if (events.length > 0) {
-    console.log(`  CRM event list:   ${eventTypes.join(", ")}`);
+    const relevantEvents = ((eventsData ?? []) as PlatformEventRow[]).filter((event) => {
+      const correlated = extractCorrelationIds(event.payload ?? {});
+      return (
+        (conversationId !== null &&
+          (event.aggregate_id === conversationId || correlated.conversationId === conversationId)) ||
+        (bookingId !== null && (event.aggregate_id === bookingId || correlated.bookingId === bookingId))
+      );
+    });
+
+    let link: PlatformConversationLinkRow | null = null;
+    if (conversationId) {
+      const { data: linkData, error: linkError } = await crm
+        .schema("crm")
+        .from("platform_conversation_links")
+        .select(
+          "tenant_id, conversation_id, customer_id, lead_id, job_id, callback_appointment_id, booking_appointment_id, latest_channel"
+        )
+        .eq("tenant_id", target.crmTenantId)
+        .eq("conversation_id", conversationId)
+        .maybeSingle<PlatformConversationLinkRow>();
+
+      if (linkError) {
+        throw linkError;
+      }
+      link = linkData ?? null;
+    }
+
+    let appointment: AppointmentRow | null = null;
+    if (link?.booking_appointment_id || link?.callback_appointment_id) {
+      const appointmentId = link.booking_appointment_id ?? link.callback_appointment_id;
+      const { data: appointmentData, error: appointmentError } = await crm
+        .schema("crm")
+        .from("appointments")
+        .select("id, starts_at, status, title, tenant_id")
+        .eq("tenant_id", target.crmTenantId)
+        .eq("id", appointmentId)
+        .maybeSingle<AppointmentRow>();
+
+      if (appointmentError) {
+        throw appointmentError;
+      }
+      appointment = appointmentData ?? null;
+    }
+
+    let job: JobRow | null = null;
+    if (link?.job_id) {
+      const { data: jobData, error: jobError } = await crm
+        .schema("crm")
+        .from("jobs")
+        .select("id, title, status, tenant_id")
+        .eq("tenant_id", target.crmTenantId)
+        .eq("id", link.job_id)
+        .maybeSingle<JobRow>();
+
+      if (jobError) {
+        throw jobError;
+      }
+      job = jobData ?? null;
+    }
+
+    const mismatches: string[] = [];
+    if (link && link.tenant_id !== target.crmTenantId) {
+      mismatches.push(`conversation link tenant ${link.tenant_id} != expected CRM tenant ${target.crmTenantId}`);
+    }
+    if (appointment && appointment.tenant_id !== target.crmTenantId) {
+      mismatches.push(`appointment tenant ${appointment.tenant_id} != expected CRM tenant ${target.crmTenantId}`);
+    }
+    if (job && job.tenant_id !== target.crmTenantId) {
+      mismatches.push(`job tenant ${job.tenant_id} != expected CRM tenant ${target.crmTenantId}`);
+    }
+
+    return {
+      events: relevantEvents,
+      appointment,
+      job,
+      link,
+      mismatches,
+    };
+  };
+
+  const deadline = Date.now() + timeoutMs;
+  let evidence = await queryOnce();
+
+  while (
+    Date.now() < deadline &&
+    !evidence.link &&
+    evidence.events.length === 0 &&
+    !evidence.appointment &&
+    !evidence.job
+  ) {
+    await sleep(POLL_INTERVAL_MS);
+    evidence = await queryOnce();
   }
-  if (appointments.length > 0) {
-    const appt = appointments[0]!;
+
+  return evidence;
+}
+
+function buildRoutingVerdict(conversation: PlatformConversationRow | null, assertedTenantId: string): Verdict {
+  if (!conversation) {
+    return {
+      passed: false,
+      note: "no conversation was created on the platform",
+    };
+  }
+
+  if (conversation.tenant_id !== assertedTenantId) {
+    return {
+      passed: false,
+      note: `conversation routed to ${conversation.tenant_name} (${conversation.tenant_id}) instead of ${assertedTenantId}`,
+    };
+  }
+
+  return {
+    passed: true,
+    note: `conversation routed to ${conversation.tenant_name}`,
+  };
+}
+
+function buildCrmVerdict(expectation: CrmExpectation, evidence: CrmEvidence): Verdict {
+  if (evidence.mismatches.length > 0) {
+    return {
+      passed: false,
+      note: evidence.mismatches.join("; "),
+    };
+  }
+
+  const eventTypes = new Set(evidence.events.map((event) => event.event_type));
+  if (expectation === "booking") {
+    const hasBookingEvent = eventTypes.has("BookingConfirmed") || eventTypes.has("booking.confirmed");
+    const hasMaterializedRecord = Boolean(evidence.appointment || evidence.job);
+    if (!evidence.link) {
+      return {
+        passed: false,
+        note: "no CRM conversation link found for the platform conversation",
+      };
+    }
+    if (!hasBookingEvent) {
+      return {
+        passed: false,
+        note: `missing booking confirmation event in CRM (${[...eventTypes].join(", ") || "none"})`,
+      };
+    }
+    if (!hasMaterializedRecord) {
+      return {
+        passed: false,
+        note: "booking confirmation reached CRM but no appointment/job materialized",
+      };
+    }
+    return {
+      passed: true,
+      note: `events=${[...eventTypes].join(", ")}${evidence.appointment ? " + appointment" : ""}${evidence.job ? " + job" : ""}`,
+    };
+  }
+
+  if (expectation === "booking_or_handoff") {
+    const hasBookingEvent = eventTypes.has("BookingConfirmed") || eventTypes.has("booking.confirmed");
+    const hasMaterializedRecord = Boolean(evidence.appointment || evidence.job);
+    const hasEscalation = eventTypes.has("EscalationRaised");
+    if (!evidence.link) {
+      return {
+        passed: false,
+        note: "no CRM conversation link found for the platform conversation",
+      };
+    }
+    if (hasBookingEvent && hasMaterializedRecord) {
+      return {
+        passed: true,
+        note: `events=${[...eventTypes].join(", ")}${evidence.appointment ? " + appointment" : ""}${evidence.job ? " + job" : ""}`,
+      };
+    }
+    if (hasEscalation) {
+      return {
+        passed: true,
+        note: `events=${[...eventTypes].join(", ")}`,
+      };
+    }
+    return {
+      passed: false,
+      note: `missing booking confirmation or escalation event in CRM (${[...eventTypes].join(", ") || "none"})`,
+    };
+  }
+
+  const hasConversationEvent = eventTypes.has("ConversationStarted") || eventTypes.has("ConversationQualified");
+  if (evidence.link || hasConversationEvent) {
+    return {
+      passed: true,
+      note: evidence.link
+        ? `link created${eventTypes.size > 0 ? ` + events=${[...eventTypes].join(", ")}` : ""}`
+        : `events=${[...eventTypes].join(", ")}`,
+    };
+  }
+
+  return {
+    passed: false,
+    note: "no CRM conversation evidence for this interaction",
+  };
+}
+
+function printPlatformSummary(state: Awaited<ReturnType<typeof fetchPlatformConversationState>>) {
+  console.log(`  platform tenant:  ${state.conversation?.tenant_name ?? "n/a"}`);
+  console.log(`  platform state:   ${state.bookingState?.current_state ?? "n/a"}`);
+  if (state.bookingState?.waiting_for?.length) {
+    console.log(`  waiting_for:      ${state.bookingState.waiting_for.join(", ")}`);
+  }
+  const service = (state.bookingState?.collected_data as Record<string, Record<string, unknown>> | null)?.service;
+  if (service?.serviceKey) {
     console.log(
-      `  CRM appointment:  ${appt.id.slice(0, 8)}…  starts_at=${appt.starts_at?.slice(0, 16) ?? "n/a"}  status=${appt.status}`
+      `  service:          ${String(service.serviceKey)}${service.urgency ? ` (${String(service.urgency)})` : ""}`
     );
-  } else {
-    console.log(`  CRM appointment:  none`);
   }
-  if (jobs.length > 0) {
-    console.log(`  CRM job:          ${jobs[0]!.id.slice(0, 8)}…  status=${jobs[0]!.status}`);
+  const identity = (state.bookingState?.collected_data as Record<string, Record<string, unknown>> | null)?.identity;
+  if (identity?.fullName) {
+    console.log(`  name captured:    ${String(identity.fullName)}`);
   }
-}
-
-function printPlatformSummary(bs: BsRow | null, bookings: BookingRow[]) {
-  console.log(`  platform state:   ${bs?.current_state ?? "n/a"}`);
-  if (bs?.waiting_for?.length) console.log(`  waiting_for:      ${bs.waiting_for.join(", ")}`);
-  const svc = (bs?.collected_data as Record<string, Record<string, unknown>> | null)?.service;
-  if (svc?.serviceKey)
-    console.log(`  service:          ${String(svc.serviceKey)}${svc.urgency ? ` (${String(svc.urgency)})` : ""}`);
-  const identity = (bs?.collected_data as Record<string, Record<string, unknown>> | null)?.identity;
-  if (identity?.fullName) console.log(`  name captured:    ${String(identity.fullName)}`);
   console.log(
     `  booking:          ${
-      bookings[0]
-        ? `${bookings[0].booking_status}${bookings[0].start_time ? ` @ ${new Date(bookings[0].start_time).toLocaleString("en-GB")}` : ""}`
+      state.bookings[0]
+        ? `${state.bookings[0].booking_status}${state.bookings[0].start_time ? ` @ ${new Date(state.bookings[0].start_time).toLocaleString("en-GB")}` : ""}`
         : "none"
     }`
   );
 }
 
-// ─── Result type ──────────────────────────────────────────────────────────────
-
-type TranscriptLine = { role: "customer" | "ai"; text: string };
-
-interface TestResult {
-  name: string;
-  channel: string;
-  passed: boolean;
-  passNote: string;
-  failReason?: string;
-  transcript: TranscriptLine[];
-  bookingCreated: boolean;
-  bookingStatus?: string;
-  crmEvents: string[];
-  crmAppointment: boolean;
+function printCrmSummary(evidence: CrmEvidence) {
+  const eventTypes = evidence.events.map((event) => event.event_type);
+  console.log(`  CRM events:       ${eventTypes.length > 0 ? eventTypes.join(", ") : "none"}`);
+  console.log(`  CRM link:         ${evidence.link ? "present" : "none"}`);
+  console.log(
+    `  CRM appointment:  ${
+      evidence.appointment
+        ? `${evidence.appointment.id.slice(0, 8)}… ${evidence.appointment.status}`
+        : "none"
+    }`
+  );
+  console.log(
+    `  CRM job:          ${evidence.job ? `${evidence.job.id.slice(0, 8)}… ${evidence.job.status}` : "none"}`
+  );
 }
 
-// ─── SMS / WhatsApp helper ────────────────────────────────────────────────────
+function normalizeReplyText(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function replyOffersReplacementSlot(reply: string | null | undefined) {
+  const normalized = normalizeReplyText(reply);
+  return (
+    (
+      normalized.includes("that time is gone") ||
+      normalized.includes("that slot is gone") ||
+      normalized.startsWith("i can do ")
+    ) &&
+    (normalized.includes("which works best") || normalized.includes("reply yes to take it"))
+  );
+}
+
+function replyAsksForBookingConfirmation(reply: string | null | undefined) {
+  const normalized = normalizeReplyText(reply);
+  return (
+    normalized.includes("reply yes to confirm") ||
+    normalized.includes("would you like me to confirm") ||
+    normalized.includes("shall i confirm your") ||
+    normalized.includes("shall i confirm the booking") ||
+    normalized.includes("shall i go ahead and confirm") ||
+    normalized.includes("should i go ahead and confirm") ||
+    normalized.includes("should i confirm your") ||
+    normalized.includes("should i proceed to confirm") ||
+    normalized.includes("confirm the exact time slot") ||
+    normalized.includes("please confirm the appointment slot") ||
+    normalized.includes("confirm the appointment slot") ||
+    normalized.includes("please confirm the slot")
+  );
+}
+
+function buildAdaptiveReply(reply: string, profile: TextRecoveryProfile) {
+  const normalized = normalizeReplyText(reply);
+  const isQuestionLike =
+    normalized.includes("?") ||
+    normalized.includes("could you") ||
+    normalized.includes("can you") ||
+    normalized.includes("please") ||
+    normalized.includes("may i have");
+
+  if (replyOffersReplacementSlot(reply)) {
+    return "The second slot works for me";
+  }
+  if (normalized.includes("i will check availability for")) {
+    return "YES please confirm";
+  }
+  if (normalized.includes("i will hold the slot") || normalized.includes("please hold on a moment")) {
+    return "YES please confirm";
+  }
+  if (replyAsksForBookingConfirmation(reply)) {
+    return "YES please confirm";
+  }
+  if (normalized.includes("full name") && isQuestionLike && profile.fullName) {
+    return profile.fullName;
+  }
+  if (normalized.includes("email address") && isQuestionLike && profile.email) {
+    return profile.email;
+  }
+  if (normalized.includes("phone number") && isQuestionLike && profile.phone) {
+    return profile.phone;
+  }
+  if (
+    (normalized.includes("job address") ||
+      normalized.includes("full address") ||
+      normalized.includes("house number and street") ||
+      normalized.includes("address for the booking")) &&
+    isQuestionLike &&
+    profile.address
+  ) {
+    return profile.address;
+  }
+  if (normalized.includes("postcode") && isQuestionLike && profile.postcode) {
+    return profile.postcode;
+  }
+  if (
+    (normalized.includes("which area is affected") || normalized.includes("area of your property")) &&
+    isQuestionLike &&
+    profile.affectedArea
+  ) {
+    return profile.affectedArea;
+  }
+  if (
+    (normalized.includes("briefly describe the problem") || normalized.includes("problem in your own words")) &&
+    isQuestionLike &&
+    profile.problemDescription
+  ) {
+    return profile.problemDescription;
+  }
+  if (
+    (normalized.includes("what time works best") ||
+      normalized.includes("morning, afternoon, or evening") ||
+      normalized.includes("preferred time window")) &&
+    isQuestionLike &&
+    profile.preferredTime
+  ) {
+    return profile.preferredTime;
+  }
+
+  return null;
+}
+
+async function continueTextRecovery(
+  transcript: TranscriptLine[],
+  initialReply: string,
+  sendTurn: (message: string) => Promise<string>,
+  profile: TextRecoveryProfile,
+  maxFollowUps = 20
+) {
+  let reply = initialReply;
+
+  for (let index = 0; index < maxFollowUps; index += 1) {
+    const nextMessage = buildAdaptiveReply(reply, profile);
+
+    if (!nextMessage) {
+      break;
+    }
+
+    console.log(`\n  [customer] ${nextMessage}`);
+    transcript.push({ role: "customer", text: nextMessage });
+    reply = await sendTurn(nextMessage);
+    console.log(`  [AI]       ${reply}`);
+    transcript.push({ role: "ai", text: reply });
+    await sleep(BETWEEN_TURNS_MS);
+  }
+}
 
 async function sendSms(
   token: string,
   from: string,
   body: string,
-  channel: "sms" | "whatsapp" = "sms",
-  toNumber: string = DK_NUMBER
+  channel: "sms" | "whatsapp",
+  toNumber: string
 ) {
-  const fromNum = channel === "whatsapp" ? `whatsapp:${from}` : from;
-  const toNum = channel === "whatsapp" ? `whatsapp:${toNumber}` : toNumber;
+  const fromNumber = channel === "whatsapp" ? `whatsapp:${from}` : from;
+  const toNumberWithTransport = channel === "whatsapp" ? `whatsapp:${toNumber}` : toNumber;
   const params = new URLSearchParams({
     MessageSid: `SM_TEST_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
     AccountSid: "AC_test",
-    From: fromNum,
-    To: toNum,
+    From: fromNumber,
+    To: toNumberWithTransport,
     Body: body,
     NumMedia: "0",
     NumSegments: "1",
   });
-  const res = await fetch(`${PLATFORM_API_URL}/v1/webhooks/twilio/sms`, {
+
+  const response = await fetch(`${PLATFORM_API_URL}/v1/webhooks/twilio/sms`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -313,9 +893,9 @@ async function sendSms(
     },
     body: params.toString(),
   });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`SMS webhook ${res.status}: ${t.slice(0, 200)}`);
+
+  if (!response.ok) {
+    throw new Error(`SMS webhook ${response.status}: ${(await response.text()).slice(0, 200)}`);
   }
 }
 
@@ -324,86 +904,84 @@ async function runSmsScenario(
   channel: "sms" | "whatsapp",
   from: string,
   turns: string[],
+  recoveryProfile: TextRecoveryProfile,
   token: string,
   testStart: Date,
-  check: (bs: BsRow | null, bookings: BookingRow[]) => { passed: boolean; note: string },
-  tenantId = DK_TENANT_ID,
-  toNumber = DK_NUMBER
+  crmExpectation: CrmExpectation,
+  checkPlatform: (state: Awaited<ReturnType<typeof fetchPlatformConversationState>>) => Verdict
 ): Promise<TestResult> {
+  const target = requireLiveTarget();
   console.log(`\n${"═".repeat(64)}`);
   console.log(`  ${label}  [${channel.toUpperCase()}]`);
-  console.log(`  From: ${from}  →  To: ${toNumber}  (tenant: ${tenantId.slice(0, 8)}…)`);
+  console.log(`  From: ${from}  →  To: ${target.messagingNumber}  (tenant: ${target.platformTenantName})`);
   console.log("═".repeat(64));
 
   const transcript: TranscriptLine[] = [];
-  let convId: string | null = null;
+  let conversationId: string | null = null;
   let failed = false;
   let failReason: string | undefined;
+  let lastReply = "";
 
   try {
-    for (const msg of turns) {
-      console.log(`\n  [customer] ${msg}`);
-      transcript.push({ role: "customer", text: msg });
+    for (const message of turns) {
+      console.log(`\n  [customer] ${message}`);
+      transcript.push({ role: "customer", text: message });
 
       const sentAt = new Date();
-      await sendSms(token, from, msg, channel, toNumber);
+      await sendSms(token, from, message, channel, target.messagingNumber);
 
-      if (!convId) {
-        await sleep(1_800);
-        convId = (await resolveConv(from, tenantId))?.convId ?? null;
+      if (!conversationId) {
+        conversationId = (await pollResolveConversationByPhone(from, target.platformTenantId))?.convId ?? null;
       }
 
-      const reply = convId
-        ? ((await pollReply(convId, sentAt))?.body ?? "(timed out)")
-        : "(no conv found)";
+      const reply = conversationId ? ((await pollReply(conversationId, sentAt))?.body ?? "(timed out)") : "(no conv found)";
       console.log(`  [AI]       ${reply}`);
       transcript.push({ role: "ai", text: reply });
+      lastReply = reply;
       await sleep(BETWEEN_TURNS_MS);
     }
-  } catch (err) {
+
+    if (conversationId && lastReply) {
+      await continueTextRecovery(transcript, lastReply, async (message) => {
+        const sentAt = new Date();
+        await sendSms(token, from, message, channel, target.messagingNumber);
+        return (await pollReply(conversationId!, sentAt))?.body ?? "(timed out)";
+      }, recoveryProfile);
+    }
+  } catch (error) {
     failed = true;
-    failReason = (err as Error).message;
+    failReason = error instanceof Error ? error.message : String(error);
     console.log(`  [ERROR] ${failReason}`);
   }
 
-  let bs: BsRow | null = null;
-  let bookings: BookingRow[] = [];
-  if (convId) {
-    ({ bs, bookings } = await fetchPlatformState(convId));
-  }
-
-  // Wait for CRM events to propagate
-  await sleep(3_000);
-  const [crmEvents, crmAppointments, crmJobs] = await Promise.all([
-    fetchCrmEvents(testStart).catch(() => [] as PlatformEventRow[]),
-    fetchCrmAppointments(testStart).catch(() => [] as AppointmentRow[]),
-    fetchCrmJobs(testStart).catch(() => [] as JobRow[]),
-  ]);
+  const state = conversationId
+    ? await fetchPlatformConversationState(conversationId)
+    : { conversation: null, bookingState: null, bookings: [] as BookingRow[] };
+  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null);
+  const routingVerdict = buildRoutingVerdict(state.conversation, target.platformTenantId);
+  const platformVerdict = failed
+    ? { passed: false, note: failReason ?? "scenario failed" }
+    : checkPlatform(state);
+  const crmVerdict = buildCrmVerdict(crmExpectation, crmEvidence);
 
   console.log();
-  printPlatformSummary(bs, bookings);
-  printCrmVerification(crmEvents, crmAppointments, crmJobs);
-
-  const { passed, note } = failed
-    ? { passed: false, note: failReason ?? "error" }
-    : check(bs, bookings);
-  console.log(`  result:           ${passed ? "PASS ✓" : "FAIL ✗"}  ${note}`);
+  printPlatformSummary(state);
+  printCrmSummary(crmEvidence);
+  console.log(`  routing verdict:  ${routingVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${routingVerdict.note}`);
+  console.log(`  platform verdict: ${platformVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${platformVerdict.note}`);
+  console.log(`  CRM verdict:      ${crmVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${crmVerdict.note}`);
 
   return {
     name: label,
     channel,
-    passed,
-    passNote: note,
+    passed: routingVerdict.passed && platformVerdict.passed && crmVerdict.passed,
     failReason,
     transcript,
-    bookingCreated: bookings.length > 0,
-    bookingStatus: bookings[0]?.booking_status,
-    crmEvents: crmEvents.map((e) => e.event_type),
-    crmAppointment: crmAppointments.length > 0,
+    routingVerdict,
+    platformVerdict,
+    crmVerdict,
   };
 }
-
-// ─── Webchat helper ───────────────────────────────────────────────────────────
 
 async function runWebchatScenario(
   label: string,
@@ -411,132 +989,161 @@ async function runWebchatScenario(
   fullName: string,
   email: string,
   turns: string[],
+  recoveryProfile: TextRecoveryProfile,
   token: string,
   testStart: Date,
-  check: (bs: BsRow | null, bookings: BookingRow[]) => { passed: boolean; note: string }
+  crmExpectation: CrmExpectation,
+  checkPlatform: (state: Awaited<ReturnType<typeof fetchPlatformConversationState>>) => Verdict
 ): Promise<TestResult> {
+  const target = requireLiveTarget();
   console.log(`\n${"═".repeat(64)}`);
   console.log(`  ${label}  [WEBCHAT]`);
   console.log(`  Email: ${email}`);
   console.log("═".repeat(64));
 
   const transcript: TranscriptLine[] = [];
-  let convId: string | null = null;
+  let conversationId: string | null = null;
   let failed = false;
   let failReason: string | undefined;
+  let lastReply = "";
 
   try {
-    const openingMsg = turns[0]!;
-    console.log(`\n  [customer] ${openingMsg}`);
-    transcript.push({ role: "customer", text: openingMsg });
+    const openingMessage = turns[0]!;
+    console.log(`\n  [customer] ${openingMessage}`);
+    transcript.push({ role: "customer", text: openingMessage });
 
-    const sessionRes = await fetch(`${PLATFORM_API_URL}/v1/webchat/sessions`, {
+    const sessionResponse = await fetch(`${PLATFORM_API_URL}/v1/webchat/sessions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-internal-service-token": token,
       },
       body: JSON.stringify({
-        tenantId: EMPIRE_TENANT_ID,
+        tenantId: target.platformTenantId,
         identifierValue,
         fullName,
         email,
-        openingMessage: openingMsg,
+        openingMessage,
       }),
     });
-    if (!sessionRes.ok) {
-      throw new Error(`Webchat session ${sessionRes.status}: ${(await sessionRes.text()).slice(0, 200)}`);
+
+    if (!sessionResponse.ok) {
+      throw new Error(`Webchat session ${sessionResponse.status}: ${(await sessionResponse.text()).slice(0, 200)}`);
     }
-    const sessionData = (await sessionRes.json()) as {
+
+    const sessionData = (await sessionResponse.json()) as {
       conversation?: { id?: string };
       conversationId?: string;
       replyMessage?: { body?: string } | null;
     };
-    convId = (sessionData.conversation?.id ?? sessionData.conversationId) ?? null;
+    conversationId = sessionData.conversation?.id ?? sessionData.conversationId ?? null;
     const firstReply = sessionData.replyMessage?.body ?? "(no reply in response)";
     console.log(`  [AI]       ${firstReply}`);
     transcript.push({ role: "ai", text: firstReply });
+    lastReply = firstReply;
     await sleep(BETWEEN_TURNS_MS);
 
-    for (const msg of turns.slice(1)) {
-      console.log(`\n  [customer] ${msg}`);
-      transcript.push({ role: "customer", text: msg });
+    for (const message of turns.slice(1)) {
+      console.log(`\n  [customer] ${message}`);
+      transcript.push({ role: "customer", text: message });
 
       const sentAt = new Date();
-      const msgRes = await fetch(`${PLATFORM_API_URL}/v1/webchat/messages`, {
+      const messageResponse = await fetch(`${PLATFORM_API_URL}/v1/webchat/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-internal-service-token": token,
         },
         body: JSON.stringify({
-          tenantId: EMPIRE_TENANT_ID,
-          conversationId: convId!,
-          body: msg,
+          tenantId: target.platformTenantId,
+          conversationId,
+          body: message,
           metadata: {},
         }),
       });
-      if (!msgRes.ok) {
-        throw new Error(`Webchat msg ${msgRes.status}: ${(await msgRes.text()).slice(0, 200)}`);
+
+      if (!messageResponse.ok) {
+        throw new Error(`Webchat msg ${messageResponse.status}: ${(await messageResponse.text()).slice(0, 200)}`);
       }
-      const msgData = (await msgRes.json()) as { replyMessage?: { body?: string } | null };
+
+      const messageData = (await messageResponse.json()) as { replyMessage?: { body?: string } | null };
       const reply =
-        msgData.replyMessage?.body ??
-        (convId ? (await pollReply(convId, sentAt))?.body : null) ??
+        messageData.replyMessage?.body ??
+        (conversationId ? (await pollReply(conversationId, sentAt))?.body : null) ??
         "(timed out)";
       console.log(`  [AI]       ${reply}`);
       transcript.push({ role: "ai", text: reply });
+      lastReply = reply;
       await sleep(BETWEEN_TURNS_MS);
     }
-  } catch (err) {
+
+    if (conversationId && lastReply) {
+      await continueTextRecovery(transcript, lastReply, async (message) => {
+        const sentAt = new Date();
+        const messageResponse = await fetch(`${PLATFORM_API_URL}/v1/webchat/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-service-token": token,
+          },
+          body: JSON.stringify({
+            tenantId: target.platformTenantId,
+            conversationId,
+            body: message,
+            metadata: {},
+          }),
+        });
+
+        if (!messageResponse.ok) {
+          throw new Error(`Webchat msg ${messageResponse.status}: ${(await messageResponse.text()).slice(0, 200)}`);
+        }
+
+        const messageData = (await messageResponse.json()) as { replyMessage?: { body?: string } | null };
+        return (
+          messageData.replyMessage?.body ??
+          (await pollReply(conversationId!, sentAt))?.body ??
+          "(timed out)"
+        );
+      }, recoveryProfile);
+    }
+  } catch (error) {
     failed = true;
-    failReason = (err as Error).message;
+    failReason = error instanceof Error ? error.message : String(error);
     console.log(`  [ERROR] ${failReason}`);
   }
 
-  let bs: BsRow | null = null;
-  let bookings: BookingRow[] = [];
-  if (convId) {
-    ({ bs, bookings } = await fetchPlatformState(convId));
-  } else {
-    // Try to find by email
-    const ctx = await resolveConvByEmail(email, EMPIRE_TENANT_ID).catch(() => null);
-    if (ctx?.convId) {
-      ({ bs, bookings } = await fetchPlatformState(ctx.convId));
-    }
+  if (!conversationId) {
+    conversationId = (await resolveConversationByEmail(email, target.platformTenantId))?.convId ?? null;
   }
 
-  await sleep(3_000);
-  const [crmEvents, crmAppointments, crmJobs] = await Promise.all([
-    fetchCrmEvents(testStart).catch(() => [] as PlatformEventRow[]),
-    fetchCrmAppointments(testStart).catch(() => [] as AppointmentRow[]),
-    fetchCrmJobs(testStart).catch(() => [] as JobRow[]),
-  ]);
+  const state = conversationId
+    ? await fetchPlatformConversationState(conversationId)
+    : { conversation: null, bookingState: null, bookings: [] as BookingRow[] };
+  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null);
+  const routingVerdict = buildRoutingVerdict(state.conversation, target.platformTenantId);
+  const platformVerdict = failed
+    ? { passed: false, note: failReason ?? "scenario failed" }
+    : checkPlatform(state);
+  const crmVerdict = buildCrmVerdict(crmExpectation, crmEvidence);
 
   console.log();
-  printPlatformSummary(bs, bookings);
-  printCrmVerification(crmEvents, crmAppointments, crmJobs);
-
-  const { passed, note } = failed
-    ? { passed: false, note: failReason ?? "error" }
-    : check(bs, bookings);
-  console.log(`  result:           ${passed ? "PASS ✓" : "FAIL ✗"}  ${note}`);
+  printPlatformSummary(state);
+  printCrmSummary(crmEvidence);
+  console.log(`  routing verdict:  ${routingVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${routingVerdict.note}`);
+  console.log(`  platform verdict: ${platformVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${platformVerdict.note}`);
+  console.log(`  CRM verdict:      ${crmVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${crmVerdict.note}`);
 
   return {
     name: label,
     channel: "webchat",
-    passed,
-    passNote: note,
+    passed: routingVerdict.passed && platformVerdict.passed && crmVerdict.passed,
     failReason,
     transcript,
-    bookingCreated: bookings.length > 0,
-    bookingStatus: bookings[0]?.booking_status,
-    crmEvents: crmEvents.map((e) => e.event_type),
-    crmAppointment: crmAppointments.length > 0,
+    routingVerdict,
+    platformVerdict,
+    crmVerdict,
   };
 }
-
-// ─── Voice managed-voice helper ───────────────────────────────────────────────
 
 async function runVoiceScenario(
   label: string,
@@ -545,8 +1152,10 @@ async function runVoiceScenario(
   email: string,
   managedVoiceSecret: string,
   testStart: Date,
-  check: (bs: BsRow | null, bookings: BookingRow[]) => { passed: boolean; note: string }
+  crmExpectation: CrmExpectation,
+  checkPlatform: (state: Awaited<ReturnType<typeof fetchPlatformConversationState>>) => Verdict
 ): Promise<TestResult> {
+  const target = requireLiveTarget();
   console.log(`\n${"═".repeat(64)}`);
   console.log(`  ${label}  [VOICE — ElevenLabs managed]`);
   console.log(`  Caller: ${callerNumber}  Name: "${fullName}"`);
@@ -554,51 +1163,44 @@ async function runVoiceScenario(
 
   const transcript: TranscriptLine[] = [];
   const externalSessionId = randomUUID();
-  let convId: string | null = null;
+  let conversationId: string | null = null;
   let failed = false;
   let failReason: string | undefined;
 
   try {
-    // Step 1: conversation-init
     console.log("\n  [SIM] → conversation-init");
-    const initRes = await fetch(
-      `${PLATFORM_API_URL}/v1/managed-voice/elevenlabs/conversation-init`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-managed-voice-secret": managedVoiceSecret,
-        },
-        body: JSON.stringify({
-          conversation_id: externalSessionId,
-          from_number: callerNumber,
-          to_number: EMPIRE_NUMBER,
-          tenant_id: EMPIRE_TENANT_ID,
-        }),
-      }
-    );
-    if (!initRes.ok) {
-      throw new Error(`Voice init ${initRes.status}: ${(await initRes.text()).slice(0, 200)}`);
+    const initResponse = await fetch(`${PLATFORM_API_URL}/v1/managed-voice/elevenlabs/conversation-init`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-managed-voice-secret": managedVoiceSecret,
+      },
+      body: JSON.stringify({
+        conversation_id: externalSessionId,
+        from_number: callerNumber,
+        to_number: target.voiceNumber,
+        tenant_id: target.platformTenantId,
+      }),
+    });
+
+    if (!initResponse.ok) {
+      throw new Error(`Voice init ${initResponse.status}: ${(await initResponse.text()).slice(0, 200)}`);
     }
-    const initData = (await initRes.json()) as Record<string, unknown>;
-    const dvKeys = Object.keys(
-      (initData.dynamic_variables as Record<string, unknown>) ?? {}
-    ).join(", ");
-    console.log(`  [SIM] ← init OK  dynamic_variables: ${dvKeys || "(none)"}`);
+
+    const initData = (await initResponse.json()) as Record<string, unknown>;
+    const dynamicVariableKeys = Object.keys((initData.dynamic_variables as Record<string, unknown>) ?? {}).join(", ");
+    console.log(`  [SIM] ← init OK  dynamic_variables: ${dynamicVariableKeys || "(none)"}`);
     await sleep(1_200);
 
-    // Resolve conv from DB
-    const convCtx = await resolveConv(callerNumber);
-    convId = convCtx?.convId ?? null;
-    console.log(`  [SIM]   convId: ${convId ?? "not found yet"}`);
+    conversationId = (await resolveConversationByPhone(callerNumber, target.platformTenantId))?.convId ?? null;
+    console.log(`  [SIM]   convId: ${conversationId ?? "not found yet"}`);
 
-    // Tool call helper
     async function toolCall(
       toolName: string,
       args: Record<string, unknown>,
       callerSays: string | null,
       agentSays: string | null
-    ): Promise<Record<string, unknown>> {
+    ) {
       if (callerSays) {
         console.log(`\n  [caller] ${callerSays}`);
         transcript.push({ role: "customer", text: callerSays });
@@ -608,43 +1210,43 @@ async function runVoiceScenario(
         transcript.push({ role: "ai", text: agentSays });
       }
 
-      const body: Record<string, unknown> = {
+      const payload: Record<string, unknown> = {
         toolName,
         arguments: args,
-        tenantId: EMPIRE_TENANT_ID,
+        tenantId: target.platformTenantId,
         externalSessionId,
-        conversationId: convId ?? undefined,
+        conversationId: conversationId ?? undefined,
         phoneNumber: callerNumber,
       };
+
       if (callerSays || agentSays) {
-        body.transcript = [
+        payload.transcript = [
           ...(callerSays ? [{ role: "user", message: callerSays }] : []),
           ...(agentSays ? [{ role: "assistant", message: agentSays }] : []),
         ];
       }
 
-      const res = await fetch(`${PLATFORM_API_URL}/v1/managed-voice/elevenlabs/tool-call`, {
+      const response = await fetch(`${PLATFORM_API_URL}/v1/managed-voice/elevenlabs/tool-call`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-managed-voice-secret": managedVoiceSecret,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`tool-call(${toolName}) ${res.status}: ${t.slice(0, 200)}`);
-      }
-      const data = (await res.json()) as { ok: boolean; result: unknown };
-      const result = data.result as Record<string, unknown>;
 
-      // Extract convId lazily from response
-      if (!convId) {
-        const bs = result?.bookingState as Record<string, unknown> | null;
-        const extracted = (bs?.conversationId ?? bs?.conversation_id) as string | undefined;
+      if (!response.ok) {
+        throw new Error(`tool-call(${toolName}) ${response.status}: ${(await response.text()).slice(0, 200)}`);
+      }
+
+      const data = (await response.json()) as { result: unknown };
+      const result = data.result as Record<string, unknown>;
+      if (!conversationId) {
+        const state = result.bookingState as Record<string, unknown> | undefined;
+        const extracted = (state?.conversationId ?? state?.conversation_id) as string | undefined;
         if (extracted) {
-          convId = extracted;
-          console.log(`  [SIM]   convId resolved: ${convId}`);
+          conversationId = extracted;
+          console.log(`  [SIM]   convId resolved: ${conversationId}`);
         }
       }
       console.log(`  [tool]   ${toolName} → ${JSON.stringify(result).slice(0, 140)}`);
@@ -652,7 +1254,6 @@ async function runVoiceScenario(
       return result;
     }
 
-    // Capture service
     await toolCall(
       "capture_service_patch",
       {
@@ -667,47 +1268,54 @@ async function runVoiceScenario(
       "Of course! I can help with that. Can I take your details?"
     );
 
-    // Find first available slot (try up to 16 days out, 4 daily slots)
     let slotStart: string | null = null;
     let slotEnd: string | null = null;
     let chosenResourceId: string | undefined;
-
-    outer: for (let daysOut = 5; daysOut <= 16; daysOut++) {
-      for (const hour of [9, 11, 13, 15]) {
-        const candidate = new Date();
-        candidate.setDate(candidate.getDate() + daysOut);
-        candidate.setHours(hour, 0, 0, 0);
-        const candStart = candidate.toISOString();
-        const candEnd = new Date(candidate.getTime() + 90 * 60_000).toISOString();
-        const checkResult = await toolCall(
-          "check_availability",
-          { serviceKey: "boiler-service", startTime: candStart, endTime: candEnd },
-          null,
-          null
-        );
-        const available =
-          checkResult?.available === true ||
-          (checkResult?.reason !== "conflict" && !checkResult?.conflictingBookingId);
-        if (available) {
-          slotStart = candStart;
-          slotEnd = candEnd;
-          chosenResourceId = (checkResult?.resourceId ??
-            checkResult?.checkedResourceId) as string | undefined;
-          console.log(
-            `  [SIM]   found available slot: ${slotStart.slice(0, 16)} resourceId=${chosenResourceId ?? "n/a"}`
+    const attemptedSlots = new Set<string>();
+    const findAvailableVoiceSlot = async () => {
+      for (let daysOut = 5; daysOut <= 16; daysOut += 1) {
+        for (const hour of [9, 11, 13, 15]) {
+          const candidate = new Date();
+          candidate.setDate(candidate.getDate() + daysOut);
+          candidate.setHours(hour, 0, 0, 0);
+          const startTime = candidate.toISOString();
+          if (attemptedSlots.has(startTime)) {
+            continue;
+          }
+          const endTime = new Date(candidate.getTime() + 90 * 60_000).toISOString();
+          const availability = await toolCall(
+            "check_availability",
+            { serviceKey: "boiler-service", startTime, endTime },
+            null,
+            null
           );
-          break outer;
+          if (availability.available === true) {
+            return {
+              startTime,
+              endTime,
+              resourceId: (availability.resourceId ?? availability.checkedResourceId) as string | undefined,
+            };
+          }
         }
-        console.log(`  [SIM]   slot ${candStart.slice(0, 16)} unavailable`);
       }
+      return null;
+    };
+
+    const initialSlot = await findAvailableVoiceSlot();
+    if (initialSlot) {
+      slotStart = initialSlot.startTime;
+      slotEnd = initialSlot.endTime;
+      chosenResourceId = initialSlot.resourceId;
+      attemptedSlots.add(slotStart);
+      console.log(`  [SIM]   found available slot: ${slotStart.slice(0, 16)} resourceId=${chosenResourceId ?? "n/a"}`);
     }
 
     if (!slotStart || !slotEnd) {
-      const fb = new Date();
-      fb.setDate(fb.getDate() + 14);
-      fb.setHours(9, 0, 0, 0);
-      slotStart = fb.toISOString();
-      slotEnd = new Date(fb.getTime() + 90 * 60_000).toISOString();
+      const fallback = new Date();
+      fallback.setDate(fallback.getDate() + 14);
+      fallback.setHours(9, 0, 0, 0);
+      slotStart = fallback.toISOString();
+      slotEnd = new Date(fallback.getTime() + 90 * 60_000).toISOString();
       console.log(`  [SIM]   using fallback slot ${slotStart.slice(0, 16)}`);
     }
 
@@ -750,11 +1358,48 @@ async function runVoiceScenario(
       "Thank you. Let me confirm your booking now."
     );
 
-    // Hold
     let bookingId: string | undefined;
     let resourceId: string | undefined;
-    try {
-      const holdResult = await toolCall(
+    let holdResult = await toolCall(
+      "create_booking_hold",
+      {
+        startTime: slotStart,
+        endTime: slotEnd,
+        ...(chosenResourceId ? { resourceId: chosenResourceId } : {}),
+      },
+      null,
+      "I'll secure that slot for you now."
+    );
+    const booking = holdResult.booking as Record<string, unknown> | undefined;
+    bookingId = (booking?.id ?? holdResult.bookingId) as string | undefined;
+    resourceId = (booking?.resourceId ?? holdResult.resourceId ?? chosenResourceId) as string | undefined;
+    console.log(`  [SIM]   hold bookingId=${bookingId ?? "n/a"}, resourceId=${resourceId ?? "n/a"}`);
+
+    for (let retryIndex = 0; !bookingId && holdResult.errorCode === "slot_unavailable" && retryIndex < 4; retryIndex += 1) {
+      const retrySlot = await findAvailableVoiceSlot();
+      if (!retrySlot) {
+        break;
+      }
+
+      slotStart = retrySlot.startTime;
+      slotEnd = retrySlot.endTime;
+      chosenResourceId = retrySlot.resourceId;
+      attemptedSlots.add(slotStart);
+      console.log(`  [SIM]   retrying with slot: ${slotStart.slice(0, 16)} resourceId=${chosenResourceId ?? "n/a"}`);
+
+      await toolCall(
+        "capture_slot_patch",
+        {
+          requestedStartTime: slotStart,
+          requestedEndTime: slotEnd,
+          preferredDateText: "this week",
+          confirmedFields: ["preferred_date", "preferred_time", "slot_confirmation"],
+        },
+        "That next slot works for me",
+        "No problem, I'll move you to the next available slot."
+      );
+
+      holdResult = await toolCall(
         "create_booking_hold",
         {
           startTime: slotStart,
@@ -762,25 +1407,28 @@ async function runVoiceScenario(
           ...(chosenResourceId ? { resourceId: chosenResourceId } : {}),
         },
         null,
-        "I'll secure that slot for you now."
+        "I'll secure that updated slot for you now."
       );
-      const holdBooking = holdResult?.booking as Record<string, unknown> | undefined;
-      bookingId = (holdBooking?.id ?? holdResult?.bookingId) as string | undefined;
-      resourceId = (holdBooking?.resourceId ??
-        holdResult?.resourceId ??
-        chosenResourceId) as string | undefined;
-      console.log(
-        `  [SIM]   hold bookingId=${bookingId ?? "n/a"}, resourceId=${resourceId ?? "n/a"}`
-      );
-    } catch (err) {
-      console.log(
-        `  [WARN]  create_booking_hold failed: ${(err as Error).message.slice(0, 120)}`
+      const retryBooking = holdResult.booking as Record<string, unknown> | undefined;
+      bookingId = (retryBooking?.id ?? holdResult.bookingId) as string | undefined;
+      resourceId = (retryBooking?.resourceId ?? holdResult.resourceId ?? chosenResourceId) as string | undefined;
+      console.log(`  [SIM]   retry hold bookingId=${bookingId ?? "n/a"}, resourceId=${resourceId ?? "n/a"}`);
+    }
+
+    if (!bookingId && holdResult.nextTool === "create_handoff") {
+      await toolCall(
+        "create_handoff",
+        {
+          reason: "slot_unavailable",
+          summary: `Requested slot ${slotStart ?? "unknown"} became unavailable during confirmation`,
+        },
+        null,
+        "That slot has just gone, so I'll arrange a callback with the next option."
       );
     }
 
-    // Confirm
     if (bookingId && resourceId) {
-      await toolCall(
+      const confirmResult = await toolCall(
         "confirm_booking",
         {
           bookingId,
@@ -799,15 +1447,20 @@ async function runVoiceScenario(
         "Yes, please confirm the booking",
         "Excellent! Your boiler service is confirmed."
       );
-    } else {
-      console.log("  [SIM]   skipping confirm_booking — no hold was created");
-      transcript.push({
-        role: "ai",
-        text: "I was unable to secure a slot. Please call back to try again.",
-      });
+
+      if (confirmResult.errorCode === "confirmation_incomplete") {
+        await toolCall(
+          "create_handoff",
+          {
+            reason: "confirmation_incomplete",
+            summary: `Managed voice could not complete confirmation for ${fullName}; caller needs human follow-up`,
+          },
+          null,
+          "I need a teammate to finish this booking with you, so I'll arrange a callback now."
+        );
+      }
     }
 
-    // Post-call
     await fetch(`${PLATFORM_API_URL}/v1/managed-voice/elevenlabs/post-call`, {
       method: "POST",
       headers: {
@@ -816,67 +1469,61 @@ async function runVoiceScenario(
       },
       body: JSON.stringify({
         conversation_id: externalSessionId,
-        tenant_id: EMPIRE_TENANT_ID,
+        tenant_id: target.platformTenantId,
         from_number: callerNumber,
-        to_number: EMPIRE_NUMBER,
+        to_number: target.voiceNumber,
         summary: `Boiler service booking for ${fullName}`,
-        transcript: transcript.map((t) => ({
-          role: t.role === "customer" ? "user" : "assistant",
-          message: t.text,
+        transcript: transcript.map((line) => ({
+          role: line.role === "customer" ? "user" : "assistant",
+          message: line.text,
         })),
       }),
-    }).catch((e) => console.log(`  [WARN]  post-call: ${(e as Error).message}`));
-  } catch (err) {
+    }).catch((error) => {
+      console.log(`  [WARN]  post-call: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  } catch (error) {
     failed = true;
-    failReason = (err as Error).message;
+    failReason = error instanceof Error ? error.message : String(error);
     console.log(`  [ERROR] ${failReason}`);
   }
 
   await sleep(2_000);
-  const finalConvId = convId ?? (await resolveConv(callerNumber, EMPIRE_TENANT_ID).catch(() => null))?.convId;
-  let bs: BsRow | null = null;
-  let bookings: BookingRow[] = [];
-  if (finalConvId) {
-    ({ bs, bookings } = await fetchPlatformState(finalConvId));
+  if (!conversationId) {
+    conversationId = (await resolveConversationByPhone(callerNumber, target.platformTenantId))?.convId ?? null;
   }
 
-  await sleep(4_000);
-  const [crmEvents, crmAppointments, crmJobs] = await Promise.all([
-    fetchCrmEvents(testStart).catch(() => [] as PlatformEventRow[]),
-    fetchCrmAppointments(testStart).catch(() => [] as AppointmentRow[]),
-    fetchCrmJobs(testStart).catch(() => [] as JobRow[]),
-  ]);
+  const state = conversationId
+    ? await fetchPlatformConversationState(conversationId)
+    : { conversation: null, bookingState: null, bookings: [] as BookingRow[] };
+  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null);
+  const routingVerdict = buildRoutingVerdict(state.conversation, target.platformTenantId);
+  const platformVerdict = failed
+    ? { passed: false, note: failReason ?? "scenario failed" }
+    : checkPlatform(state);
+  const crmVerdict = buildCrmVerdict(crmExpectation, crmEvidence);
 
   console.log();
-  printPlatformSummary(bs, bookings);
-  printCrmVerification(crmEvents, crmAppointments, crmJobs);
-
-  const { passed, note } = failed
-    ? { passed: false, note: failReason ?? "error" }
-    : check(bs, bookings);
-  console.log(`  result:           ${passed ? "PASS ✓" : "FAIL ✗"}  ${note}`);
+  printPlatformSummary(state);
+  printCrmSummary(crmEvidence);
+  console.log(`  routing verdict:  ${routingVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${routingVerdict.note}`);
+  console.log(`  platform verdict: ${platformVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${platformVerdict.note}`);
+  console.log(`  CRM verdict:      ${crmVerdict.passed ? "PASS ✓" : "FAIL ✗"}  ${crmVerdict.note}`);
 
   return {
     name: label,
     channel: "voice",
-    passed,
-    passNote: note,
+    passed: routingVerdict.passed && platformVerdict.passed && crmVerdict.passed,
     failReason,
     transcript,
-    bookingCreated: bookings.length > 0,
-    bookingStatus: bookings[0]?.booking_status,
-    crmEvents: crmEvents.map((e) => e.event_type),
-    crmAppointment: crmAppointments.length > 0,
+    routingVerdict,
+    platformVerdict,
+    crmVerdict,
   };
 }
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log("═".repeat(64));
   console.log("  LIVE CHANNEL TESTS");
-  console.log(`  Empire tenant:   ${EMPIRE_TENANT_ID}  (voice + webchat)`);
-  console.log(`  DK Plumbing:     ${DK_TENANT_ID}  (SMS + WhatsApp)`);
   console.log(`  Target:          ${PLATFORM_API_URL}`);
   console.log(`  Time:            ${new Date().toISOString()}`);
   console.log("═".repeat(64));
@@ -884,9 +1531,16 @@ async function main() {
   console.log("\n  Fetching secrets from gcloud...");
   const internalToken = gcloudSecret("internal-service-token");
   const managedVoiceSecret = gcloudSecret("elevenlabs-managed-webhook-secret");
-  console.log("  Secrets loaded ✓\n");
+  PLATFORM_DB_URL = gcloudSecret("platform-database-url");
+  const target = await resolveLiveTarget();
+  console.log("  Secrets loaded ✓");
+  console.log(`  Acceptance tenant: ${target.platformTenantName}`);
+  console.log(`  Messaging number:  ${target.messagingNumber} (${target.messagingProvider})`);
+  console.log(`  Voice number:      ${target.voiceNumber} (${target.voiceProvider})`);
+  console.log(`  CRM tenant:        ${target.crmTenantId}`);
+  console.log(`  CRM workspace:     ${target.crmWorkspaceId}\n`);
 
-  const runId = Date.now().toString(36).slice(-6);
+  const runId = Date.now().toString().slice(-7);
   const dayAfterTomorrow = new Date(Date.now() + 2 * 86_400_000).toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
@@ -895,225 +1549,226 @@ async function main() {
 
   const results: TestResult[] = [];
 
-  // ── T1: SMS — Standard happy-path booking ─────────────────────────────────
-  {
-    const testStart = new Date();
-    results.push(
-      await runSmsScenario(
-        "T1 — SMS Standard Booking",
-        "sms",
-        `+447711${runId}01`,
-        [
-          "Hi, I need a boiler service. My name is Sarah Brown, postcode EC1A 1BB",
-          `${dayAfterTomorrow} afternoon please`,
-          "Yes, the first slot works for me",
-          `sarah.sms.${runId}@test.com`,
-          "22 Old Street, London EC1A 1BB",
-          "Annual boiler service, it's in the kitchen",
-          "YES please confirm",
-        ],
-        internalToken,
-        testStart,
-        (bs, bookings) => ({
-          passed:
-            bookings.some(
-              (b) => b.booking_status === "confirmed" || b.booking_status === "hold"
-            ) || (bs?.current_state !== undefined && bs.current_state !== "new"),
-          note: bookings.some((b) => b.booking_status === "confirmed")
-            ? "booking CONFIRMED"
-            : bookings.length > 0
-              ? `booking created (${bookings[0]!.booking_status})`
-              : `state=${bs?.current_state ?? "n/a"}`,
-        })
-      )
-    );
-  }
+  results.push(
+    await runSmsScenario(
+      "T1 — SMS Standard Booking",
+      "sms",
+      `+447${runId}01`,
+      [
+        "Hi, I need a boiler service. My name is Sarah Brown, postcode EC1A 1BB",
+        `${dayAfterTomorrow} afternoon please`,
+        "The third slot works for me",
+        `sarah.sms.${runId}@test.com`,
+        "22 Old Street, London EC1A 1BB",
+        "Annual boiler service, it's in the kitchen",
+      ],
+      {
+        fullName: "Sarah Brown",
+        email: `sarah.sms.${runId}@test.com`,
+        phone: `+447${runId}01`,
+        postcode: "EC1A 1BB",
+        address: "22 Old Street, London EC1A 1BB",
+        affectedArea: "kitchen",
+        problemDescription: "Annual boiler service, it's in the kitchen",
+        preferredTime: `${dayAfterTomorrow} afternoon please`,
+      },
+      internalToken,
+      new Date(),
+      "booking",
+      (state) => ({
+        passed: state.bookings.some((booking) => booking.booking_status === "confirmed"),
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
 
   await sleep(3_000);
 
-  // ── T2: SMS — Escalation (customer asks for a human) ──────────────────────
-  {
-    const testStart = new Date();
-    results.push(
-      await runSmsScenario(
-        "T2 — SMS Escalation",
-        "sms",
-        `+447733${runId}02`,
-        [
-          "Hi I've got a leaking radiator I need help with",
-          "Actually I'd rather speak to a real person please",
-        ],
-        internalToken,
-        testStart,
-        (bs, bookings) => {
-          const escalated =
-            bs?.current_state === "escalated" ||
-            bs?.current_state?.includes("handoff") ||
-            bookings.length === 0;
-          return {
-            passed: escalated || bs?.current_state !== undefined,
-            note: `state=${bs?.current_state ?? "n/a"}${escalated ? " (escalation detected)" : ""}`,
-          };
-        }
-      )
-    );
-  }
+  results.push(
+    await runSmsScenario(
+      "T2 — SMS Escalation",
+      "sms",
+      `+447${runId}02`,
+      [
+        "Hi I've got a leaking radiator I need help with",
+        "Actually I'd rather speak to a real person please",
+      ],
+      {
+        fullName: "Escalation Customer",
+        phone: `+447${runId}02`,
+        problemDescription: "Leaking radiator",
+      },
+      internalToken,
+      new Date(),
+      "conversation",
+      (state) => ({
+        passed:
+          state.bookingState?.current_state === "escalated" ||
+          state.bookingState?.current_state?.includes("handoff") ||
+          Boolean(state.conversation),
+        note: `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
 
   await sleep(3_000);
 
-  // ── T3: WhatsApp — Emergency burst pipe ───────────────────────────────────
-  {
-    const testStart = new Date();
-    results.push(
-      await runSmsScenario(
-        "T3 — WhatsApp Emergency Callout",
-        "whatsapp",
-        `+447722${runId}03`,
-        [
-          "URGENT burst pipe, water everywhere. Need someone NOW. Alice Thompson, 45 Victoria Road, London W1A 1AA",
-          `alice.wp.${runId}@test.com`,
-          "Today as soon as possible",
-          "YES confirm please",
-        ],
-        internalToken,
-        testStart,
-        (bs, bookings) => {
-          const svc = (
-            bs?.collected_data as Record<string, Record<string, unknown>> | null
-          )?.service;
-          const isEmergency =
-            svc?.urgency === "emergency" ||
-            String(svc?.serviceKey ?? "").includes("emergency") ||
-            String(svc?.urgency ?? "").includes("asap");
-          return {
-            passed: isEmergency || bookings.length > 0,
-            note: isEmergency
-              ? `emergency urgency=${String(svc?.urgency ?? "n/a")}${bookings.length > 0 ? " + booking created" : ""}`
-              : `state=${bs?.current_state ?? "n/a"}, service=${String(svc?.serviceKey ?? "n/a")}`,
-          };
-        }
-      )
-    );
-  }
+  results.push(
+    await runSmsScenario(
+      "T3 — WhatsApp Emergency Callout",
+      "whatsapp",
+      `+447${runId}03`,
+      [
+        "URGENT burst pipe, water everywhere. Need someone NOW. Alice Thompson, 45 Victoria Road, London W1A 1AA",
+        `alice.wp.${runId}@test.com`,
+        "The burst pipe is in the bathroom",
+        "Today as soon as possible",
+        "The third slot works for me",
+      ],
+      {
+        fullName: "Alice Thompson",
+        email: `alice.wp.${runId}@test.com`,
+        phone: `+447${runId}03`,
+        postcode: "W1A 1AA",
+        address: "45 Victoria Road, London W1A 1AA",
+        affectedArea: "bathroom",
+        problemDescription: "URGENT burst pipe, water everywhere.",
+        preferredTime: "Today as soon as possible",
+      },
+      internalToken,
+      new Date(),
+      "booking",
+      (state) => {
+        const service = (state.bookingState?.collected_data as Record<string, Record<string, unknown>> | null)?.service;
+        const isEmergency =
+          service?.urgency === "emergency" ||
+          String(service?.serviceKey ?? "").includes("emergency") ||
+          String(service?.urgency ?? "").includes("asap");
+        return {
+          passed: state.bookings.some((booking) => booking.booking_status === "confirmed") || isEmergency,
+          note: state.bookings[0]
+            ? `booking=${state.bookings[0].booking_status}`
+            : `service=${String(service?.serviceKey ?? "n/a")} urgency=${String(service?.urgency ?? "n/a")}`,
+        };
+      }
+    )
+  );
 
   await sleep(3_000);
 
-  // ── T4: Webchat — FAQ then booking ────────────────────────────────────────
-  {
-    const testStart = new Date();
-    results.push(
-      await runWebchatScenario(
-        "T4 — Webchat FAQ + Booking",
-        `webchat-${runId}04`,
-        "Tom Hughes",
+  results.push(
+    await runWebchatScenario(
+      "T4 — Webchat FAQ + Booking",
+      `webchat-${runId}04`,
+      "Tom Hughes",
+      `tom.webchat.${runId}04@test.com`,
+      [
+        "Hi, do you do boiler servicing and what does it roughly cost?",
+        "Great, I'd like to book a boiler service",
+        `${dayAfterTomorrow} morning around 9am`,
+        "The third slot works for me",
+        "My phone number is 07700 900 104",
+        "Tom Hughes, postcode W2 1AA, 8 Bayswater Road London",
         `tom.webchat.${runId}04@test.com`,
-        [
-          "Hi, do you do boiler installations and what does it roughly cost?",
-          "Great, I'd like to book a boiler installation",
-          `${dayAfterTomorrow} morning around 9am`,
-          "Yes the first slot works",
-          `Tom Hughes, postcode W2 1AA, 8 Bayswater Road London`,
-          `tom.webchat.${runId}04@test.com`,
-          "YES please confirm",
-        ],
-        internalToken,
-        testStart,
-        (bs, bookings) => {
-          const svc = (
-            bs?.collected_data as Record<string, Record<string, unknown>> | null
-          )?.service;
-          const hasService = Boolean(svc?.serviceKey);
-          return {
-            passed: hasService || bookings.length > 0,
-            note: bookings.length > 0
-              ? `booking=${bookings[0]!.booking_status}`
-              : hasService
-                ? `service=${String(svc!.serviceKey)}, state=${bs?.current_state ?? "n/a"}`
-                : `state=${bs?.current_state ?? "n/a"}`,
-          };
-        }
-      )
-    );
-  }
+        "The boiler is in the kitchen",
+      ],
+      {
+        fullName: "Tom Hughes",
+        email: `tom.webchat.${runId}04@test.com`,
+        phone: "07700 900 104",
+        postcode: "W2 1AA",
+        address: "8 Bayswater Road London",
+        affectedArea: "kitchen",
+        problemDescription: "The boiler is in the kitchen",
+        preferredTime: `${dayAfterTomorrow} morning around 9am`,
+      },
+      internalToken,
+      new Date(),
+      "booking",
+      (state) => ({
+        passed: state.bookings.some((booking) => booking.booking_status === "confirmed"),
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
 
   await sleep(3_000);
 
-  // ── T5: Voice — single first name only (tests sanitizeCustomerName fix) ───
-  {
-    const testStart = new Date();
-    results.push(
-      await runVoiceScenario(
-        "T5 — Voice Single-Name (sanitizeCustomerName fix test)",
-        `+447755${runId}05`,
-        "James",
-        `james.voice.${runId}05@test.com`,
-        managedVoiceSecret,
-        testStart,
-        (bs, bookings) => ({
-          passed: bookings.some(
-            (b) => b.booking_status === "confirmed" || b.booking_status === "hold"
-          ),
-          note: bookings.some((b) => b.booking_status === "confirmed")
-            ? "booking CONFIRMED with single-word name"
-            : bookings.length > 0
-              ? `booking created (${bookings[0]!.booking_status})`
-              : `state=${bs?.current_state ?? "n/a"} — no booking`,
-        })
-      )
-    );
-  }
+  results.push(
+    await runVoiceScenario(
+      "T5 — Voice Single-Name",
+      `+447${runId}05`,
+      "James",
+      `james.voice.${runId}05@test.com`,
+      managedVoiceSecret,
+      new Date(),
+      "booking_or_handoff",
+      (state) => ({
+        passed:
+          state.bookings.some((booking) => booking.booking_status === "confirmed") ||
+          state.bookingState?.current_state === "handoff_required" ||
+          state.bookingState?.current_state === "escalated",
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
 
   await sleep(3_000);
 
-  // ── T6: Voice — standard two-word name (baseline) ─────────────────────────
-  {
-    const testStart = new Date();
-    results.push(
-      await runVoiceScenario(
-        "T6 — Voice Standard Booking (John Smith)",
-        `+447766${runId}06`,
-        "John Smith",
-        `john.smith.${runId}06@test.com`,
-        managedVoiceSecret,
-        testStart,
-        (bs, bookings) => ({
-          passed: bookings.some(
-            (b) => b.booking_status === "confirmed" || b.booking_status === "hold"
-          ),
-          note: bookings.some((b) => b.booking_status === "confirmed")
-            ? "booking CONFIRMED"
-            : bookings.length > 0
-              ? `booking created (${bookings[0]!.booking_status})`
-              : `state=${bs?.current_state ?? "n/a"} — no booking`,
-        })
-      )
-    );
-  }
+  results.push(
+    await runVoiceScenario(
+      "T6 — Voice Standard Booking",
+      `+447${runId}06`,
+      "John Smith",
+      `john.smith.${runId}06@test.com`,
+      managedVoiceSecret,
+      new Date(),
+      "booking",
+      (state) => ({
+        passed: state.bookings.some((booking) => booking.booking_status === "confirmed"),
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
 
-  // ── Summary ───────────────────────────────────────────────────────────────
   console.log(`\n${"═".repeat(64)}`);
   console.log("  RESULTS SUMMARY");
   console.log("═".repeat(64));
-  const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
-  console.log(
-    `  ${"TEST".padEnd(46)} ${"CH".padEnd(9)} RESULT`
-  );
-  console.log("  " + "─".repeat(62));
-  for (const r of results) {
-    const status = r.passed ? "PASS ✓" : "FAIL ✗";
-    console.log(`  ${pad(r.name, 46)} ${pad(r.channel, 9)} ${status}`);
-    if (!r.passed && r.failReason) {
-      console.log(`    ↳ ${r.failReason.slice(0, 90)}`);
-    } else if (!r.passed) {
-      console.log(`    ↳ ${r.passNote.slice(0, 90)}`);
+  const pad = (value: string, width: number) => value.slice(0, width).padEnd(width);
+  console.log(`  ${"TEST".padEnd(36)} ${"CH".padEnd(10)} ${"ROUTING".padEnd(10)} ${"PLATFORM".padEnd(10)} ${"CRM".padEnd(10)} OVERALL`);
+  console.log("  " + "─".repeat(90));
+  for (const result of results) {
+    const routing = result.routingVerdict.passed ? "PASS ✓" : "FAIL ✗";
+    const platform = result.platformVerdict.passed ? "PASS ✓" : "FAIL ✗";
+    const crm = result.crmVerdict.passed ? "PASS ✓" : "FAIL ✗";
+    const overall = result.passed ? "PASS ✓" : "FAIL ✗";
+    console.log(
+      `  ${pad(result.name, 36)} ${pad(result.channel, 10)} ${pad(routing, 10)} ${pad(platform, 10)} ${pad(crm, 10)} ${overall}`
+    );
+    if (!result.passed) {
+      const reason =
+        !result.routingVerdict.passed
+          ? result.routingVerdict.note
+          : !result.platformVerdict.passed
+            ? result.platformVerdict.note
+            : result.crmVerdict.note;
+      console.log(`    ↳ ${reason.slice(0, 120)}`);
     }
   }
   console.log("═".repeat(64));
-  const passed = results.filter((r) => r.passed).length;
+  const passed = results.filter((result) => result.passed).length;
   console.log(`\n  ${passed} / ${results.length} passed\n`);
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
+main().catch((error) => {
+  console.error("Fatal:", error);
   process.exit(1);
 });

@@ -354,7 +354,23 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Linked Runtime</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Linked Runtime</p>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                  snapshot.usingFixtures
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+                title={
+                  snapshot.usingFixtures
+                    ? "Canned fixture replies - not calling the real LLM. Unset CRM_E2E_PLATFORM_FIXTURES to hit the live runtime."
+                    : "Messages are handled by the live CustomerJourneys platform runtime."
+                }
+              >
+                {snapshot.usingFixtures ? "Fixtures" : "Live platform"}
+              </span>
+            </div>
             <h2 className="mt-2 text-xl font-semibold text-slate-900">
               {runtime?.tenant?.name ?? snapshot.link?.customerjourneys_tenant_id ?? "CustomerJourneys not linked"}
             </h2>

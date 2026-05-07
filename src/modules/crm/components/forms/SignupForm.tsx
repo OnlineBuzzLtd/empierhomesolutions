@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/modules/crm/lib/supabase-browser";
+import { Turnstile } from "@/modules/ui/Turnstile";
 
 type SignupState = {
   error: string | null;
   success: string | null;
   isSubmitting: boolean;
+  awaitingConfirmation: boolean;
 };
 
 export function SignupForm() {
@@ -17,12 +19,24 @@ export function SignupForm() {
     error: null,
     success: null,
     isSubmitting: false,
+    awaitingConfirmation: false,
   });
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+  const handleTurnstileToken = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   async function handleSubmit(formData: FormData) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
-      setState({ error: "Supabase CRM environment variables are missing.", success: null, isSubmitting: false });
+      setState({
+        error: "Supabase CRM environment variables are missing.",
+        success: null,
+        isSubmitting: false,
+        awaitingConfirmation: false,
+      });
       return;
     }
 
@@ -37,9 +51,11 @@ export function SignupForm() {
       legal_name: String(formData.get("legal_name") ?? ""),
       vat_registration_number: String(formData.get("vat_registration_number") ?? ""),
       gas_safe_number: String(formData.get("gas_safe_number") ?? ""),
+      invite_code: String(formData.get("invite_code") ?? ""),
+      turnstileToken,
     };
 
-    setState({ error: null, success: null, isSubmitting: true });
+    setState({ error: null, success: null, isSubmitting: true, awaitingConfirmation: false });
 
     const response = await fetch("/api/crm/onboarding/signup", {
       method: "POST",
@@ -49,12 +65,28 @@ export function SignupForm() {
       body: JSON.stringify(payload),
     });
 
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      mode?: "invite" | "public";
+      awaiting_email_confirmation?: boolean;
+    };
     if (!response.ok) {
       setState({
         error: body.error ?? "Failed to create the workspace.",
         success: null,
         isSubmitting: false,
+        awaitingConfirmation: false,
+      });
+      return;
+    }
+
+    if (body.awaiting_email_confirmation) {
+      setState({
+        error: null,
+        success:
+          "Check your inbox. We have sent a confirmation link — clicking it will finish setting up your workspace.",
+        isSubmitting: false,
+        awaitingConfirmation: true,
       });
       return;
     }
@@ -69,6 +101,7 @@ export function SignupForm() {
         error: null,
         success: "Workspace created. Sign in with the owner email and password to continue.",
         isSubmitting: false,
+        awaitingConfirmation: false,
       });
       return;
     }
@@ -102,7 +135,7 @@ export function SignupForm() {
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Password</label>
-          <input name="password" type="password" minLength={8} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          <input name="password" type="password" minLength={12} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Support Email</label>
@@ -120,17 +153,27 @@ export function SignupForm() {
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Gas Safe Number</label>
           <input name="gas_safe_number" className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
+        <div className="md:col-span-2">
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Invite Code <span className="font-normal normal-case text-slate-400">(required during private beta)</span></label>
+          <input name="invite_code" className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
       </div>
+
+      {turnstileSiteKey ? (
+        <div className="pt-2">
+          <Turnstile siteKey={turnstileSiteKey} onToken={handleTurnstileToken} size="normal" />
+        </div>
+      ) : null}
 
       {state.error ? <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{state.error}</p> : null}
       {state.success ? <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{state.success}</p> : null}
 
       <button
         type="submit"
-        disabled={state.isSubmitting}
+        disabled={state.isSubmitting || state.awaitingConfirmation}
         className="block w-full rounded-lg bg-blue-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
       >
-        {state.isSubmitting ? "Creating Workspace..." : "Create Workspace"}
+        {state.isSubmitting ? "Creating Workspace..." : state.awaitingConfirmation ? "Confirmation Sent" : "Create Workspace"}
       </button>
 
       <p className="text-center text-sm text-slate-500">

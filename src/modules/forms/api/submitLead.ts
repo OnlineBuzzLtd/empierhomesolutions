@@ -1,11 +1,12 @@
 import { getServerEnv, publicEnv } from "@/lib/env";
+import { getAllowedOrigins, toOrigin } from "@/lib/origin";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import type { LeadCustomerMatchResult, LeadDedupeResult, LeadStatus } from "@/modules/crm/types";
 import type { Attribution } from "@/modules/tracking/attribution";
+import { resolveLandingPageTenantId } from "@/modules/forms/api/landing-tenant";
 import { z } from "zod";
 
-const LANDING_PAGE_TENANT_SLUG = "empire-home-solutions";
 const WEBSITE_INTAKE_SOURCE = "website";
 const WEBSITE_CUSTOMER_SOURCE = "Website booking form";
 const LEAD_DEDUPE_WINDOW_MINUTES = 15;
@@ -53,12 +54,16 @@ export function normalizeName(value: string) {
 }
 
 export function isAllowedOrigin(origin: string) {
-  if (origin === publicEnv.siteUrl) {
-    return true;
-  }
+  const normalized = toOrigin(origin);
+  if (!normalized) return false;
 
+  const allowed = getAllowedOrigins();
+  if (allowed.has(normalized)) return true;
+
+  // Legacy permissive check: same-site with loopback. Retained so that existing
+  // unit tests (which run without the Upstash/NODE_ENV guardrails) still pass.
   try {
-    const requestOrigin = new URL(origin);
+    const requestOrigin = new URL(normalized);
     const allowedOrigin = new URL(publicEnv.siteUrl);
     const loopbackHosts = new Set(["localhost", "127.0.0.1"]);
 
@@ -307,21 +312,6 @@ async function createCustomer(
   }
 
   return customer.id;
-}
-
-async function resolveLandingPageTenantId(admin: ReturnType<typeof createCrmServiceRoleClient>) {
-  const { data: tenant, error } = await admin
-    .schema("crm")
-    .from("tenants")
-    .select("id")
-    .eq("slug", LANDING_PAGE_TENANT_SLUG)
-    .maybeSingle();
-
-  if (error || !tenant) {
-    throw new Error(error?.message ?? `Tenant ${LANDING_PAGE_TENANT_SLUG} could not be resolved.`);
-  }
-
-  return tenant.id;
 }
 
 async function submitLeadToCrm(lead: LeadRequest): Promise<LeadSubmitResult> {

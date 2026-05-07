@@ -18,7 +18,7 @@
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { processPlatformEvent } from "@/modules/platform/lib/processor";
 import type { PlatformEventEnvelope } from "@/modules/platform/contracts";
 
@@ -283,6 +283,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
       .select("id, type, title, starts_at, status")
       .eq("id", link!.booking_appointment_id!)
       .single();
+    if (!appointment) throw new Error("appointment row missing");
 
     expect(appointment.type).toBe("booking");
     // Postgres returns timestamptz as "+00:00" suffix; normalise both sides
@@ -296,6 +297,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
       .select("id, status, scheduled_date, scheduled_time, assigned_engineer, is_demo, title")
       .eq("id", link!.job_id!)
       .single();
+    if (!job) throw new Error("job row missing");
 
     expect(job.status).toBe("booked");
     expect(job.scheduled_date).toBe("2026-05-05");
@@ -351,6 +353,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
       .select("id, status, scheduled_date, scheduled_time, lead_id, title")
       .eq("id", link!.job_id!)
       .single();
+    if (!job) throw new Error("job row missing");
 
     expect(job.status).toBe("booked");
     expect(job.scheduled_date).toBe("2026-05-06");
@@ -403,6 +406,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
       .select("id, assigned_engineer, scheduled_date, scheduled_time, title")
       .eq("id", link!.job_id!)
       .single();
+    if (!job) throw new Error("job row missing");
 
     // This is the key assertion: the diary fix auto-assigns from the payload
     expect(job.assigned_engineer).toBe("Jack Mason");
@@ -451,6 +455,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
       .select("id, status, source")
       .eq("id", link!.lead_id!)
       .single();
+    if (!lead) throw new Error("lead row missing");
 
     // qualification_status: "qualified" → buildLeadStatus → "contacted"
     expect(lead.status).toBe("contacted");
@@ -462,6 +467,44 @@ describeOrSkip("real booking journeys — live Supabase", () => {
   });
 
   // ─── 5. Missed call — callback appointment, no job ───────────────────────
+
+  it("EscalationRaised creates a follow-up appointment and conversation link", async () => {
+    const conversationId = id();
+    const eventIds: string[] = [];
+
+    const escalationEvent = makeEvent("EscalationRaised", conversationId, {
+      channel: "sms",
+      identity_phone: "+447700900006",
+      customerName: "Escalation Test Customer",
+      trigger: "slot_unavailable",
+      response_text: "That time has just gone, so a teammate will follow up.",
+    });
+    eventIds.push(escalationEvent.event_id);
+    await processPlatformEvent(supabase, escalationEvent);
+
+    const link = await getConversationLink(supabase, conversationId);
+    expect(link, "conversation link must exist").not.toBeNull();
+
+    const appointmentIds = [link!.callback_appointment_id].filter(Boolean) as string[];
+    const leadIds = [link!.lead_id].filter(Boolean) as string[];
+    pending.push({ conversationId, eventIds, appointmentIds, jobIds: [], leadIds });
+
+    expect(link!.lead_id, "lead must be linked").not.toBeNull();
+    expect(link!.callback_appointment_id, "callback appointment must be linked").not.toBeNull();
+    expect(link!.booking_appointment_id).toBeNull();
+
+    const { data: appointment } = await supabase
+      .schema("crm")
+      .from("appointments")
+      .select("id, type, title, status")
+      .eq("id", link!.callback_appointment_id!)
+      .single();
+    if (!appointment) throw new Error("appointment row missing");
+
+    expect(appointment.type).toBe("follow_up");
+    expect(appointment.title).toBe("AI escalation follow-up");
+    expect(appointment.status).toBe("scheduled");
+  });
 
   it("Missed-call: MissedCallCaptured creates a callback appointment but no job", async () => {
     const conversationId = id();
@@ -490,6 +533,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
       .select("id, type, title, status")
       .eq("id", link!.callback_appointment_id!)
       .single();
+    if (!appointment) throw new Error("appointment row missing");
 
     expect(appointment.type).toBe("call");
     expect(appointment.title).toBe("Missed call recovery (no-answer)");

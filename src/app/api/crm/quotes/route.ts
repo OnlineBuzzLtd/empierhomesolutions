@@ -22,7 +22,11 @@ export async function POST(request: Request) {
     const { supabase, tenant, user } = auth.session;
     const payload = {
       ...parsed.data,
-      ...financials,
+      subtotal: financials.subtotal,
+      total: financials.total,
+      total_cost: financials.total_cost,
+      total_profit: financials.total_profit,
+      total_margin_percent: financials.total_margin_percent,
       quote_number: await nextQuoteNumber(),
       current_version_number: 1,
     };

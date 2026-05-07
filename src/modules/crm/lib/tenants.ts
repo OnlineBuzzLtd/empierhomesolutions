@@ -3,6 +3,7 @@ import type { CrmRole, Tenant, TenantBranding, TenantSettings, UserProfile } fro
 import { ensureCustomerJourneysRuntimeLink } from "@/modules/crm/lib/customerjourneys";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { ensureTenantTwilioProvisioning } from "@/modules/crm/lib/twilio-provisioning";
+import { ensureTenantVercelDomain } from "@/modules/crm/lib/vercel-domains";
 
 type ServiceRoleClient = ReturnType<typeof createCrmServiceRoleClient>;
 
@@ -363,6 +364,17 @@ export async function createTenantWorkspace(admin: ServiceRoleClient, input: Ten
   } catch (error) {
     warnings.push(
       error instanceof Error ? `[twilio] ${error.message}` : "[twilio] Failed to provision Twilio resources.",
+    );
+  }
+
+  try {
+    const vercel = await ensureTenantVercelDomain({ tenantSlug: createdTenant.slug });
+    if (vercel.warning) {
+      warnings.push(`[vercel:domain] ${vercel.warning}`);
+    }
+  } catch (error) {
+    warnings.push(
+      error instanceof Error ? `[vercel:domain] ${error.message}` : "[vercel:domain] Failed to attach tenant domain.",
     );
   }
 

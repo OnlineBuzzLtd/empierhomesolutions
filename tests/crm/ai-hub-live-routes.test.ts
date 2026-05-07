@@ -67,6 +67,7 @@ describe("channel test routes", () => {
         },
         recentRecords: [],
         runtimeConfigured: true,
+        usingFixtures: false,
       }),
     }));
     vi.doMock("@/modules/crm/lib/supabase-server", () => ({

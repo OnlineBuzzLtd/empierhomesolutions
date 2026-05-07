@@ -37,7 +37,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .from("quotes")
       .update({
         ...parsed.data,
-        ...financials,
+        subtotal: financials.subtotal,
+        total: financials.total,
+        total_cost: financials.total_cost,
+        total_profit: financials.total_profit,
+        total_margin_percent: financials.total_margin_percent,
         current_version_number: nextVersionNumber,
       })
       .eq("id", id)

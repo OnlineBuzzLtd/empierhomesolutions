@@ -114,6 +114,47 @@ function normalizeComparableText(value: string | null) {
   return normalized.length > 0 ? normalized : null;
 }
 
+function formatPhoneForDisplay(phone: string) {
+  // Keep this dumb: we just want a stable, human-readable fragment to stick
+  // onto "Customer ..." so the row is identifiable on /jobs and /customers
+  // until a real name arrives. Preserve a leading "+" for E.164 numbers,
+  // otherwise strip punctuation so we don't get "Customer (077) 1234-5678".
+  const trimmed = phone.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D+/g, "");
+  if (digits.length === 0) {
+    return trimmed;
+  }
+  return hasPlus ? `+${digits}` : digits;
+}
+
+function deriveCustomerDisplayName(options: {
+  fullName: string | null;
+  phone: string | null;
+  email: string | null;
+}) {
+  if (options.fullName) {
+    return options.fullName;
+  }
+  if (options.phone) {
+    const formatted = formatPhoneForDisplay(options.phone);
+    if (formatted) {
+      return `Customer ${formatted}`;
+    }
+  }
+  if (options.email) {
+    const local = options.email.split("@")[0]?.trim();
+    if (local) {
+      return local;
+    }
+    return options.email;
+  }
+  return "Unknown customer";
+}
+
 function splitNameParts(value: string | null) {
   const fullName = value?.trim().split(/\s+/).filter(Boolean);
   if (!fullName || fullName.length === 0) {
@@ -402,18 +443,27 @@ async function createCustomerFromPayload(
   const phone = pickString(payload, ["customerPhone", "identity_phone", "from"]);
   const email = pickString(payload, ["customerEmail", "identity_email"]);
 
-  if (!fullName || (!phone && !email)) {
+  // We still require *some* identity (phone, email, or explicit name) to avoid
+  // creating empty shell records, but we no longer insist on a captured name.
+  // WhatsApp / SMS bookings routinely confirm before the bot has asked for a
+  // name and we'd rather have a placeholder row we can upgrade later than lose
+  // the Job entirely. updateCustomerFromPayload patches full_name once a real
+  // name shows up on a subsequent event.
+  if (!fullName && !phone && !email) {
     return null;
   }
+
+  const displayName = deriveCustomerDisplayName({ fullName, phone, email });
+  const parsedParts = splitNameParts(fullName ?? displayName);
 
   const { data, error } = await supabase
     .schema("crm")
     .from("customers")
     .insert({
       tenant_id: alias.tenant_id,
-      full_name: fullName,
-      first_name: firstName ?? splitNameParts(fullName).firstName,
-      last_name: lastName ?? splitNameParts(fullName).lastName,
+      full_name: displayName,
+      first_name: firstName ?? parsedParts.firstName,
+      last_name: lastName ?? parsedParts.lastName,
       phone,
       email,
       address_line1: pickString(payload, ["serviceAddressLine1", "address_line1"]),
@@ -825,6 +875,305 @@ async function updateLeadStatus(
   }
 }
 
+type PlatformBookingPayload = {
+  bookingId: string | null;
+  startAt: string;
+  endAt: string;
+  status: string | null;
+  action: string | null;
+  resourceId: string | null;
+  resourceName: string | null;
+  serviceName: string | null;
+  conversationId: string | null;
+  customer: {
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    addressLine1: string | null;
+    city: string | null;
+    postcode: string | null;
+  };
+  metadata: Record<string, unknown> | null;
+};
+
+function extractPlatformBookingPayload(payload: Record<string, unknown>, fallbackStart: string): PlatformBookingPayload {
+  const customer = asRecord(payload.customer);
+  const start = toIsoString(pickString(payload, ["start_at", "booking_start_at", "starts_at"]), fallbackStart);
+  const end = toIsoString(pickString(payload, ["end_at", "booking_end_at", "ends_at"]), addMinutes(start, 60));
+  return {
+    bookingId: pickString(payload, ["booking_id", "booking_uid"]),
+    startAt: start,
+    endAt: end,
+    status: pickString(payload, ["status", "booking_status"]),
+    action: pickString(payload, ["booking_action"]),
+    resourceId: pickString(payload, ["resource_id", "booking_resource_id"]),
+    resourceName: pickString(payload, ["resource_name", "booking_resource_name"]),
+    serviceName: pickString(payload, ["service_name", "service_key", "serviceCategory"]),
+    conversationId: pickString(payload, ["conversation_id"]),
+    customer: {
+      name: pickString(customer, ["name", "full_name"]) ?? pickString(payload, ["customerName"]),
+      phone: pickString(customer, ["phone"]) ?? pickString(payload, ["customerPhone", "identity_phone"]),
+      email: pickString(customer, ["email"]) ?? pickString(payload, ["customerEmail", "identity_email"]),
+      addressLine1: pickString(customer, ["address_line1"]) ?? pickString(payload, ["serviceAddressLine1"]),
+      city: pickString(customer, ["city"]) ?? pickString(payload, ["serviceCity"]),
+      postcode: pickString(customer, ["postcode"]) ?? pickString(payload, ["servicePostcode"]),
+    },
+    metadata: (() => {
+      const raw = asRecord(payload.metadata);
+      return Object.keys(raw).length > 0 ? raw : null;
+    })(),
+  };
+}
+
+function mapPlatformBookingStatus(status: string | null, action: string | null): AppointmentStatus {
+  // platform-api booking statuses: pending_hold, hold, confirmed, cancelled,
+  // rescheduled. CRM appointment statuses: scheduled | completed | cancelled.
+  const normalized = (status ?? action ?? "").toLowerCase();
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return "cancelled";
+  }
+  if (normalized === "completed" || normalized === "fulfilled") {
+    return "completed";
+  }
+  return "scheduled";
+}
+
+function buildPlatformBookingTitle(booking: PlatformBookingPayload): string {
+  const prefix = booking.action === "held" ? "Hold" : "Booked visit";
+  if (booking.serviceName && booking.resourceName) {
+    return `${prefix}: ${booking.serviceName} (${booking.resourceName})`;
+  }
+  if (booking.serviceName) {
+    return `${prefix}: ${booking.serviceName}`;
+  }
+  if (booking.resourceName) {
+    return `${prefix}: ${booking.resourceName}`;
+  }
+  return prefix;
+}
+
+async function findAppointmentByExternalId(
+  supabase: SupabaseClient,
+  tenantId: string,
+  externalId: string,
+) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("appointments")
+    .select("id, customer_id, lead_id, job_id, status")
+    .eq("tenant_id", tenantId)
+    .eq("source", "platform")
+    .eq("external_id", externalId)
+    .maybeSingle<{ id: string; customer_id: string | null; lead_id: string | null; job_id: string | null; status: AppointmentStatus }>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
+async function resolveCustomerForPlatformBooking(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  booking: PlatformBookingPayload,
+) {
+  const flat: Record<string, unknown> = {
+    customerName: booking.customer.name,
+    customerPhone: booking.customer.phone,
+    customerEmail: booking.customer.email,
+    serviceAddressLine1: booking.customer.addressLine1,
+    serviceCity: booking.customer.city,
+    servicePostcode: booking.customer.postcode,
+  };
+
+  const existing = await findCustomerByIdentity(supabase, alias.tenant_id, {
+    phone: booking.customer.phone,
+    email: booking.customer.email,
+  });
+
+  if (existing) {
+    return updateCustomerFromPayload(supabase, alias, existing, flat);
+  }
+
+  return createCustomerFromPayload(supabase, alias, flat);
+}
+
+async function upsertAppointmentFromPlatformBooking(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  command: PlatformCommandEnvelope,
+) {
+  const payload = asRecord(command.payload);
+  const booking = extractPlatformBookingPayload(payload, command.issued_at);
+  if (!booking.bookingId) {
+    // Platform events are signed and validated; this really shouldn't happen,
+    // but if it does we'd rather swallow silently than poison the outbox.
+    return;
+  }
+
+  const customer = await resolveCustomerForPlatformBooking(supabase, alias, booking);
+  const customerId = customer?.id ?? null;
+  const title = buildPlatformBookingTitle(booking);
+  const appointmentStatus = mapPlatformBookingStatus(booking.status, booking.action);
+  const existing = await findAppointmentByExternalId(supabase, alias.tenant_id, booking.bookingId);
+
+  if (existing) {
+    const patch: Record<string, unknown> = {
+      tenant_id: alias.tenant_id,
+      title,
+      starts_at: booking.startAt,
+      ends_at: booking.endAt,
+      status: appointmentStatus,
+    };
+    if (customerId && !existing.customer_id) {
+      patch.customer_id = customerId;
+    }
+    const { error } = await supabase
+      .schema("crm")
+      .from("appointments")
+      .update(patch)
+      .eq("id", existing.id)
+      .eq("tenant_id", alias.tenant_id);
+    if (error) {
+      throw error;
+    }
+    return;
+  }
+
+  const { error } = await supabase
+    .schema("crm")
+    .from("appointments")
+    .insert({
+      tenant_id: alias.tenant_id,
+      customer_id: customerId,
+      lead_id: null,
+      job_id: null,
+      assigned_to: null,
+      type: "booking" satisfies AppointmentType,
+      title,
+      starts_at: booking.startAt,
+      ends_at: booking.endAt,
+      status: appointmentStatus,
+      reminder_offset_minutes: null,
+      recurrence_rule: null,
+      source: "platform",
+      external_id: booking.bookingId,
+    });
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function cancelAppointmentFromPlatformBooking(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  command: PlatformCommandEnvelope,
+) {
+  const payload = asRecord(command.payload);
+  const bookingId = pickString(payload, ["booking_id", "booking_uid"]);
+  if (!bookingId) {
+    return;
+  }
+
+  const existing = await findAppointmentByExternalId(supabase, alias.tenant_id, bookingId);
+  if (!existing) {
+    // Cancel-before-create is legal — we just mark the booking as cancelled
+    // on next upsert. Ignore.
+    return;
+  }
+
+  const { error } = await supabase
+    .schema("crm")
+    .from("appointments")
+    .update({
+      tenant_id: alias.tenant_id,
+      status: "cancelled" satisfies AppointmentStatus,
+    })
+    .eq("id", existing.id)
+    .eq("tenant_id", alias.tenant_id);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function upsertLeadFromPlatform(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  command: PlatformCommandEnvelope,
+) {
+  const payload = asRecord(command.payload);
+  const customer = asRecord(payload.customer);
+
+  const flat: Record<string, unknown> = {
+    customerName: pickString(customer, ["name"]) ?? pickString(payload, ["customerName"]),
+    customerPhone: pickString(customer, ["phone"]) ?? pickString(payload, ["customerPhone", "identity_phone"]),
+    customerEmail: pickString(customer, ["email"]) ?? pickString(payload, ["customerEmail", "identity_email"]),
+    serviceAddressLine1: pickString(customer, ["address_line1"]) ?? pickString(payload, ["serviceAddressLine1"]),
+    serviceCity: pickString(customer, ["city"]) ?? pickString(payload, ["serviceCity"]),
+    servicePostcode: pickString(customer, ["postcode"]) ?? pickString(payload, ["servicePostcode"]),
+    urgency_level: pickString(payload, ["urgency"]),
+    problem_description: pickString(payload, ["notes", "issue_description", "message_summary"]),
+    serviceCategory: pickString(payload, ["service_name", "service_key"]),
+  };
+
+  const customerRow = await findCustomerByIdentity(supabase, alias.tenant_id, {
+    phone: String(flat.customerPhone ?? "") || null,
+    email: String(flat.customerEmail ?? "") || null,
+  });
+
+  const resolvedCustomer = customerRow
+    ? await updateCustomerFromPayload(supabase, alias, customerRow, flat)
+    : await createCustomerFromPayload(supabase, alias, flat);
+
+  const source = pickString(payload, ["source"]) ?? "voice";
+  const notes = pickString(payload, ["notes", "message_summary"]);
+
+  const { error } = await supabase
+    .schema("crm")
+    .from("leads")
+    .insert({
+      tenant_id: alias.tenant_id,
+      customer_id: resolvedCustomer?.id ?? null,
+      status: "new" satisfies LeadStatus,
+      source: `platform_${source}`,
+      notes,
+      intake_source: "platform_api",
+      problem_description: String(flat.problem_description ?? "") || null,
+      urgency_level: String(flat.urgency_level ?? "") || null,
+    });
+
+  if (error) {
+    // Don't block the outbox on a unique-index race; platform emits lead.upserted
+    // repeatedly and duplicates can legitimately occur until we add a
+    // (tenant_id, external_id) index on leads too. Swallow PostgreSQL unique
+    // violations, rethrow everything else.
+    const code = (error as { code?: string } | null)?.code;
+    if (code === "23505") {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function recordResourceAvailabilityChange(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  command: PlatformCommandEnvelope,
+) {
+  // resource.availability_changed is informational for the CRM: the platform-api
+  // remains the authoritative source for working hours and time-off. We log it
+  // into the generic platform events table (via recordPlatformEvent upstream)
+  // and, for now, take no further action. This handler exists so the command
+  // router doesn't warn about unhandled command_types and so we have a
+  // well-named hook to plug in cache invalidation later.
+  void supabase;
+  void alias;
+  void command;
+}
+
 function resolveConversationId(command: PlatformCommandEnvelope) {
   if (command.aggregate.type === "conversation" && command.aggregate.id) {
     return command.aggregate.id;
@@ -1197,6 +1546,39 @@ export async function executePlatformCommand(
       if (link.lead_id && link.customer_id) {
         await attachLeadToCustomer(supabase, alias, link.lead_id, link.customer_id);
       }
+      return;
+    }
+    case "UpsertAppointmentFromPlatformBooking": {
+      await upsertAppointmentFromPlatformBooking(supabase, alias, command);
+      // Phase 4 usage metering — record every platform-sourced booking
+      // as a billable unit. Failures are swallowed inside
+      // recordUsageEvent so we never block the outbox.
+      const bookingMeta = command.payload as { booking_action?: string; external_id?: string | null } | undefined;
+      const action = bookingMeta?.booking_action ?? "confirmed";
+      if (action !== "cancelled") {
+        const { recordUsageEvent } = await import("@/modules/crm/lib/usage-metering");
+        await recordUsageEvent(
+          {
+            tenantId: alias.tenant_id,
+            eventType: `booking.${action}`,
+            source: "platform-api",
+            metadata: { external_id: bookingMeta?.external_id ?? null },
+          },
+          supabase,
+        );
+      }
+      return;
+    }
+    case "CancelAppointmentFromPlatformBooking": {
+      await cancelAppointmentFromPlatformBooking(supabase, alias, command);
+      return;
+    }
+    case "UpsertLeadFromPlatform": {
+      await upsertLeadFromPlatform(supabase, alias, command);
+      return;
+    }
+    case "RecordResourceAvailabilityChange": {
+      await recordResourceAvailabilityChange(supabase, alias, command);
       return;
     }
     default:

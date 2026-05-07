@@ -6,6 +6,17 @@ import {
   type PlatformEventEnvelope,
 } from "@/modules/platform/contracts";
 
+// Events that originate outside the CRM but are authoritative sources for
+// crm.appointments / crm.leads / platform.resources rollups. They don't flow
+// through the conversation link path — they're keyed by external_id instead —
+// so we accept them when source_system !== "agentic_runtime".
+const canonicalBookingEventTypes = new Set<PlatformEventEnvelope["event_type"]>([
+  "booking.held",
+  "booking.confirmed",
+  "booking.cancelled",
+  "booking.rescheduled",
+]);
+
 function buildCommandFromEvent(
   event: PlatformEventEnvelope,
   commandType: PlatformCommandType,
@@ -33,6 +44,37 @@ function buildCommandFromEvent(
 export function derivePlatformCommandsFromEvent(event: PlatformEventEnvelope): PlatformCommandEnvelope[] {
   if (event.source_system !== "agentic_runtime") {
     return [];
+  }
+
+  // Canonical booking events carry the full booking snapshot in the payload
+  // and are idempotent by booking_id — no need to enumerate legacy
+  // conversation link commands.
+  if (canonicalBookingEventTypes.has(event.event_type)) {
+    const action = event.event_type.split(".")[1] ?? "confirmed";
+    const commandType: PlatformCommandType =
+      action === "cancelled" ? "CancelAppointmentFromPlatformBooking" : "UpsertAppointmentFromPlatformBooking";
+    return [
+      buildCommandFromEvent(event, commandType, {
+        booking_action: action,
+        ...event.payload,
+      }),
+    ];
+  }
+
+  if (event.event_type === "lead.upserted") {
+    return [
+      buildCommandFromEvent(event, "UpsertLeadFromPlatform", {
+        ...event.payload,
+      }),
+    ];
+  }
+
+  if (event.event_type === "resource.availability_changed") {
+    return [
+      buildCommandFromEvent(event, "RecordResourceAvailabilityChange", {
+        ...event.payload,
+      }),
+    ];
   }
 
   switch (event.event_type) {

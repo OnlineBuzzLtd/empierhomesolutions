@@ -40,6 +40,9 @@ export function buildContentSecurityPolicy({ nonce }: CspOptions): string {
   const connectExtras = [
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
+    "https://www.google.com",
+    "https://googleads.g.doubleclick.net",
+    "https://stats.g.doubleclick.net",
     "https://challenges.cloudflare.com",
     "https://*.supabase.co",
     "wss://*.supabase.co",
@@ -63,7 +66,7 @@ export function buildContentSecurityPolicy({ nonce }: CspOptions): string {
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data: https://fonts.gstatic.com`,
     `connect-src 'self' ${connectExtras.join(" ")}`,
-    `frame-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com`,
+    `frame-src 'self' https://challenges.cloudflare.com https://www.googletagmanager.com https://td.doubleclick.net https://bid.g.doubleclick.net`,
     `worker-src 'self' blob:`,
     `manifest-src 'self'`,
     `media-src 'self' data: blob:`,

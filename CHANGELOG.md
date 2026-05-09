@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-05-09
+
+### Fixed
+
+- **CRM bridge — accept snake_case identity keys + structured address from CJ `BookingConfirmed`** (`src/modules/platform/lib/command-executor.ts`). CJ ships identity as `customer_full_name` / `customer_phone` / `customer_email` / `customer_postcode` / `service_address_line1` / `service_city`; Empire previously read only the camelCase / `service*` variants (`customerName`, `customerPhone`, etc.). Zero overlap meant every voice-booked customer slipped past `findCustomerByIdentity` — Lead and Appointment rows landed but `customer_id` stayed NULL. Lookups in `createCustomerFromPayload`, `updateCustomerFromPayload`, and `resolveCustomerForPayload` now accept both naming conventions; legacy form-intake / `PlatformBookingPayload` paths keep working.
+- **CRM bridge — attach lead to customer after the BookingConfirmed self-heal** (`command-executor.ts`, `CreateOrUpdateAppointment`). The earlier `attachLeadToCustomer` call ran BEFORE the self-heal that resolves the customer, so on a fresh BookingConfirmed-only flow `crm.appointments.customer_id` landed correctly but `crm.leads.customer_id` stayed NULL — the `/leads` view showed every voice booking with an empty Customer column. Mirrored the appointment self-heal for the lead so a single pass populates both linkages.
+- **Customer merge — latest non-empty payload value wins** (`command-executor.ts`, `updateCustomerFromPayload`). Previously only patched NULL fields. Real example: a return caller said "Michael Jackson" using a phone already on file as "John Jones"; the booking landed but the customer record kept the stale name because `full_name` wasn't NULL. Replaced `if (!customer.X && nextX)` guards with `if (nextX)`. Empty / null payload values still skip — we never blank out an existing field. Safe across all callers verified (BookingConfirmed updates everything; ConversationStarted carries no name for voice and only the opener-form name for webchat).
+
+### Added
+
+- `scripts/local/follow-agent-to-crm.sh` — local Agent → CRM live tail. Streams Cloud Run platform-api activity (tool calls, `PUBLISH BookingConfirmed`, errors) alongside Supabase polls of `crm.platform_event_log` / `leads` / `customers` / `appointments`. Single colour-coded terminal feed for live-call observability without standing up new infrastructure. Stops with Ctrl+C.
+
+### Verified
+
+- End-to-end live call: `BookingConfirmed accepted` → `LEAD created … status=booked customer=…` → `APPT created … customer=… lead=…` in 4 seconds, with the customer record carrying the agent-stated name on every subsequent call.
+
 ## 2026-05-07
 
 ### Added

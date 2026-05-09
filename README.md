@@ -196,6 +196,7 @@ For Empire tenant 1 specifically:
 - `npm run crm:smoke:demo`
 - `node scripts/tenant1-production-scenarios-seed.mjs`
 - `node scripts/e2e-engineer-channel-test.mjs`
+- `scripts/local/follow-agent-to-crm.sh` — Agent → CRM live tail. Streams Cloud Run platform-api activity (tool calls, `PUBLISH BookingConfirmed`, errors) alongside Supabase polls of `crm.platform_event_log` / `leads` / `customers` / `appointments` into a single colour-coded terminal. Make a real or test call and watch every step land row by row. Stops with Ctrl+C. Requires `gcloud` auth + `psql` + `.env.local` with `SUPABASE_DB_PASSWORD`.
 
 ## Demo Mode
 

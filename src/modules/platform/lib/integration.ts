@@ -128,6 +128,18 @@ export function derivePlatformCommandsFromEvent(event: PlatformEventEnvelope): P
           ...event.payload,
         }),
       ];
+    case "BookingCompleted":
+      // Phase 2 of close-past-bookings PRD — fired by the platform-api
+      // auto-close worker when a confirmed booking's end_time passes.
+      // Reuses CreateOrUpdateAppointment so all the appointment-update
+      // logic (link resolution, postcode_status, etc.) flows through one
+      // place; we just hand it `booking_status: "completed"`.
+      return [
+        buildCommandFromEvent(event, "CreateOrUpdateAppointment", {
+          booking_status: "completed",
+          ...event.payload,
+        }),
+      ];
     case "EscalationRaised":
       return [
         buildCommandFromEvent(event, "CreateEscalationTask", {

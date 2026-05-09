@@ -24,6 +24,7 @@ export const platformEventTypes = [
   "ConversationQualified",
   "BookingRequested",
   "BookingConfirmed",
+  "BookingCompleted",
   "AutomationDispatched",
   "EscalationRaised",
   "DeliveryStatusUpdated",

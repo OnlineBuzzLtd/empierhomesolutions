@@ -1426,6 +1426,18 @@ export async function executePlatformCommand(
           },
         });
       } else {
+        // Map the platform-api booking_status to Empire's appointment status
+        // enum. Default to "scheduled" so existing BookingConfirmed flows
+        // remain unchanged; "completed" / "cancelled" override when the
+        // platform-side lifecycle moves the booking on (e.g. the auto-close
+        // worker firing BookingCompleted — Phase 2 of close-past-bookings PRD).
+        const incomingBookingStatus = pickString(payload, ["booking_status", "status"]);
+        const nextAppointmentStatus =
+          incomingBookingStatus === "completed"
+            ? "completed"
+            : incomingBookingStatus === "cancelled"
+              ? "cancelled"
+              : "scheduled";
         await supabase
           .schema("crm")
           .from("appointments")
@@ -1433,7 +1445,7 @@ export async function executePlatformCommand(
             title: buildBookingTitle(payload),
             starts_at: startsAt,
             ends_at: endsAt,
-            status: "scheduled",
+            status: nextAppointmentStatus,
             // Only overwrite postcode_status when we have new info
             // (otherwise leave whatever a previous BookingConfirmed set).
             ...(postcodeStatus ? { postcode_status: postcodeStatus } : {}),

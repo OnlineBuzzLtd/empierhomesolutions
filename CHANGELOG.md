@@ -15,6 +15,7 @@
 ### Verified
 
 - End-to-end live call: `BookingConfirmed accepted` → `LEAD created … status=booked customer=…` → `APPT created … customer=… lead=…` in 4 seconds, with the customer record carrying the agent-stated name on every subsequent call.
+- **Cross-channel `ConversationStarted` parity** verified live in production after CJ-side PR #23 landed: webchat / SMS / WhatsApp / voice all now publish on first contact and Empire's `MatchCustomerByChannelIdentity` + `LinkConversationToCustomerOrJob` handlers seed the conversation link record at conversation-open. Idempotency on Empire's `crm.platform_event_log` (`UNIQUE (tenant_id, source_system, idempotency_key)`) silently dedupes any retried publish — confirmed by sending a second SMS on the same conversation and observing `count=1` on the matching idempotency key. SMS and WhatsApp had never previously fired this event; both now accepted + processed cleanly.
 
 ## 2026-05-07
 

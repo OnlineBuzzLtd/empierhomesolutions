@@ -437,11 +437,18 @@ async function createCustomerFromPayload(
   alias: WorkspaceAlias,
   payload: Record<string, unknown>,
 ) {
-  const fullName = pickString(payload, ["customerName", "full_name"]);
+  // Accept BOTH naming conventions:
+  //  - camelCase (`customerName`, `customerPhone`, …) used by the legacy
+  //    /api/platform/commands path and the form intake flows
+  //  - snake_case (`customer_full_name`, `customer_phone`, …) used by the
+  //    CJ runtime BookingConfirmed payload (crm-platform-events.ts)
+  // Without the snake_case keys here, voice-booked customers slip through
+  // the resolver as "no identity" and never land as customers/jobs.
+  const fullName = pickString(payload, ["customerName", "customer_full_name", "full_name"]);
   const firstName = pickString(payload, ["first_name"]);
   const lastName = pickString(payload, ["last_name"]);
-  const phone = pickString(payload, ["customerPhone", "identity_phone", "from"]);
-  const email = pickString(payload, ["customerEmail", "identity_email"]);
+  const phone = pickString(payload, ["customerPhone", "customer_phone", "identity_phone", "from"]);
+  const email = pickString(payload, ["customerEmail", "customer_email", "identity_email"]);
 
   // We still require *some* identity (phone, email, or explicit name) to avoid
   // creating empty shell records, but we no longer insist on a captured name.
@@ -466,9 +473,9 @@ async function createCustomerFromPayload(
       last_name: lastName ?? parsedParts.lastName,
       phone,
       email,
-      address_line1: pickString(payload, ["serviceAddressLine1", "address_line1"]),
-      city: pickString(payload, ["serviceCity", "city"]),
-      postcode: pickString(payload, ["servicePostcode", "postcode"]),
+      address_line1: pickString(payload, ["serviceAddressLine1", "service_address_line1", "address_line1"]),
+      city: pickString(payload, ["serviceCity", "service_city", "city"]),
+      postcode: pickString(payload, ["servicePostcode", "customer_postcode", "postcode"]),
       source: buildLeadSource(payload),
       notes: buildLeadNotes(payload) || null,
       archived: false,
@@ -490,14 +497,16 @@ async function updateCustomerFromPayload(
   payload: Record<string, unknown>,
 ) {
   const patch: Record<string, unknown> = {};
-  const nextName = pickString(payload, ["customerName", "full_name"]);
+  // Same dual-convention support as createCustomerFromPayload above —
+  // CJ's BookingConfirmed sends snake_case, legacy intakes send camelCase.
+  const nextName = pickString(payload, ["customerName", "customer_full_name", "full_name"]);
   const nextFirstName = pickString(payload, ["first_name"]);
   const nextLastName = pickString(payload, ["last_name"]);
-  const nextPhone = pickString(payload, ["customerPhone", "identity_phone", "from"]);
-  const nextEmail = pickString(payload, ["customerEmail", "identity_email"]);
-  const nextAddressLine1 = pickString(payload, ["serviceAddressLine1", "address_line1"]);
-  const nextCity = pickString(payload, ["serviceCity", "city"]);
-  const nextPostcode = pickString(payload, ["servicePostcode", "postcode"]);
+  const nextPhone = pickString(payload, ["customerPhone", "customer_phone", "identity_phone", "from"]);
+  const nextEmail = pickString(payload, ["customerEmail", "customer_email", "identity_email"]);
+  const nextAddressLine1 = pickString(payload, ["serviceAddressLine1", "service_address_line1", "address_line1"]);
+  const nextCity = pickString(payload, ["serviceCity", "service_city", "city"]);
+  const nextPostcode = pickString(payload, ["servicePostcode", "customer_postcode", "postcode"]);
 
   if (!customer.full_name && nextName) {
     patch.full_name = nextName;
@@ -561,8 +570,8 @@ async function resolveCustomerForPayload(
   }
 
   const existing = await findCustomerByIdentity(supabase, alias.tenant_id, {
-    phone: pickString(payload, ["customerPhone", "identity_phone", "from"]),
-    email: pickString(payload, ["customerEmail", "identity_email"]),
+    phone: pickString(payload, ["customerPhone", "customer_phone", "identity_phone", "from"]),
+    email: pickString(payload, ["customerEmail", "customer_email", "identity_email"]),
   });
 
   if (existing) {

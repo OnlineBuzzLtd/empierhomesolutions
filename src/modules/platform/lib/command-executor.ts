@@ -1459,6 +1459,17 @@ export async function executePlatformCommand(
         await attachAppointmentToCustomer(supabase, alias, refreshedLink.booking_appointment_id, refreshedLink.customer_id);
       }
 
+      // Mirror the appointment self-heal for the lead. The earlier
+      // attachLeadToCustomer at line ~1385 ran BEFORE the self-heal that
+      // resolved the customer, so on a fresh BookingConfirmed-only flow
+      // (no prior ConversationStarted to seed link.customer_id) the lead
+      // ended up with customer_id=NULL even after the customer record
+      // existed. Re-attempt the attach now that refreshedLink has the
+      // customer resolved by the self-heal above.
+      if (refreshedLink?.lead_id && refreshedLink.customer_id) {
+        await attachLeadToCustomer(supabase, alias, refreshedLink.lead_id, refreshedLink.customer_id);
+      }
+
       const assignedEngineer = pickString(payload, [
         "booking_resource_name",
         "resource_name",

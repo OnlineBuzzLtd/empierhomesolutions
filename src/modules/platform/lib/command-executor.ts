@@ -508,28 +508,41 @@ async function updateCustomerFromPayload(
   const nextCity = pickString(payload, ["serviceCity", "service_city", "city"]);
   const nextPostcode = pickString(payload, ["servicePostcode", "customer_postcode", "postcode"]);
 
-  if (!customer.full_name && nextName) {
+  // Merge policy: latest non-empty payload value wins. Previously this only
+  // patched NULL fields, which caused real-call confusion — a return caller
+  // who gave a different name (or a corrected email/address) had their
+  // original record kept verbatim because those fields weren't NULL. The
+  // booking-confirmed payload is authoritative for what the agent collected
+  // on this specific call. Empty / null payload values still skip, so we
+  // never blank out an existing field; we only overwrite when a fresh value
+  // is present.
+  //
+  // ConversationStarted (voice) carries no identity name/email/address, so
+  // those paths remain no-ops. ConversationStarted (webchat) carries
+  // `customer_full_name` from the chat opener — that user-stated value
+  // taking effect matches the same "latest stated name wins" behavior.
+  if (nextName) {
     patch.full_name = nextName;
+    const parts = splitNameParts(nextName);
+    if (nextFirstName || parts.firstName) patch.first_name = nextFirstName ?? parts.firstName;
+    if (nextLastName || parts.lastName) patch.last_name = nextLastName ?? parts.lastName;
+  } else {
+    if (nextFirstName) patch.first_name = nextFirstName;
+    if (nextLastName) patch.last_name = nextLastName;
   }
-  if (!customer.first_name && (nextFirstName || nextName)) {
-    patch.first_name = nextFirstName ?? splitNameParts(nextName).firstName;
-  }
-  if (!customer.last_name && (nextLastName || nextName)) {
-    patch.last_name = nextLastName ?? splitNameParts(nextName).lastName;
-  }
-  if (!customer.phone && nextPhone) {
+  if (nextPhone) {
     patch.phone = nextPhone;
   }
-  if (!customer.email && nextEmail) {
+  if (nextEmail) {
     patch.email = nextEmail;
   }
-  if (!customer.address_line1 && nextAddressLine1) {
+  if (nextAddressLine1) {
     patch.address_line1 = nextAddressLine1;
   }
-  if (!customer.city && nextCity) {
+  if (nextCity) {
     patch.city = nextCity;
   }
-  if (!customer.postcode && nextPostcode) {
+  if (nextPostcode) {
     patch.postcode = nextPostcode;
   }
 

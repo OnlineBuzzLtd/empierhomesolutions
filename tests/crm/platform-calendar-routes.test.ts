@@ -226,14 +226,15 @@ describe("POST /api/platform/calendar/check-availability", () => {
 });
 
 describe("POST /api/platform/calendar/events (createHold)", () => {
-  it("upserts the appointment and returns providerReference", async () => {
+  it("inserts a new appointment and returns providerReference (no existing row)", async () => {
     vi.doMock("@/modules/crm/lib/env", () => ({
       getCrmEnv: vi.fn().mockReturnValue({ platformSharedSecret: SECRET }),
     }));
     const engineerMaybeSingle = vi
       .fn()
       .mockResolvedValue({ data: { id: "engineer-1", tenant_id: "tenant-1", active: true }, error: null });
-    const upsertSingle = vi.fn().mockResolvedValue({ data: { id: "appt-uuid-1" }, error: null });
+    const lookupMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const insertSingle = vi.fn().mockResolvedValue({ data: { id: "appt-uuid-1" }, error: null });
     vi.doMock("@/modules/crm/lib/supabase-server", () => ({
       createCrmServiceRoleClient: () => ({
         schema: () => ({
@@ -243,10 +244,17 @@ describe("POST /api/platform/calendar/events (createHold)", () => {
                 select: () => ({ eq: () => ({ maybeSingle: engineerMaybeSingle }) }),
               };
             }
-            // appointments
+            // appointments — find-then-insert
             return {
-              upsert: () => ({
-                select: () => ({ single: upsertSingle }),
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    eq: () => ({ maybeSingle: lookupMaybeSingle }),
+                  }),
+                }),
+              }),
+              insert: () => ({
+                select: () => ({ single: insertSingle }),
               }),
             };
           },
@@ -265,6 +273,60 @@ describe("POST /api/platform/calendar/events (createHold)", () => {
     const response = await route.POST(makeRequest("http://localhost/api/platform/calendar/events", "POST", body));
     expect(response.status).toBe(200);
     expect((await response.json()).providerReference).toBe("appt-uuid-1");
+    expect(insertSingle).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates the existing appointment when one already exists for the same bookingId", async () => {
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({ platformSharedSecret: SECRET }),
+    }));
+    const engineerMaybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "engineer-1", tenant_id: "tenant-1", active: true }, error: null });
+    const lookupMaybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "existing-appt-uuid" }, error: null });
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const insertSingle = vi.fn();
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: () => ({
+        schema: () => ({
+          from: (table: string) => {
+            if (table === "user_profiles") {
+              return {
+                select: () => ({ eq: () => ({ maybeSingle: engineerMaybeSingle }) }),
+              };
+            }
+            return {
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    eq: () => ({ maybeSingle: lookupMaybeSingle }),
+                  }),
+                }),
+              }),
+              update: () => ({ eq: updateEq }),
+              insert: () => ({
+                select: () => ({ single: insertSingle }),
+              }),
+            };
+          },
+        }),
+      }),
+    }));
+    const route = await import("@/app/api/platform/calendar/events/route");
+    const body = {
+      resourceRef: "engineer-1",
+      bookingId: "booking-uuid-abc",
+      leadId: "lead-uuid-xyz",
+      startTime: "2026-05-18T08:00:00.000Z",
+      endTime: "2026-05-18T09:00:00.000Z",
+    };
+    const response = await route.POST(makeRequest("http://localhost/api/platform/calendar/events", "POST", body));
+    expect(response.status).toBe(200);
+    expect((await response.json()).providerReference).toBe("existing-appt-uuid");
+    expect(updateEq).toHaveBeenCalledTimes(1);
+    expect(insertSingle).not.toHaveBeenCalled();
   });
 
   it("returns 400 when resourceRef is unknown", async () => {

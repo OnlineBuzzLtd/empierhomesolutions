@@ -81,10 +81,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "resource_inactive", message: "Engineer is no longer active." }, { status: 409 });
   }
 
-  // Idempotent upsert. If an appointment with (source='platform',
-  // external_id=bookingId) already exists for this tenant, return it
-  // unchanged — second POST with the same bookingId is a no-op.
-  const upsertPayload = {
+  // Idempotent find-or-create. The crm.appointments uniqueness on
+  // (tenant_id, source, external_id) is enforced by a PARTIAL index
+  // (WHERE external_id IS NOT NULL), which Postgres's ON CONFLICT
+  // column-list syntax can't bind to — supabase-js's `.upsert()` falls
+  // through to "no unique constraint" 42P10. We do the find/insert/update
+  // explicitly so the route stays idempotent without changing the index.
+  const basePayload = {
     tenant_id: engineer.tenant_id,
     assigned_to: parsed.resourceRef,
     type: "booking" as const,
@@ -92,20 +95,47 @@ export async function POST(request: Request) {
     starts_at: parsed.startTime,
     ends_at: parsed.endTime,
     status: "scheduled" as const,
-    source: "platform" as const,
-    external_id: parsed.bookingId,
   };
 
-  const { data: upserted, error: upsertError } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .schema("crm")
     .from("appointments")
-    .upsert(upsertPayload, { onConflict: "tenant_id,source,external_id", ignoreDuplicates: false })
+    .select("id")
+    .eq("tenant_id", engineer.tenant_id)
+    .eq("source", "platform")
+    .eq("external_id", parsed.bookingId)
+    .maybeSingle();
+
+  if (lookupError) {
+    return NextResponse.json({ error: lookupError.message }, { status: 500 });
+  }
+
+  if (existing) {
+    const { error: updateError } = await supabase
+      .schema("crm")
+      .from("appointments")
+      .update(basePayload)
+      .eq("id", existing.id);
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+    return NextResponse.json({ providerReference: existing.id });
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .schema("crm")
+    .from("appointments")
+    .insert({
+      ...basePayload,
+      source: "platform" as const,
+      external_id: parsed.bookingId,
+    })
     .select("id")
     .single();
 
-  if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
+  if (insertError) {
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ providerReference: upserted.id });
+  return NextResponse.json({ providerReference: inserted.id });
 }

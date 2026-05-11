@@ -232,7 +232,7 @@ describe("POST /api/platform/calendar/events (createHold)", () => {
     }));
     const engineerMaybeSingle = vi
       .fn()
-      .mockResolvedValue({ data: { id: "engineer-1", tenant_id: "tenant-1", active: true }, error: null });
+      .mockResolvedValue({ data: { id: "engineer-1", user_id: "auth-user-1", tenant_id: "tenant-1", active: true }, error: null });
     const lookupMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const insertSingle = vi.fn().mockResolvedValue({ data: { id: "appt-uuid-1" }, error: null });
     vi.doMock("@/modules/crm/lib/supabase-server", () => ({
@@ -282,7 +282,7 @@ describe("POST /api/platform/calendar/events (createHold)", () => {
     }));
     const engineerMaybeSingle = vi
       .fn()
-      .mockResolvedValue({ data: { id: "engineer-1", tenant_id: "tenant-1", active: true }, error: null });
+      .mockResolvedValue({ data: { id: "engineer-1", user_id: "auth-user-1", tenant_id: "tenant-1", active: true }, error: null });
     const lookupMaybeSingle = vi
       .fn()
       .mockResolvedValue({ data: { id: "existing-appt-uuid" }, error: null });
@@ -366,7 +366,7 @@ describe("POST /api/platform/calendar/events (createHold)", () => {
             select: () => ({
               eq: () => ({
                 maybeSingle: vi.fn().mockResolvedValue({
-                  data: { id: "engineer-x", tenant_id: "tenant-1", active: false },
+                  data: { id: "engineer-x", user_id: "auth-user-x", tenant_id: "tenant-1", active: false },
                   error: null,
                 }),
               }),

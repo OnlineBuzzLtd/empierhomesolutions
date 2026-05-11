@@ -61,13 +61,16 @@ export async function POST(request: Request) {
 
   const supabase = createCrmServiceRoleClient();
 
-  // Resolve the engineer's tenant_id from user_profiles so we satisfy
-  // the unique index (tenant_id, source, external_id) and the
-  // appointment's tenant_id NOT NULL constraint.
+  // Resolve the engineer profile. The platform passes resourceRef =
+  // crm.user_profiles.id (stable business identifier returned from the
+  // /resources endpoint). For the appointment row we need user_id
+  // (auth.users.id) because crm.appointments.assigned_to FKs auth.users —
+  // crm.user_profiles.id is NOT the auth identity, just the profile row's
+  // primary key.
   const { data: engineer, error: engineerError } = await supabase
     .schema("crm")
     .from("user_profiles")
-    .select("id, tenant_id, active")
+    .select("id, user_id, tenant_id, active")
     .eq("id", parsed.resourceRef)
     .maybeSingle();
 
@@ -89,7 +92,7 @@ export async function POST(request: Request) {
   // explicitly so the route stays idempotent without changing the index.
   const basePayload = {
     tenant_id: engineer.tenant_id,
-    assigned_to: parsed.resourceRef,
+    assigned_to: engineer.user_id,
     type: "booking" as const,
     title: parsed.summary?.slice(0, 200) ?? `Booking ${parsed.bookingId.slice(0, 8)}`,
     starts_at: parsed.startTime,

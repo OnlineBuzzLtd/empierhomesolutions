@@ -16,6 +16,12 @@ const tenantSettingsSchema = z.object({
   invoice_footer: z.string().optional().nullable(),
   quote_footer: z.string().optional().nullable(),
   certificate_footer: z.string().optional().nullable(),
+  // HTML checkboxes submit "on" when ticked and nothing when un-ticked.
+  // Accept both shapes so the ApiForm helper can post a plain form-data POST
+  // without the consumer hand-coercing.
+  show_per_package_vat: z
+    .preprocess((v) => (v === "on" || v === "true" || v === true ? true : false), z.boolean())
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -50,6 +56,7 @@ export async function POST(request: Request) {
       invoice_footer: parsed.data.invoice_footer || null,
       quote_footer: parsed.data.quote_footer || null,
       certificate_footer: parsed.data.certificate_footer || null,
+      show_per_package_vat: parsed.data.show_per_package_vat ?? false,
     };
 
     const [{ data: branding, error: brandingError }, { data: settings, error: settingsError }] = await Promise.all([

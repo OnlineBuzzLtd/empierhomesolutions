@@ -5,15 +5,38 @@ import { useState } from "react";
 import type { Package, PackageItem, Product } from "@/modules/crm/types";
 import { formatCurrency } from "@/modules/crm/lib/format";
 
-type EditableItem = Omit<PackageItem, "id" | "tenant_id" | "package_id"> & { id?: string };
+// priceManuallyEdited is client-side state, never persisted. Tracks whether
+// the user has overridden the auto-priced value for this row, so future
+// markup/cost changes don't clobber a deliberate price (see PKG-005).
+type EditableItem = Omit<PackageItem, "id" | "tenant_id" | "package_id"> & {
+  id?: string;
+  priceManuallyEdited?: boolean;
+};
 
 type EditableState = {
   name: string;
   description: string;
   default_markup_percent: string;
   is_active: boolean;
+  image_url: string;
   items: EditableItem[];
 };
+
+function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function parseMarkupPercent(raw: string): number | null {
+  if (raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+function autoPrice(cost: number | null, markupPct: number | null): number | null {
+  if (cost === null || markupPct === null) return null;
+  return round2(cost * (1 + markupPct / 100));
+}
 
 function blankItem(sortOrder: number): EditableItem {
   return {
@@ -23,11 +46,12 @@ function blankItem(sortOrder: number): EditableItem {
     unit_price: 0,
     sort_order: sortOrder,
     product_id: null,
+    priceManuallyEdited: false,
   };
 }
 
 function blankState(): EditableState {
-  return { name: "", description: "", default_markup_percent: "", is_active: true, items: [blankItem(0)] };
+  return { name: "", description: "", default_markup_percent: "", is_active: true, image_url: "", items: [blankItem(0)] };
 }
 
 function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
@@ -36,6 +60,7 @@ function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
     description: pkg.description ?? "",
     default_markup_percent: pkg.default_markup_percent === null || pkg.default_markup_percent === undefined ? "" : String(pkg.default_markup_percent),
     is_active: pkg.is_active,
+    image_url: pkg.image_url ?? "",
     items: (pkg.items ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -47,6 +72,8 @@ function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
         unit_cost: it.unit_cost === null || it.unit_cost === undefined ? null : Number(it.unit_cost),
         unit_price: Number(it.unit_price),
         sort_order: it.sort_order,
+        // Persisted prices start as "user-set" — we don't recompute on load.
+        priceManuallyEdited: true,
       })),
   };
 }
@@ -80,6 +107,52 @@ export function PackageManagerForm({
     setState({ ...state, items: state.items.map((it, idx) => (idx === i ? { ...it, ...p } : it)) });
   }
 
+  // User typed a new cost on row `i`. Per PKG-005 the manual flag resets
+  // one-shot, then if markup is set we recompute the suggested price.
+  function setItemCost(i: number, raw: string) {
+    const cost = raw === "" ? null : Number(raw);
+    const markup = parseMarkupPercent(state.default_markup_percent);
+    const suggested = autoPrice(cost, markup);
+    setState({
+      ...state,
+      items: state.items.map((it, idx) =>
+        idx === i
+          ? {
+              ...it,
+              unit_cost: cost,
+              priceManuallyEdited: false,
+              unit_price: suggested !== null ? suggested : it.unit_price,
+            }
+          : it,
+      ),
+    });
+  }
+
+  // User typed a price directly. Sticky from now on.
+  function setItemPrice(i: number, raw: string) {
+    setState({
+      ...state,
+      items: state.items.map((it, idx) =>
+        idx === i ? { ...it, unit_price: Number(raw) || 0, priceManuallyEdited: true } : it,
+      ),
+    });
+  }
+
+  // User changed the package-level markup %. Re-apply to every row that
+  // hasn't been manually overridden and has a cost. Untouched rows stay put.
+  function setMarkupPercent(raw: string) {
+    const markup = parseMarkupPercent(raw);
+    setState({
+      ...state,
+      default_markup_percent: raw,
+      items: state.items.map((it) => {
+        if (it.priceManuallyEdited) return it;
+        const suggested = autoPrice(it.unit_cost, markup);
+        return suggested === null ? it : { ...it, unit_price: suggested };
+      }),
+    });
+  }
+
   function addItem() {
     setState({ ...state, items: [...state.items, blankItem(state.items.length)] });
   }
@@ -95,11 +168,17 @@ export function PackageManagerForm({
       patchItem(i, { product_id: null });
       return;
     }
+    // Picking a product is a fresh starting point — reset the manual flag.
+    // If a markup % is set, it wins over the product's sell_price.
+    const cost = p.unit_cost === null || p.unit_cost === undefined ? null : Number(p.unit_cost);
+    const markup = parseMarkupPercent(state.default_markup_percent);
+    const suggested = autoPrice(cost, markup);
     patchItem(i, {
       product_id: p.id,
       description: p.name,
-      unit_cost: p.unit_cost === null || p.unit_cost === undefined ? null : Number(p.unit_cost),
-      unit_price: Number(p.sell_price ?? 0),
+      unit_cost: cost,
+      unit_price: suggested !== null ? suggested : Number(p.sell_price ?? 0),
+      priceManuallyEdited: false,
     });
   }
 
@@ -111,6 +190,7 @@ export function PackageManagerForm({
       description: state.description || null,
       default_markup_percent: state.default_markup_percent === "" ? null : Number(state.default_markup_percent),
       is_active: state.is_active,
+      image_url: state.image_url.trim() === "" ? null : state.image_url.trim(),
       items: state.items.map((it, idx) => ({
         product_id: it.product_id ?? null,
         description: it.description,
@@ -198,7 +278,7 @@ export function PackageManagerForm({
           />
           <input
             value={state.default_markup_percent}
-            onChange={(e) => setState({ ...state, default_markup_percent: e.target.value })}
+            onChange={(e) => setMarkupPercent(e.target.value)}
             placeholder="Default mark-up %"
             type="number"
             step="0.01"
@@ -209,6 +289,13 @@ export function PackageManagerForm({
             onChange={(e) => setState({ ...state, description: e.target.value })}
             placeholder="Description (optional)"
             className="min-h-16 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+          />
+          <input
+            value={state.image_url}
+            onChange={(e) => setState({ ...state, image_url: e.target.value })}
+            placeholder="Image URL (https://…) — optional"
+            type="url"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
           />
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -245,7 +332,7 @@ export function PackageManagerForm({
                   step="0.01"
                   placeholder="Cost"
                   value={it.unit_cost ?? ""}
-                  onChange={(e) => patchItem(i, { unit_cost: e.target.value === "" ? null : Number(e.target.value) })}
+                  onChange={(e) => setItemCost(i, e.target.value)}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
                 <input
@@ -254,13 +341,18 @@ export function PackageManagerForm({
                   step="0.01"
                   placeholder="Price"
                   value={it.unit_price}
-                  onChange={(e) => patchItem(i, { unit_price: Number(e.target.value) || 0 })}
+                  onChange={(e) => setItemPrice(i, e.target.value)}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
                 <button type="button" onClick={() => removeItem(i)} className="text-xs text-rose-600 hover:underline">
                   Remove
                 </button>
               </div>
+              {!it.priceManuallyEdited && state.default_markup_percent !== "" && it.unit_cost !== null ? (
+                <p className="mt-1 text-[11px] text-blue-700">
+                  Auto-priced from cost × ({state.default_markup_percent}% mark-up). Edit Price to override.
+                </p>
+              ) : null}
               {products.length > 0 ? (
                 <div className="mt-2">
                   <select

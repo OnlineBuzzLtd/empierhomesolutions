@@ -10,6 +10,7 @@ const pkg: Package = {
   description: null,
   default_markup_percent: null,
   is_active: true,
+  image_url: null,
   created_by: null,
   created_at: "",
   updated_at: "",

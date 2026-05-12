@@ -15,6 +15,7 @@ export function QuoteBuilder({
   endpoint,
   method = "PATCH",
   submitLabel = "Save quote",
+  showPerPackageVat = false,
 }: {
   customers: Customer[];
   jobs: Job[];
@@ -24,6 +25,7 @@ export function QuoteBuilder({
   endpoint: string;
   method?: "POST" | "PATCH";
   submitLabel?: string;
+  showPerPackageVat?: boolean;
 }) {
   const router = useRouter();
   const [items, setItems] = useState<LineItem[]>(initialQuote?.line_items ?? []);
@@ -124,7 +126,14 @@ export function QuoteBuilder({
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
-        <LineItemsEditorV2 initialItems={items} products={products} packages={packages} onChange={setItems} />
+        <LineItemsEditorV2
+          initialItems={items}
+          products={products}
+          packages={packages}
+          vatRate={vatRate}
+          showPerPackageVat={showPerPackageVat}
+          onChange={setItems}
+        />
       </div>
       <aside className="space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

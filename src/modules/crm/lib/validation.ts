@@ -50,6 +50,12 @@ export const packageSchema = z.object({
   description: z.string().optional().nullable(),
   default_markup_percent: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable()).optional(),
   is_active: z.coerce.boolean().default(true),
+  // Restrict to https/http only at the boundary — keeps stored URLs safe to
+  // drop into <img src=…> without protocol-relative or javascript: tricks.
+  image_url: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.string().url().nullable())
+    .refine((v) => v === null || /^https?:\/\//i.test(v), { message: "image_url must be http(s)" })
+    .optional(),
   items: z.array(packageItemSchema).default([]),
 });
 

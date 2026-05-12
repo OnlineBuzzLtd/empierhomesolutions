@@ -21,7 +21,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   const session = await requireCrmUser();
   const { id } = await params;
   const supabase = await createCrmServerClient();
-  const [quote, attachments, customers, jobs, products, packagesQuery] = await Promise.all([
+  const [quote, attachments, customers, jobs, products, packagesQuery, tenantSettingsQuery] = await Promise.all([
     getQuoteDetail(id),
     listAttachmentsForEntity("quote", id),
     listCustomers(),
@@ -33,11 +33,18 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
       .select("*, items:package_items(*)")
       .eq("is_active", true)
       .order("name", { ascending: true }),
+    supabase
+      .schema("crm")
+      .from("tenant_settings")
+      .select("show_per_package_vat")
+      .eq("tenant_id", session.tenant!.id)
+      .maybeSingle(),
   ]);
   if (!quote) {
     notFound();
   }
   const packages = (packagesQuery.data ?? []) as Array<Package & { items?: PackageItem[] }>;
+  const showPerPackageVat = Boolean(tenantSettingsQuery.data?.show_per_package_vat);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -126,6 +133,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
           initialQuote={quote}
           endpoint={`/api/crm/quotes/${quote.id}`}
           submitLabel="Save new version"
+          showPerPackageVat={showPerPackageVat}
         />
       </SectionCard>
 

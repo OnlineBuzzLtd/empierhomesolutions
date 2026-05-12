@@ -147,6 +147,7 @@ export type TenantSettings = {
   certificate_footer: string | null;
   demo_mode_enabled: boolean;
   default_payment_terms: Record<string, unknown>;
+  show_per_package_vat: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -486,6 +487,7 @@ export type Package = {
   description: string | null;
   default_markup_percent: number | null;
   is_active: boolean;
+  image_url: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

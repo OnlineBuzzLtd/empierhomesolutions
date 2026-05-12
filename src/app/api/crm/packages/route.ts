@@ -45,6 +45,7 @@ export async function POST(request: Request) {
         description: parsed.data.description ?? null,
         default_markup_percent: parsed.data.default_markup_percent ?? null,
         is_active: parsed.data.is_active,
+        image_url: parsed.data.image_url ?? null,
         created_by: resolveCreatedByUserId(user),
       })
       .select("*")

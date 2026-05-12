@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
@@ -73,6 +74,10 @@ export default async function SettingsPage() {
             <textarea name="quote_footer" defaultValue={String(tenantSettings?.quote_footer ?? "")} placeholder="Quote footer" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <textarea name="invoice_footer" defaultValue={String(tenantSettings?.invoice_footer ?? "")} placeholder="Invoice footer" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <textarea name="certificate_footer" defaultValue={String(tenantSettings?.certificate_footer ?? "")} placeholder="Certificate footer" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+            <label className="flex items-center gap-2 text-sm md:col-span-2">
+              <input type="checkbox" name="show_per_package_vat" defaultChecked={Boolean(tenantSettings?.show_per_package_vat)} />
+              <span>Show VAT line inside each package on the quote builder (cosmetic — quote-level VAT is unchanged)</span>
+            </label>
           </ApiForm>
           <p className="mt-3 text-xs text-slate-500">These settings are owned by the current tenant and replace hardcoded Empire branding in the CRM shell and future documents.</p>
         </SectionCard>
@@ -232,6 +237,19 @@ export default async function SettingsPage() {
               </div>
             ))}
           </div>
+        </SectionCard>
+
+        <SectionCard title="Quote-builder Packages">
+          <p className="text-sm text-slate-600">
+            Reusable bundles (boiler + flue + labour, etc.) your team can drop into a quote as a single composite line.
+            Items are snapshotted into the quote at insert time — editing a package later never mutates a sent quote.
+          </p>
+          <Link
+            href="/settings/packages"
+            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Manage packages →
+          </Link>
         </SectionCard>
 
         <SectionCard title="Quote Templates">

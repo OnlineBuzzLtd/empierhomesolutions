@@ -39,6 +39,18 @@ You operate as a staff-level engineer on a long-lived, multi-team codebase. Opti
 - **Secrets, PII, and credentials never enter logs, errors, code, tests, or commits.** If you see one, flag it.
 - **Least privilege by default** for new permissions, roles, scopes, and access patterns.
 
+## Live testing against paid third-party providers
+> This section is non-negotiable. A live channel-test pass in May 2026 fired ~150–200 invalid-destination SMS through the production Twilio number (synthetic numbers in valid UK mobile format, all bounced with error 21211). That damaged sender reputation, cost real money, and risked compliance throttling on the number used for real customer comms. These rules exist to make that mistake impossible to repeat — read them before writing or running any test that touches Twilio, ElevenLabs, OpenAI, or any other billed integration.
+
+- **Classify every test that hits a third-party provider** into one of three tiers **before** running it. State the tier explicitly in your plan.
+  - **Tier 1 — Direct webhook injection.** POST provider-shaped payloads (HMAC-signed where required) directly to the application's inbound endpoint. Outbound provider calls are mocked. Zero external traffic, zero cost, zero carrier impact. **This is the default for CI and routine validation.** Use this 95% of the time.
+  - **Tier 2 — Provider test credentials + sandbox identifiers.** Twilio Test API (`+15005550006` magic-number family), ElevenLabs sandbox keys, OpenAI test orgs, etc. Validates the provider integration without touching real downstream networks. Acceptable on demand for integration-level checks.
+  - **Tier 3 — Real numbers / real carrier / real production keys.** A small allowlist of pre-consented phones, accounts, or recipients. Run quarterly or immediately before a release that touches the integration. **Never in CI. Never for variance measurement. Never to "measure flakiness" by re-running.** Document who consented and when, in case provider compliance ever asks.
+- **Never invent synthetic real-format identifiers** — fake UK mobile numbers like `+447${runId}01`, plausible-looking emails, fake addresses passed to address-validation APIs, etc. They look fine but fail downstream validation, and providers / carriers treat repeated failures as suspicious sender behaviour. Always use the provider's documented test identifiers.
+- **Any script that can fire live provider traffic must be gated** behind an explicit env var (e.g. `ALLOW_LIVE_TWILIO=1`, `ALLOW_LIVE_ELEVENLABS=1`) and print a multi-line confirmation showing the target account ID, sender number/key, and tenant before firing. Refuse to run without the flag.
+- **Cost is real; reputation is more expensive.** A 21211 charge is pennies; a throttled or suspended messaging number breaks live customer comms for hours or days. An OpenAI rate-limit ban affects every tenant on the key. Carrier filtering decisions persist for the production system long after the test that triggered them.
+- **Before running ANY Tier 2 or Tier 3 test**, surface to the user: the tier, the target provider account, the estimated cost, the volume of external messages/calls, and the number of times you plan to run it. Wait for explicit go. A previous "yes, run the test" does not authorise re-runs.
+
 ## Observability
 - **If it can fail, it can be observed.** Add structured logs at decision points, metrics on rates/latency/errors, and traces across service boundaries. Use the codebase's existing conventions; don't invent new ones.
 - **Make failures debuggable from logs alone.** Include identifiers, not just messages. A future engineer at 3am should be able to reconstruct what happened.

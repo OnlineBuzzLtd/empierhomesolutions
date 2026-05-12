@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-05-12
+
+### Added
+
+- **Quote-builder package card** ([src/modules/crm/components/forms/PackageRollupCard.tsx](src/modules/crm/components/forms/PackageRollupCard.tsx)). Replaces the previous one-line amber banner for an inserted package with a boxed card carrying image, Show more/less description, Cost / Margin / Price / Qty / Subtotal grid, and optional per-package VAT line. Numbers sum from the package's component rows via the single source of truth `computeLineRollup` — no parallel margin math. Snapshot semantics preserved: financial fields live on the copied component rows, image is looked up live by `package_id` (visual only).
+- **Section grouping in the quote line-item editor** ([src/modules/crm/components/forms/LineItemsEditorV2.tsx](src/modules/crm/components/forms/LineItemsEditorV2.tsx)). `section_header` rows now produce bordered visual frames around their items; items before any header land in an implicit "Unnamed Section". Underlying `line_items` array order is unchanged, so `computeQuoteRollup` output is byte-identical.
+- **`crm.packages.default_markup_percent` now drives auto-pricing of components from cost** ([src/modules/crm/components/forms/PackageManagerForm.tsx](src/modules/crm/components/forms/PackageManagerForm.tsx)). Previously the markup % was captured but ignored. Now: set markup + cost → price auto-fills at `cost × (1 + markup/100)`. Manual price edits are sticky until cost is re-entered (one-shot reset). Applying a product also re-honours the markup.
+- **Per-package VAT toggle** in Workspace Profile settings ([src/app/api/crm/settings/tenant/route.ts](src/app/api/crm/settings/tenant/route.ts), [PackageRollupCard.tsx](src/modules/crm/components/forms/PackageRollupCard.tsx)). Off by default; opt-in via the new `tenant_settings.show_per_package_vat` flag. Quote-level VAT math is untouched — per-package VAT is a derived display of the same money.
+- **`/settings/packages` is now linked from the Settings index** ([src/app/(crm)/settings/page.tsx](src/app/(crm)/settings/page.tsx)). The Quote-builder Packages page has existed since April; you previously had to know the URL to reach it.
+- **Platform-bridge calendar routes accept CRM `providerReference`** ([src/app/api/platform/calendar/events/[bookingId]/route.ts](src/app/api/platform/calendar/events/[bookingId]/route.ts), [confirm/route.ts](src/app/api/platform/calendar/events/[bookingId]/confirm/route.ts)). Older callers used `bookingId` (`appointments.external_id`); current CalendarAdapter callers pass `providerReference` (`appointments.id`). Routes now accept both, falling back to `id` lookup only when the path segment is UUID-shaped and the `external_id` lookup found nothing. Structured `matchedBy` log lines added for debuggability.
+- `docs/quote-package-card-prd.md` — ticketed PRD covering PKG-001 to PKG-006, including the invariants any future change must preserve.
+- `supabase/migrations/202605120001_crm_packages_image_url.sql` — adds `packages.image_url text null` (additive, RLS inherited).
+- `supabase/migrations/202605120002_crm_tenant_settings_per_package_vat.sql` — adds `tenant_settings.show_per_package_vat boolean default false`.
+
+### Fixed
+
+- **`crm.next_sequence` overload ambiguity broke Create Quote** ([supabase/migrations/202605120003_drop_legacy_next_sequence.sql](supabase/migrations/202605120003_drop_legacy_next_sequence.sql)). The multitenancy migration in March added `crm.next_sequence(text, uuid default current_user_tenant_id())` but never dropped the older `crm.next_sequence(text)`. PostgREST refused to pick between them when called with a single argument, surfacing as a generic "Failed to create quote." Dropped the legacy single-arg form; the two-arg version's default makes the call-site signature identical, so the application caller (`nextCrmSequence` in `src/modules/crm/lib/api.ts`) is unchanged.
+- **POST `/api/crm/quotes` was swallowing real Postgres errors** ([src/app/api/crm/quotes/route.ts](src/app/api/crm/quotes/route.ts)). The catch block's `error instanceof Error` check returned false for Supabase `PostgrestError` (a plain object with `.message`), collapsing every failure into a useless generic string. Now pulls `.message` from any throwable shape and `console.error`s the full throwable for Vercel runtime logs.
+- **Empty-string `valid_until` rejected by Postgres** ([src/modules/crm/lib/validation.ts](src/modules/crm/lib/validation.ts)). The Create Quote form posts `valid_until=""` when the date field is left blank; Zod accepted the empty string but Postgres rejected it on insert into the `date` column. Coerced to `null` at the validator using the same `emptyStringToNull` preprocessor already used elsewhere in the file.
+
+### Verified
+
+- Production deploy of all package work to `empire-home-solutions.vercel.app`. Migrations applied to the linked Supabase project.
+- `npm run typecheck` clean; unit tests 57/57 green; `next build` no errors.
+- Create Quote end-to-end working: template-seeded quote drafts now insert successfully with both blank and populated `valid_until` dates.
+
 ## 2026-05-09
 
 ### Fixed

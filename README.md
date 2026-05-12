@@ -114,6 +114,7 @@ CRM:
 - `http://localhost:3000/staff`
 - `http://localhost:3000/reports`
 - `http://localhost:3000/settings`
+- `http://localhost:3000/settings/packages` (quote-builder packages — name, image, default markup %, items)
 - `http://localhost:3000/diary` (engineer — daily schedule)
 - `http://localhost:3000/preferences` (engineer — UI mode toggle)
 
@@ -160,6 +161,12 @@ CRM:
 - `no_access` and `aborted` job statuses added to the workflow
 - compliance tables (`job_checklists`, `job_hazards`, `job_certificates`, `purchase_orders`, `supplier_reconciliation`) now carry `is_demo` / `demo_scenario_key` columns so demo-mode filtering works correctly for all compliance data
 - tenant-scoped job report question templates in Settings; active questions are auto-added to new jobs as mandatory checklists, and existing live jobs without mandatory checklists are backfilled from the tenant defaults
+- tenant-scoped reusable quote-builder packages (boiler + flue + labour-style bundles) with snapshot semantics — items are copied into the quote at insert time so editing a package later never mutates a sent quote; manage from `/settings/packages` (linked from Settings)
+- quote-builder package card with optional image, Show more description, and a per-package Cost / Margin / Price / Subtotal grid; opt-in per-tenant per-package VAT line via `tenant_settings.show_per_package_vat`
+- `default_markup_percent` on a package auto-prices each component from its cost; manual price edits are sticky until cost is re-entered
+- line items group visually under their `section_header` row in the quote builder; items before any header land in an implicit "Unnamed Section"
+- per-line and per-quote Cost / Profit / Margin / Mark-up driven by the single source of truth `computeQuoteRollup` and persisted on `crm.quotes`
+- platform-bridge calendar event routes accept the CRM's own appointment id (`providerReference`) as well as the platform's `bookingId` — the CRM calendar is now the canonical scheduler for the multi-tenant booking platform
 
 ## Supabase Notes
 
@@ -219,3 +226,4 @@ For Empire tenant 1 specifically:
 - `docs/deployment-pipeline.md`
 - `docs/lp-ops.md`
 - `docs/lp-qa-checklist.md`
+- `docs/quote-package-card-prd.md`

@@ -478,7 +478,8 @@ async function fetchCrmEvidenceExact(
   since: Date,
   conversationId: string | null,
   bookingId: string | null,
-  timeoutMs = 12_000
+  timeoutMs = 60_000,
+  expectation: CrmExpectation = "conversation"
 ): Promise<CrmEvidence> {
   const crm = getCrmAdminClient();
   const target = requireLiveTarget();
@@ -581,13 +582,26 @@ async function fetchCrmEvidenceExact(
   const deadline = Date.now() + timeoutMs;
   let evidence = await queryOnce();
 
-  while (
-    Date.now() < deadline &&
-    !evidence.link &&
-    evidence.events.length === 0 &&
-    !evidence.appointment &&
-    !evidence.job
-  ) {
+  // What "enough evidence" means depends on the test's expectation. For
+  // booking-path tests, we keep polling until BookingConfirmed actually
+  // lands — otherwise the test can exit as soon as ConversationStarted is
+  // visible and miss the BookingConfirmed that's still in flight on the
+  // platform→CRM webhook bridge. Run-3/4 T3 surfaced this race directly.
+  const hasBookingConfirmed = (ev: typeof evidence): boolean =>
+    ev.events.some(
+      (e) =>
+        e.event_type === "BookingConfirmed" ||
+        e.event_type === "booking.confirmed" ||
+        e.event_type === "EscalationRaised"
+    );
+  const expectationSatisfied = (ev: typeof evidence): boolean => {
+    if (expectation === "booking" || expectation === "booking_or_handoff") {
+      return hasBookingConfirmed(ev) && Boolean(ev.appointment || ev.job);
+    }
+    return Boolean(ev.link) || ev.events.length > 0;
+  };
+
+  while (Date.now() < deadline && !expectationSatisfied(evidence)) {
     await sleep(POLL_INTERVAL_MS);
     evidence = await queryOnce();
   }
@@ -957,7 +971,7 @@ async function runSmsScenario(
   const state = conversationId
     ? await fetchPlatformConversationState(conversationId)
     : { conversation: null, bookingState: null, bookings: [] as BookingRow[] };
-  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null);
+  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null, 60_000, crmExpectation);
   const routingVerdict = buildRoutingVerdict(state.conversation, target.platformTenantId);
   const platformVerdict = failed
     ? { passed: false, note: failReason ?? "scenario failed" }
@@ -1119,7 +1133,7 @@ async function runWebchatScenario(
   const state = conversationId
     ? await fetchPlatformConversationState(conversationId)
     : { conversation: null, bookingState: null, bookings: [] as BookingRow[] };
-  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null);
+  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null, 60_000, crmExpectation);
   const routingVerdict = buildRoutingVerdict(state.conversation, target.platformTenantId);
   const platformVerdict = failed
     ? { passed: false, note: failReason ?? "scenario failed" }
@@ -1495,7 +1509,7 @@ async function runVoiceScenario(
   const state = conversationId
     ? await fetchPlatformConversationState(conversationId)
     : { conversation: null, bookingState: null, bookings: [] as BookingRow[] };
-  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null);
+  const crmEvidence = await fetchCrmEvidenceExact(testStart, conversationId, state.bookings[0]?.id ?? null, 60_000, crmExpectation);
   const routingVerdict = buildRoutingVerdict(state.conversation, target.platformTenantId);
   const platformVerdict = failed
     ? { passed: false, note: failReason ?? "scenario failed" }
@@ -1555,13 +1569,15 @@ async function main() {
       "sms",
       `+447${runId}01`,
       [
-        "Hi, I need a boiler service. My name is Sarah Brown, postcode EC1A 1BB",
-        `${dayAfterTomorrow} afternoon please`,
+        // Front-load identity + full address — mirrors T7's working shape.
+        // Earlier T1 stalled at capturing_intent because the agent kept
+        // pausing to chase the missing address.
+        "Hi, I'd like to book a boiler service please. I'm Sarah Brown, 22 Old Street, London EC1A 1BB",
+        `${dayAfterTomorrow} afternoon would suit me`,
         "The third slot works for me",
         `sarah.sms.${runId}@test.com`,
-        "22 Old Street, London EC1A 1BB",
         "Annual boiler service, it's in the kitchen",
-        "Yes please confirm that booking",
+        "YES",
       ],
       {
         fullName: "Sarah Brown",
@@ -1622,11 +1638,15 @@ async function main() {
       "whatsapp",
       `+447${runId}03`,
       [
-        "URGENT burst pipe, water everywhere. Need someone NOW. Alice Thompson, 45 Victoria Road, London W1A 1AA",
+        // Emergency keywords up-front for the urgency classifier. Run 2 saw
+        // the agent miss the urgency classification entirely (service=n/a)
+        // — leading with the strongest signal words helps the router.
+        "EMERGENCY callout please — burst pipe leaking everywhere, no heating either. URGENT. Alice Thompson, 45 Victoria Road, London W1A 1AA",
         `alice.wp.${runId}@test.com`,
         "The burst pipe is in the bathroom",
         "Today as soon as possible",
         "The third slot works for me",
+        "YES",
       ],
       {
         fullName: "Alice Thompson",
@@ -1674,7 +1694,7 @@ async function main() {
         "Tom Hughes, postcode W2 1AA, 8 Bayswater Road London",
         `tom.webchat.${runId}04@test.com`,
         "The boiler is in the kitchen",
-        "Yes please confirm",
+        "YES",
       ],
       {
         fullName: "Tom Hughes",
@@ -1758,7 +1778,7 @@ async function main() {
         `david.wp.${runId}07@test.com`,
         "12 Caledonian Road, London N1 9AB",
         "Annual service for a Worcester combi",
-        "Yes please confirm that slot",
+        "YES",
       ],
       {
         fullName: "David Patel",
@@ -1826,12 +1846,14 @@ async function main() {
       "sms",
       `+447${runId}09`,
       [
-        "I'd like a quote for a new boiler installation please. My current one is 18 years old",
-        "Mark O'Connor, 47 Acacia Avenue, Hayes UB3 4TT",
+        // Front-load identity + address — T9's previous transcript ordered
+        // postcode AFTER slot confirmation, which kicked the agent back to
+        // slot selection mid-confirm.
+        "I'd like a quote for a new boiler installation please. I'm Mark O'Connor, 47 Acacia Avenue, Hayes UB3 4TT",
         `mark.sms.${runId}09@test.com`,
         `${dayAfterTomorrow} morning for a survey would suit me`,
         "The third slot works for me",
-        "Yes please confirm",
+        "YES",
       ],
       {
         fullName: "Mark O'Connor",

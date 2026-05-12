@@ -53,6 +53,16 @@ export async function POST(request: Request) {
 
     return jsonSuccess({ quote: data });
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "Failed to create quote.", 500);
+    // Supabase throws PostgrestError, a plain object with .message — not an
+    // Error instance. The previous catch collapsed those into a useless
+    // generic string. Surface the real cause to client + Vercel logs.
+    console.error("[crm.quotes.POST] failed", error);
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "Failed to create quote.";
+    return jsonError(message, 500);
   }
 }

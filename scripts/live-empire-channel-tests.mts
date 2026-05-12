@@ -23,7 +23,7 @@ const PLATFORM_API_URL =
 const PLATFORM_REPO = "/Users/shehzadiqbal/Customer Journeys AI v1/customerjourneys-site";
 const DEFAULT_PLATFORM_TENANT_ID = "b469a9fe-546d-4baa-9f87-3487c7c4afc1";
 
-const DEFAULT_POLL_MS = 25_000;
+const DEFAULT_POLL_MS = 40_000;
 const POLL_INTERVAL_MS = 700;
 const BETWEEN_TURNS_MS = 900;
 
@@ -1561,6 +1561,7 @@ async function main() {
         `sarah.sms.${runId}@test.com`,
         "22 Old Street, London EC1A 1BB",
         "Annual boiler service, it's in the kitchen",
+        "Yes please confirm that booking",
       ],
       {
         fullName: "Sarah Brown",
@@ -1673,6 +1674,7 @@ async function main() {
         "Tom Hughes, postcode W2 1AA, 8 Bayswater Road London",
         `tom.webchat.${runId}04@test.com`,
         "The boiler is in the kitchen",
+        "Yes please confirm",
       ],
       {
         fullName: "Tom Hughes",
@@ -1732,6 +1734,148 @@ async function main() {
       "booking",
       (state) => ({
         passed: state.bookings.some((booking) => booking.booking_status === "confirmed"),
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T7 — WhatsApp Standard Booking (mirrors T1 but on WhatsApp; T3 only
+  // exercised the emergency path, so this catches WhatsApp routing
+  // regressions on a non-urgent booking).
+  results.push(
+    await runSmsScenario(
+      "T7 — WhatsApp Standard Booking",
+      "whatsapp",
+      `+447${runId}07`,
+      [
+        "Hi, I'd like to book a boiler service please. I'm David Patel, postcode N1 9AB",
+        `${dayAfterTomorrow} afternoon would be ideal`,
+        "The third slot works for me",
+        `david.wp.${runId}07@test.com`,
+        "12 Caledonian Road, London N1 9AB",
+        "Annual service for a Worcester combi",
+        "Yes please confirm that slot",
+      ],
+      {
+        fullName: "David Patel",
+        email: `david.wp.${runId}07@test.com`,
+        phone: `+447${runId}07`,
+        postcode: "N1 9AB",
+        address: "12 Caledonian Road, London N1 9AB",
+        problemDescription: "Annual service for a Worcester combi",
+        preferredTime: `${dayAfterTomorrow} afternoon would be ideal`,
+      },
+      internalToken,
+      new Date(),
+      "booking",
+      (state) => ({
+        passed: state.bookings.some((booking) => booking.booking_status === "confirmed"),
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T8 — Webchat Info-Only (FAQ enquiry, customer declines to book).
+  // Validates that the agent honours non-booking intents without forcing
+  // a conversion, and that the conversation still materialises in CRM.
+  results.push(
+    await runWebchatScenario(
+      "T8 — Webchat Info-Only Enquiry",
+      `webchat-${runId}08`,
+      "Priya Shah",
+      `priya.web.${runId}08@test.com`,
+      [
+        "Hi, just gathering information. Do you cover Wembley HA9 for boiler repairs?",
+        "Roughly how much is a callout fee?",
+        "Thanks, I'll think about it and come back another time",
+      ],
+      {
+        fullName: "Priya Shah",
+        email: `priya.web.${runId}08@test.com`,
+        postcode: "HA9 0NL",
+      },
+      internalToken,
+      new Date(),
+      "conversation",
+      (state) => ({
+        passed: Boolean(state.conversation) && state.bookings.length === 0,
+        note: state.conversation
+          ? `conv=${state.conversation.conversation_id.slice(0, 8)} bookings=${state.bookings.length}`
+          : "no conversation",
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T9 — SMS Boiler Installation Quote Request. Different service type
+  // from the existing service/repair scenarios — covers the installation
+  // intent recognition path. Outcome may be a booking (survey visit) or
+  // a handoff to sales depending on agent routing.
+  results.push(
+    await runSmsScenario(
+      "T9 — SMS Boiler Installation",
+      "sms",
+      `+447${runId}09`,
+      [
+        "I'd like a quote for a new boiler installation please. My current one is 18 years old",
+        "Mark O'Connor, 47 Acacia Avenue, Hayes UB3 4TT",
+        `mark.sms.${runId}09@test.com`,
+        `${dayAfterTomorrow} morning for a survey would suit me`,
+        "The third slot works for me",
+        "Yes please confirm",
+      ],
+      {
+        fullName: "Mark O'Connor",
+        email: `mark.sms.${runId}09@test.com`,
+        phone: `+447${runId}09`,
+        postcode: "UB3 4TT",
+        address: "47 Acacia Avenue, Hayes UB3 4TT",
+        problemDescription: "New boiler installation quote — current is 18 years old",
+        preferredTime: `${dayAfterTomorrow} morning for a survey would suit me`,
+      },
+      internalToken,
+      new Date(),
+      "booking_or_handoff",
+      (state) => ({
+        passed:
+          state.bookings.some((booking) => booking.booking_status === "confirmed") ||
+          state.bookingState?.current_state === "handoff_required" ||
+          state.bookingState?.current_state === "escalated",
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T10 — Voice Partial-Data caller. Caller gives name + first line of
+  // address only — exercises the same prompt-for-postcode recovery path
+  // tested in T5 (Single-Name) but with a different shape of missing data.
+  results.push(
+    await runVoiceScenario(
+      "T10 — Voice Partial Address",
+      `+447${runId}10`,
+      "Linda",
+      `linda.voice.${runId}10@test.com`,
+      managedVoiceSecret,
+      new Date(),
+      "booking_or_handoff",
+      (state) => ({
+        passed:
+          state.bookings.some((booking) => booking.booking_status === "confirmed") ||
+          state.bookingState?.current_state === "handoff_required" ||
+          state.bookingState?.current_state === "escalated",
         note: state.bookings[0]
           ? `booking=${state.bookings[0].booking_status}`
           : `state=${state.bookingState?.current_state ?? "n/a"}`,

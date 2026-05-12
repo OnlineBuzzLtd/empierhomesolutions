@@ -39,6 +39,17 @@ function makeRequest(
   });
 }
 
+function makeAppointmentSelectQuery(
+  maybeSingle: ReturnType<typeof vi.fn>,
+): { eq: ReturnType<typeof vi.fn>; maybeSingle: ReturnType<typeof vi.fn> } {
+  const query = {
+    eq: vi.fn(),
+    maybeSingle,
+  };
+  query.eq.mockReturnValue(query);
+  return query;
+}
+
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -420,6 +431,37 @@ describe("POST /api/platform/calendar/events/[bookingId]/confirm", () => {
     expect((await response.json()).ok).toBe(true);
   });
 
+  it("returns 200 when the path is the CRM providerReference appointment id", async () => {
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({ platformSharedSecret: SECRET }),
+    }));
+    const providerReference = "11111111-1111-4111-8111-111111111111";
+    const maybeSingle = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: { id: providerReference, external_id: "booking-abc", status: "scheduled" },
+        error: null,
+      });
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: () => ({
+        schema: () => ({
+          from: () => ({
+            select: () => makeAppointmentSelectQuery(maybeSingle),
+          }),
+        }),
+      }),
+    }));
+    const route = await import("@/app/api/platform/calendar/events/[bookingId]/confirm/route");
+    const response = await route.POST(
+      makeRequest(`http://localhost/api/platform/calendar/events/${providerReference}/confirm`, "POST", {}),
+      { params: Promise.resolve({ bookingId: providerReference }) },
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).ok).toBe(true);
+    expect(maybeSingle).toHaveBeenCalledTimes(2);
+  });
+
   it("returns 404 when no platform-sourced appointment exists for that bookingId", async () => {
     vi.doMock("@/modules/crm/lib/env", () => ({
       getCrmEnv: vi.fn().mockReturnValue({ platformSharedSecret: SECRET }),
@@ -479,11 +521,15 @@ describe("DELETE + GET /api/platform/calendar/events/[bookingId]", () => {
     vi.doMock("@/modules/crm/lib/env", () => ({
       getCrmEnv: vi.fn().mockReturnValue({ platformSharedSecret: SECRET }),
     }));
+    const maybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "appt-1", external_id: "booking-abc", status: "scheduled" }, error: null });
     const updateChain = vi.fn().mockResolvedValue({ error: null });
     vi.doMock("@/modules/crm/lib/supabase-server", () => ({
       createCrmServiceRoleClient: () => ({
         schema: () => ({
           from: () => ({
+            select: () => makeAppointmentSelectQuery(maybeSingle),
             update: () => ({ eq: () => ({ eq: updateChain }) }),
           }),
         }),
@@ -496,6 +542,40 @@ describe("DELETE + GET /api/platform/calendar/events/[bookingId]", () => {
     );
     expect(response.status).toBe(200);
     expect((await response.json()).ok).toBe(true);
+  });
+
+  it("DELETE: accepts the CRM providerReference appointment id", async () => {
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({ platformSharedSecret: SECRET }),
+    }));
+    const providerReference = "22222222-2222-4222-8222-222222222222";
+    const maybeSingle = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: { id: providerReference, external_id: "booking-abc", status: "scheduled" },
+        error: null,
+      });
+    const updateChain = vi.fn().mockResolvedValue({ error: null });
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: () => ({
+        schema: () => ({
+          from: () => ({
+            select: () => makeAppointmentSelectQuery(maybeSingle),
+            update: () => ({ eq: () => ({ eq: updateChain }) }),
+          }),
+        }),
+      }),
+    }));
+    const route = await import("@/app/api/platform/calendar/events/[bookingId]/route");
+    const response = await route.DELETE(
+      makeRequest(`http://localhost/api/platform/calendar/events/${providerReference}`, "DELETE"),
+      { params: Promise.resolve({ bookingId: providerReference }) },
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).ok).toBe(true);
+    expect(maybeSingle).toHaveBeenCalledTimes(2);
+    expect(updateChain).toHaveBeenCalledTimes(1);
   });
 
   it("GET: maps scheduled → 'confirmed'", async () => {
@@ -523,6 +603,38 @@ describe("DELETE + GET /api/platform/calendar/events/[bookingId]", () => {
     const body = await response.json();
     expect(body.exists).toBe(true);
     expect(body.status).toBe("confirmed");
+  });
+
+  it("GET: accepts the CRM providerReference appointment id", async () => {
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({ platformSharedSecret: SECRET }),
+    }));
+    const providerReference = "33333333-3333-4333-8333-333333333333";
+    const maybeSingle = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: { id: providerReference, external_id: "booking-abc", status: "scheduled" },
+        error: null,
+      });
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: () => ({
+        schema: () => ({
+          from: () => ({
+            select: () => makeAppointmentSelectQuery(maybeSingle),
+          }),
+        }),
+      }),
+    }));
+    const route = await import("@/app/api/platform/calendar/events/[bookingId]/route");
+    const response = await route.GET(
+      makeRequest(`http://localhost/api/platform/calendar/events/${providerReference}`, "GET"),
+      { params: Promise.resolve({ bookingId: providerReference }) },
+    );
+    const body = await response.json();
+    expect(body.exists).toBe(true);
+    expect(body.status).toBe("confirmed");
+    expect(maybeSingle).toHaveBeenCalledTimes(2);
   });
 
   it("GET: returns exists=false when no row matches", async () => {

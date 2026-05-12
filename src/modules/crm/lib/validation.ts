@@ -230,7 +230,7 @@ export const quoteSchema = z.object({
   vat_rate: z.coerce.number().min(0).max(1),
   vat_category: z.string().default("standard_20"),
   status: z.enum(quoteStatuses).default("draft"),
-  valid_until: z.string().optional().nullable(),
+  valid_until: z.preprocess(emptyStringToNull, z.string().nullable()).optional(),
 });
 
 export const quoteAcceptanceSchema = z.object({

@@ -1360,11 +1360,12 @@ async function runVoiceScenario(
 
     const initialSlot = await findAvailableVoiceSlot();
     if (initialSlot) {
-      slotStart = initialSlot.startTime;
+      const slotStartValue = initialSlot.startTime;
+      slotStart = slotStartValue;
       slotEnd = initialSlot.endTime;
       chosenResourceId = initialSlot.resourceId;
-      attemptedSlots.add(slotStart);
-      console.log(`  [SIM]   found available slot: ${slotStart.slice(0, 16)} resourceId=${chosenResourceId ?? "n/a"}`);
+      attemptedSlots.add(slotStartValue);
+      console.log(`  [SIM]   found available slot: ${slotStartValue.slice(0, 16)} resourceId=${chosenResourceId ?? "n/a"}`);
     }
 
     if (!slotStart || !slotEnd) {
@@ -1440,11 +1441,12 @@ async function runVoiceScenario(
         break;
       }
 
-      slotStart = retrySlot.startTime;
+      const retrySlotStart = retrySlot.startTime;
+      slotStart = retrySlotStart;
       slotEnd = retrySlot.endTime;
       chosenResourceId = retrySlot.resourceId;
-      attemptedSlots.add(slotStart);
-      console.log(`  [SIM]   retrying with slot: ${slotStart.slice(0, 16)} resourceId=${chosenResourceId ?? "n/a"}`);
+      attemptedSlots.add(retrySlotStart);
+      console.log(`  [SIM]   retrying with slot: ${retrySlotStart.slice(0, 16)} resourceId=${chosenResourceId ?? "n/a"}`);
 
       await toolCall(
         "capture_slot_patch",

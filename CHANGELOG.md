@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-13
+
+### Fixed
+
+- **Agentic front desk reliability** ([scripts/live-empire-channel-tests.mts](scripts/live-empire-channel-tests.mts)). Voice validation now uses the CustomerJourneys managed `search_availability` tool for a broad 60-day window instead of brute-forcing individual slot checks. After `create_booking_hold`, the harness adopts the returned booking's canonical `startTime`, `endTime`, and `resourceId` before confirmation.
+- **Tier 1 validation stability** ([docs/agent-reliability-prd.md](docs/agent-reliability-prd.md)). Documented the CustomerJourneys reliability patchset, mock revision `customerjourneys-platform-api-00728-zih`, production revision `customerjourneys-platform-api-00729-zon`, and three consecutive 10/10 Empire live-channel runs.
+
+### Verified
+
+- `PLATFORM_API_URL="https://mock---customerjourneys-platform-api-cnz7crlx2a-nw.a.run.app" npx tsx scripts/live-empire-channel-tests.mts` — 3 consecutive **10/10** runs.
+- Production CustomerJourneys platform traffic is now on `customerjourneys-platform-api-00729-zon`; the mock tag remains on `customerjourneys-platform-api-00728-zih`.
+
 ## 2026-05-12
 
 ### Added

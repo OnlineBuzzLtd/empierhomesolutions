@@ -21,6 +21,30 @@ What's already shipped (DO NOT redo):
 - **AGT-005** Tier 3 Twilio guard in `scripts/live-empire-channel-tests.mts` (Empire commit `ef9e7dc`) — refuses to run without `ALLOW_LIVE_TWILIO=1`, auto-allows URLs containing `mock---`. May 12 incident impossible to recur.
 - **AGT-006** Deterministic scheduling pre-pass (CustomerJourneys commit `06e48bad`) — 17 tests passing. Writes `pendingDateIso`, `preferredDateText`, `preferredTimeWindow`, `preferredExplicitTime`, `preferredSlotOrdinal` to `bookingState.collectedData.textRuntime`. Gated by `SCHEDULING_EXTRACTOR=off`. Live but **not effective** — see Confirmed bottleneck below.
 - **AGT-006b** Auto check_availability when scheduling hint complete (CustomerJourneys, same commit chain as 006b deploy) — synthesizes concrete UTC start/end from `pendingDateIso + preferredTimeWindow + service duration`, calls `checkAvailability()` directly. Gated by `SCHEDULING_AUTO_AVAIL=off`. Live but rarely fires (gating too tight; service must be classified before date message lands).
+- **2026-05-13 reliability patchset** (CustomerJourneys mock revision `customerjourneys-platform-api-00728-zih`, 0% production traffic) — AGT-007 payload context, deterministic availability fallback, ASAP emergency fallback, UK phone extraction, stale identity confirmation recovery, boiler-family service guard, managed-voice broad `search_availability`, held-slot canonicalisation, and Empire harness canonical-slot adoption.
+
+## Latest validation (2026-05-13)
+
+Mock URL: `https://mock---customerjourneys-platform-api-cnz7crlx2a-nw.a.run.app`
+Revision: `customerjourneys-platform-api-00728-zih`
+Production promotion: same image deployed as `customerjourneys-platform-api-00729-zon` with live messaging enabled; production traffic is now 100% on `00729-zon`.
+
+Validation command:
+
+```bash
+PLATFORM_API_URL="https://mock---customerjourneys-platform-api-cnz7crlx2a-nw.a.run.app" \
+  npx tsx scripts/live-empire-channel-tests.mts
+```
+
+Result: **3 consecutive mock runs at 10/10**.
+
+| Run | Result | Notes |
+|---|---:|---|
+| 1 | 10/10 | T1/T3/T5/T6/T10 confirmed with CRM `BookingConfirmed`; voice used broad search instead of brute-force slot scanning. |
+| 2 | 10/10 | Repeated full pass as mock calendar filled; bookings moved later but still confirmed. |
+| 3 | 10/10 | Repeated full pass; all routing/platform/CRM verdicts passed. |
+
+Remaining caution: the mock calendar now contains many confirmed validation bookings. The broad 60-day search keeps the suite green, but a mock-only cleanup/reset remains useful before long-term CI-style repeated runs.
 
 ## Confirmed reliability ceiling (2026-05-13 measurements)
 

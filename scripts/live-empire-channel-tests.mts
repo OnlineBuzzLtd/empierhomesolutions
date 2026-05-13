@@ -1324,30 +1324,36 @@ async function runVoiceScenario(
     let chosenResourceId: string | undefined;
     const attemptedSlots = new Set<string>();
     const findAvailableVoiceSlot = async () => {
-      for (let daysOut = 5; daysOut <= 16; daysOut += 1) {
-        for (const hour of [9, 11, 13, 15]) {
-          const candidate = new Date();
-          candidate.setDate(candidate.getDate() + daysOut);
-          candidate.setHours(hour, 0, 0, 0);
-          const startTime = candidate.toISOString();
-          if (attemptedSlots.has(startTime)) {
-            continue;
-          }
-          const endTime = new Date(candidate.getTime() + 90 * 60_000).toISOString();
-          const availability = await toolCall(
-            "check_availability",
-            { serviceKey: "boiler-service", startTime, endTime },
-            null,
-            null
-          );
-          if (availability.available === true) {
-            return {
-              startTime,
-              endTime,
-              resourceId: (availability.resourceId ?? availability.checkedResourceId) as string | undefined,
-            };
-          }
+      const windowStart = new Date();
+      windowStart.setDate(windowStart.getDate() + 5);
+      windowStart.setHours(8, 0, 0, 0);
+      const windowEnd = new Date();
+      windowEnd.setDate(windowEnd.getDate() + 60);
+      windowEnd.setHours(18, 0, 0, 0);
+      const availability = await toolCall(
+        "search_availability",
+        {
+          serviceKey: "boiler-service",
+          windowStart: windowStart.toISOString(),
+          windowEnd: windowEnd.toISOString(),
+          durationMinutes: 90,
+          limit: 10,
+        },
+        null,
+        null
+      );
+      const slots = Array.isArray(availability.slots) ? availability.slots : [];
+      for (const slot of slots) {
+        const startTime = typeof slot?.startTime === "string" ? slot.startTime : null;
+        const endTime = typeof slot?.endTime === "string" ? slot.endTime : null;
+        if (!startTime || !endTime || attemptedSlots.has(startTime)) {
+          continue;
         }
+        return {
+          startTime,
+          endTime,
+          resourceId: (availability.resourceId ?? availability.checkedResourceId) as string | undefined,
+        };
       }
       return null;
     };
@@ -1424,6 +1430,8 @@ async function runVoiceScenario(
     const booking = holdResult.booking as Record<string, unknown> | undefined;
     bookingId = (booking?.id ?? holdResult.bookingId) as string | undefined;
     resourceId = (booking?.resourceId ?? holdResult.resourceId ?? chosenResourceId) as string | undefined;
+    slotStart = (booking?.startTime as string | undefined) ?? slotStart;
+    slotEnd = (booking?.endTime as string | undefined) ?? slotEnd;
     console.log(`  [SIM]   hold bookingId=${bookingId ?? "n/a"}, resourceId=${resourceId ?? "n/a"}`);
 
     for (let retryIndex = 0; !bookingId && holdResult.errorCode === "slot_unavailable" && retryIndex < 4; retryIndex += 1) {
@@ -1463,6 +1471,8 @@ async function runVoiceScenario(
       const retryBooking = holdResult.booking as Record<string, unknown> | undefined;
       bookingId = (retryBooking?.id ?? holdResult.bookingId) as string | undefined;
       resourceId = (retryBooking?.resourceId ?? holdResult.resourceId ?? chosenResourceId) as string | undefined;
+      slotStart = (retryBooking?.startTime as string | undefined) ?? slotStart;
+      slotEnd = (retryBooking?.endTime as string | undefined) ?? slotEnd;
       console.log(`  [SIM]   retry hold bookingId=${bookingId ?? "n/a"}, resourceId=${resourceId ?? "n/a"}`);
     }
 

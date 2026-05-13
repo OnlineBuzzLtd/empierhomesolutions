@@ -73,9 +73,10 @@ function makeBaseLink(overrides: Partial<Record<string, unknown>> = {}) {
  * Builds a lightweight Supabase mock whose per-table chains are individually
  * observable via the returned spy references.
  */
-function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string } = {}) {
+function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; customerId?: string } = {}) {
   const aptId = opts.appointmentId ?? "appt-test-1";
   const jId = opts.jobId ?? "job-test-1";
+  const cId = opts.customerId ?? "cust-test-1";
 
   // notes – direct insert resolve
   const notesInsert = vi.fn().mockResolvedValue({ error: null });
@@ -88,6 +89,30 @@ function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string } = {}
   const leadSingle = vi.fn().mockResolvedValue({ data: { id: "lead-test-1" }, error: null });
   const leadInsertSelect = vi.fn().mockReturnValue({ single: leadSingle });
   const leadsInsert = vi.fn().mockReturnValue({ select: leadInsertSelect });
+
+  // customers – lookup select.eq.eq.returns and insert.select.single
+  const customersReturns = vi.fn().mockResolvedValue({ data: [], error: null });
+  const customersEq2 = vi.fn().mockReturnValue({ returns: customersReturns });
+  const customersEq1 = vi.fn().mockReturnValue({ eq: customersEq2 });
+  const customersSelect = vi.fn().mockReturnValue({ eq: customersEq1 });
+  const customerSingle = vi.fn().mockResolvedValue({
+    data: {
+      id: cId,
+      tenant_id: TENANT_ID,
+      full_name: "Shaz Ahmed",
+      first_name: "Shaz",
+      last_name: "Ahmed",
+      phone: "+447779305853",
+      email: "shaz@onlinebuzz.co.uk",
+      address_line1: "4 Toby Way",
+      city: "Romford",
+      postcode: "RM7ATQ",
+      archived: false,
+    },
+    error: null,
+  });
+  const customersInsertSelect = vi.fn().mockReturnValue({ single: customerSingle });
+  const customersInsert = vi.fn().mockReturnValue({ select: customersInsertSelect });
 
   // appointments – insert.select.single and update.eq.eq
   const apptSingle = vi.fn().mockResolvedValue({ data: { id: aptId }, error: null });
@@ -108,6 +133,8 @@ function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string } = {}
         return { insert: notesInsert };
       case "leads":
         return { update: leadsUpdate, insert: leadsInsert };
+      case "customers":
+        return { select: customersSelect, insert: customersInsert };
       case "appointments":
         return { insert: apptInsert, update: apptUpdate };
       case "jobs":
@@ -126,7 +153,7 @@ function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string } = {}
   const schema = vi.fn().mockReturnValue({ from });
   const supabase = { schema };
 
-  return { supabase, from, apptInsert, apptUpdate, jobInsert, leadsUpdate, notesInsert };
+  return { supabase, from, apptInsert, apptUpdate, jobInsert, leadsUpdate, notesInsert, customersInsert };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -406,6 +433,98 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
     expect(linkUpdates.some(([, , input]) => input.callbackAppointmentId === "callback-appt-1")).toBe(true);
 
     // crucially – no job should be auto-created for a missed-call recovery task
+    expect(jobInsert).not.toHaveBeenCalled();
+  });
+
+  it("Voice escalation: creates a customer-linked follow-up appointment from callback payload", async () => {
+    const baseLink = makeBaseLink({
+      latest_channel: "voice",
+      customer_id: null,
+      lead_id: "lead-1",
+      callback_appointment_id: null,
+      identity_phone: "+447779305853",
+    });
+
+    const getPlatformConversationLink = vi.fn().mockResolvedValue(baseLink);
+    const upsertPlatformConversationLink = vi.fn().mockResolvedValue(baseLink);
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink,
+      upsertPlatformConversationLink,
+    }));
+
+    const { supabase, apptInsert, apptUpdate, customersInsert, leadsUpdate, jobInsert } = buildSupabaseMock({
+      appointmentId: "callback-appt-1",
+      customerId: "callback-customer-1",
+    });
+    const { executePlatformCommand } = await import("@/modules/platform/lib/command-executor");
+
+    await executePlatformCommand(
+      supabase as never,
+      alias,
+      makeCommand("CreateEscalationTask", {
+        channel: "voice",
+        conversation_id: CONVERSATION_ID,
+        customer_full_name: "Shaz Ahmed",
+        customer_phone: "+447779305853",
+        identity_phone: "+447779305853",
+        customer_email: "shaz@onlinebuzz.co.uk",
+        service_address_line1: "4 Toby Way",
+        service_city: "Romford",
+        customer_postcode: "RM7ATQ",
+        reason: "callback_requested",
+        trigger: "callback_requested",
+        response_text: "The customer requested a callback.",
+      }),
+    );
+
+    expect(customersInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: TENANT_ID,
+        full_name: "Shaz Ahmed",
+        phone: "+447779305853",
+        email: "shaz@onlinebuzz.co.uk",
+        address_line1: "4 Toby Way",
+        city: "Romford",
+        postcode: "RM7ATQ",
+      }),
+    );
+    expect(leadsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: TENANT_ID,
+        customer_id: "callback-customer-1",
+      }),
+    );
+    expect(apptInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "follow_up",
+        title: "AI escalation follow-up",
+        customer_id: "callback-customer-1",
+        lead_id: "lead-1",
+      }),
+    );
+    expect(apptUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: TENANT_ID,
+        customer_id: "callback-customer-1",
+      }),
+    );
+    expect(upsertPlatformConversationLink).toHaveBeenCalledWith(
+      expect.anything(),
+      alias,
+      expect.objectContaining({
+        conversationId: CONVERSATION_ID,
+        customerId: "callback-customer-1",
+      }),
+    );
+    expect(upsertPlatformConversationLink).toHaveBeenCalledWith(
+      expect.anything(),
+      alias,
+      expect.objectContaining({
+        conversationId: CONVERSATION_ID,
+        callbackAppointmentId: "callback-appt-1",
+      }),
+    );
     expect(jobInsert).not.toHaveBeenCalled();
   });
 });

@@ -1352,7 +1352,22 @@ export async function executePlatformCommand(
         return;
       }
 
-      const link = await ensureLeadForConversation(supabase, alias, conversationId, payload);
+      let link = await ensureLeadForConversation(supabase, alias, conversationId, payload);
+      const customer = await resolveCustomerForPayload(supabase, alias, payload);
+      if (customer) {
+        await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          customerId: customer.id,
+          latestChannel: pickString(payload, ["channel", "response_channel"]),
+          identityPhone: pickString(payload, ["identity_phone", "customer_phone", "customerPhone", "from"]),
+          identityEmail: pickString(payload, ["identity_email", "customer_email", "customerEmail"]),
+          latestEventAt: occurredAt,
+        });
+        if (link.lead_id) {
+          await attachLeadToCustomer(supabase, alias, link.lead_id, customer.id);
+        }
+        link = { ...link, customer_id: customer.id };
+      }
       const noteBody = [
         "AI escalation raised.",
         pickString(payload, ["trigger"]) ? `Trigger: ${pickString(payload, ["trigger"])}` : null,
@@ -1369,7 +1384,8 @@ export async function executePlatformCommand(
         });
       }
 
-      if (!link.callback_appointment_id) {
+      let callbackAppointmentId = link.callback_appointment_id;
+      if (!callbackAppointmentId) {
         const appointmentId = await createAppointment(supabase, alias, {
           link,
           type: "follow_up",
@@ -1377,14 +1393,15 @@ export async function executePlatformCommand(
           startsAt: occurredAt,
           endsAt: addMinutes(occurredAt, 20),
         });
+        callbackAppointmentId = appointmentId;
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,
           callbackAppointmentId: appointmentId,
           latestEventAt: occurredAt,
         });
       }
-      if (link.customer_id && link.callback_appointment_id) {
-        await attachAppointmentToCustomer(supabase, alias, link.callback_appointment_id, link.customer_id);
+      if (link.customer_id && callbackAppointmentId) {
+        await attachAppointmentToCustomer(supabase, alias, callbackAppointmentId, link.customer_id);
       }
       return;
     }

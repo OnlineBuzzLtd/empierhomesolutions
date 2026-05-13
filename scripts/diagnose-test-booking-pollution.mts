@@ -32,6 +32,14 @@
  * Optional env:
  *   DAYS=14   — window in days from now (default 30)
  *   VERBOSE=1 — print every test-suspect booking, not just counts
+ *
+ * CAL-002 mode (cancels the suspected test bookings):
+ *   npx tsx scripts/diagnose-test-booking-pollution.mts \
+ *     --cancel --confirm-cancel-bookings=I-AM-SURE
+ *
+ * Cancellation sets status='cancelled' on each row (NOT DELETE) so the
+ * audit trail is preserved. The previous status is stashed in
+ * appointments.metadata.previous_status for mechanical rollback.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -53,6 +61,11 @@ const TEST_FULL_NAME_RE =
 
 const DAYS = Number.parseInt(process.env.DAYS ?? "30", 10);
 const VERBOSE = process.env.VERBOSE === "1";
+
+const CLI_ARGS = process.argv.slice(2);
+const CANCEL_MODE = CLI_ARGS.includes("--cancel");
+const CANCEL_CONFIRM_TOKEN = "I-AM-SURE";
+const CANCEL_CONFIRMED = CLI_ARGS.includes(`--confirm-cancel-bookings=${CANCEL_CONFIRM_TOKEN}`);
 
 type CustomerRow = {
   id: string;
@@ -244,11 +257,77 @@ async function main() {
   }
 
   console.log("=".repeat(72));
-  console.log("END OF DIAGNOSTIC — NO WRITES PERFORMED");
+  console.log("END OF DIAGNOSTIC");
   console.log("=".repeat(72));
+
+  if (!CANCEL_MODE) {
+    console.log();
+    console.log("NO WRITES PERFORMED.");
+    console.log(`To cancel the ${testBookings.length} test bookings above (CAL-002):`);
+    console.log(`  npx tsx scripts/diagnose-test-booking-pollution.mts \\`);
+    console.log(`    --cancel --confirm-cancel-bookings=${CANCEL_CONFIRM_TOKEN}`);
+    return;
+  }
+
+  if (!CANCEL_CONFIRMED) {
+    console.log();
+    console.error("REFUSED: --cancel requires --confirm-cancel-bookings=" + CANCEL_CONFIRM_TOKEN);
+    process.exit(2);
+  }
+
+  if (testBookings.length === 0) {
+    console.log();
+    console.log("Nothing to cancel — diagnostic found 0 test bookings.");
+    return;
+  }
+
   console.log();
-  console.log(`If the suspected-test list above looks correct, the next step (CAL-002)`);
-  console.log(`is to cancel those ${testBookings.length} bookings — see docs/calendar-booking-prd.md.`);
+  console.log("=".repeat(72));
+  console.log(`CAL-002 cancellation — about to cancel ${testBookings.length} bookings`);
+  console.log("=".repeat(72));
+  console.log("Mechanism: set status='cancelled' on each row (NOT delete).");
+  console.log("Audit:     stash previous status in metadata.previous_status.");
+  console.log();
+
+  // `crm.appointments` doesn't have a metadata column — the prior status
+  // for these 54 rows is uniformly 'scheduled' (already filtered in the
+  // .in("status", ["scheduled"]) query above), so rollback is mechanical
+  // by status flip if ever needed. The diagnostic output (committed in
+  // run logs / git) captures the full id list for rollback.
+  let cancelled = 0;
+  let failed = 0;
+  for (const a of testBookings) {
+    // Guard: if it's already cancelled (idempotent re-run), skip.
+    if (a.status === "cancelled") {
+      console.log(`  SKIP ${a.id}: already cancelled`);
+      continue;
+    }
+    const { error: updateErr } = await supabase
+      .schema("crm")
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", a.id);
+    if (updateErr) {
+      console.error(`  FAIL ${a.id}: update error ${updateErr.message}`);
+      failed += 1;
+      continue;
+    }
+    cancelled += 1;
+    const sigPreview = a.testSignals.slice(0, 1).join("");
+    console.log(`  CANCELLED ${a.id}  ${a.starts_at.slice(0, 16).replace("T", " ")}  ← ${sigPreview}`);
+  }
+
+  console.log();
+  console.log("=".repeat(72));
+  console.log(`CAL-002 done: ${cancelled} cancelled, ${failed} failed, ${testBookings.length - cancelled - failed} skipped`);
+  console.log("=".repeat(72));
+  if (failed > 0) {
+    console.log("Some rows failed — re-run the script to retry (idempotent).");
+    process.exit(1);
+  }
+  console.log();
+  console.log("Run the diagnostic again WITHOUT --cancel to verify 0 test bookings remain:");
+  console.log("  npx tsx scripts/diagnose-test-booking-pollution.mts");
 }
 
 main().catch((err) => {

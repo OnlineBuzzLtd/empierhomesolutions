@@ -1,4 +1,4 @@
-# PRD — Agent reliability: getting `live-empire-channel-tests` to 10/10
+# PRD — Agent reliability: stabilising `live-empire-channel-tests` at 9-10/10
 
 **Created**: 2026-05-13
 **Author**: shaz@onlinebuzz.co.uk (via live channel testing pass)
@@ -10,7 +10,7 @@
 
 ## Context
 
-Six end-to-end live runs of `scripts/live-empire-channel-tests.mts` produced **6/10 to 7/10 passing**, with variance across scenarios. After exhaustive harness-side fixes (HE-054b literal-affirmative safety net, smarter CRM-evidence polling, transcript front-loading, plumbing-pack `boiler-installation` service) and a Tier 1 mock-adapter infrastructure (`MESSAGING_ADAPTER=mock` → zero Twilio outbound), the ceiling stays at ~6-7/10. **Reaching 10/10 requires real agent engineering in the CustomerJourneys platform-api repo.**
+Six end-to-end live runs of `scripts/live-empire-channel-tests.mts` produced **6/10 to 7/10 passing**, with variance across scenarios. After exhaustive harness-side fixes (HE-054b literal-affirmative safety net, smarter CRM-evidence polling, transcript front-loading, plumbing-pack `boiler-installation` service) and a Tier 1 mock-adapter infrastructure (`MESSAGING_ADAPTER=mock` → zero Twilio outbound), the ceiling stays at ~6-7/10. **Reaching stable 9-10/10 requires real agent engineering in the CustomerJourneys platform-api repo.** Fully deterministic 10/10 on every run is not the target for this PRD while the router remains LLM-driven.
 
 What's already shipped (DO NOT redo):
 - `services/platform-api/src/lib/booking-stages/confirm-stage.ts` HE-054b literal-affirmative safety net (commits `25d3977e`, `a69052e0`) — 22/22 unit tests pass.
@@ -53,32 +53,41 @@ The 2-service → 3-service plumbing pack change (adding `boiler-installation`) 
 
 # Epic — Agent reliability uplift
 
-## 🔴 AGT-001 · Deterministic identity-extraction pre-pass
+## 🟡 AGT-001 · Deterministic identity-extraction pre-pass
 
 **Severity**: P0 · **Effort**: M · **Depends on**: none
 
 **Problem.** When the customer says "EMERGENCY callout please — Alice Thompson, 45 Victoria Road, London W1A 1AA" in turn 1, the LLM identity-extraction step regularly fails to populate `customer_name`, `customer_address`, and `customer_postcode`. Then it asks for them one-by-one over multiple turns and frequently misclassifies subsequent replies (storing a service-description string in `customer_name`, etc.). Highest-leverage single fix — adding a pre-LLM regex pass that extracts unambiguous patterns from every customer turn would catch the obvious cases the LLM is missing.
 
 **Scope.**
-- New module `services/platform-api/src/lib/identity-extractor.ts` exporting a pure function `extractDeterministicIdentity(messages: string[]): Partial<Identity>`.
+- New module `services/platform-api/src/lib/identity-extractor.ts` exporting a pure function `extractDeterministicIdentity(messages: string[]): DeterministicIdentityPatch`.
+- `DeterministicIdentityPatch` returns two plain objects:
+  - `identity: Partial<Identity>` — the existing identity field shape; do not change stored identity fields from strings into objects.
+  - `sources: Partial<Record<keyof Identity, "deterministic">>` — provenance metadata, stored separately from field values.
 - Patterns to extract (conservative, no false positives):
   - **UK postcode**: `/\b([A-PR-UWYZ][A-HK-Y]?[0-9][A-Z0-9]?\s?[0-9][A-Z]{2})\b/i` (matches `W1A 1AA`, `EC1A 1BB`, `N1 9AB` etc.)
   - **Email**: standard RFC-relaxed `/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i`
-  - **Full name**: heuristic — capitalised two-word run NOT immediately preceded by a service noun (rejects "boiler service", "the boiler"). Confidence: medium; only sets `customer_name` if not already set.
+  - **Full name**: heuristic — capitalised two-word run NOT immediately preceded by a service noun and NOT overlapping an extracted address, postcode, city, provider/business phrase, or geographic phrase. Confidence: medium; only sets `customer_name` if not already set.
   - **Address**: house number + street word + (city + postcode), e.g. `45 Victoria Road, London W1A 1AA`. Pattern: `/\d+\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*\s+(Road|Street|Avenue|Lane|Close|Way|Drive|Court|Place|Gardens|Square|Crescent|Hill|Park)\b/i` followed by optional comma + city + postcode.
+- Extraction order matters:
+  1. Extract postcode and email.
+  2. Extract address and record its character span.
+  3. Remove/ignore already-extracted spans before looking for a name.
+  4. Reject name candidates containing service, time, urgency, provider/business, or location-only terms.
 - Wire it into `managed-text-agent.ts` immediately after the customer's message is received, BEFORE the LLM router/identity stage runs. Pre-populates `bookingState.collectedData.identity` with extracted fields. The LLM stage then operates on a partially-filled state — its job is fill the gaps, not re-extract everything.
-- Identity fields populated by the regex should be marked `source: "deterministic"` so future debugging can distinguish them from LLM-extracted fields. Useful for the T7-style overwrite bug (AGT-004 below).
+- Store provenance separately, e.g. `bookingState.collectedData.identitySources.customer_name = "deterministic"`. Do not mutate the persisted identity field shape unless the platform already has a metadata slot for this.
 
 **Acceptance criteria.**
 - Customer message containing `Alice Thompson, 45 Victoria Road, London W1A 1AA` populates `customer_name`, `customer_address`, `customer_postcode` deterministically — agent does not subsequently ask for them.
 - Customer message containing `alice.wp.X@test.com` populates `customer_email`.
 - "The burst pipe is in the bathroom" does NOT populate any identity field (no false positives).
 - "Today as soon as possible" does NOT populate `customer_name` (no false positives on time phrases).
+- "Victoria Road", "Boiler Service", "British Gas", "North London", and "Bayswater" do NOT populate `customer_name`.
 - All existing unit tests pass unchanged.
 - New unit tests: 12+ cases covering the patterns above + 6+ negative cases (service descriptions, time phrases, single names, etc.).
 
 **Test plan.**
-1. `npx vitest run packages/integrations/src/messaging/identity-extractor.test.ts` (new file).
+1. `npx vitest run services/platform-api/src/lib/identity-extractor.test.ts` (new file).
 2. `npx vitest run services/platform-api/src/lib/managed-text-agent.test.ts` (existing).
 3. Tier 1 live run after deploy: expect T3 and T9 to flip stable green; T1/T4 likely improve.
 
@@ -93,7 +102,11 @@ The 2-service → 3-service plumbing pack change (adding `boiler-installation`) 
 **Problem.** `service-stage.ts` `capture_service_patch` re-classifies the service mid-conversation. Observed in T7: customer says "boiler service" → agent classifies as `boiler-service` → customer adds details → agent re-classifies as `emergency-callout` mid-flow → slot offered for old service, booking attempts with new one → loop.
 
 **Scope.**
-- In `services/platform-api/src/lib/booking-stages/service-stage.ts`, when a `serviceKey` is already set in `bookingState.collectedData.service`, only allow re-classification if the new classification has **high** router confidence AND the new key differs from the existing by more than "service variant" (i.e. allow `boiler-service` → `boiler-installation` cross-classification with high confidence, but not `boiler-service` → `emergency-callout` without an explicit emergency trigger word in the LATEST customer message).
+- In `services/platform-api/src/lib/booking-stages/service-stage.ts`, when a `serviceKey` is already set in `bookingState.collectedData.service`, only allow re-classification if the new classification has **high** router confidence (`>= 0.85`; if the router does not expose confidence today, add it before enforcing this guard) AND the new key differs from the existing by more than "service variant".
+- Define service families in the plumbing pack or a colocated helper:
+  - `boiler`: `boiler-service`, `boiler-installation`
+  - `emergency`: `emergency-callout`
+- Allow `boiler-service` ↔ `boiler-installation` before slot offer when confidence is high. Do not allow `boiler-*` → `emergency-callout` unless the latest customer message contains an emergency trigger from the vertical pack's `urgencyKeywords` or the hard fallback list.
 - Add a `serviceClassificationLocked` flag to `bookingState.collectedData.service` that turns true once `availabilityChecked === true` (i.e. once we've offered a slot, the service is locked).
 
 **Acceptance criteria.**
@@ -154,16 +167,17 @@ The 2-service → 3-service plumbing pack change (adding `boiler-installation`) 
 - Tier 1 run: T4 stops mis-quoting Emergency Callout pricing for boiler-service enquiries.
 
 **Test plan.**
-1. Cassette-based router unit tests against the live router (or cached LLM responses) for the example messages.
-2. Tier 1 run: T4/T7 stabilise.
+1. Cassette-based unit tests for the router parser/contract and representative cached LLM responses.
+2. Live/manual eval script for the 30 classification examples against the current model + prompt. This is allowed to be slower/costly and should not run in normal CI.
+3. Tier 1 run: T4/T7 stabilise.
 
 **Rollback.** Revert the prompt file. Cheap.
 
 ---
 
-## 🔴 AGT-005 · Test-harness Tier 1 enforcement guard
+## 🟡 AGT-005 · Test-harness Tier 1 enforcement guard
 
-**Severity**: P2 · **Effort**: XS · **Depends on**: none
+**Severity**: P0 · **Effort**: XS · **Depends on**: none
 
 **Problem.** `scripts/live-empire-channel-tests.mts` will route through the production Twilio number if `PLATFORM_API_URL` isn't overridden. The May 2026 incident (150+ failed messages, error 21211) happened because the script ran without operator awareness of the cost/compliance implications.
 
@@ -185,12 +199,13 @@ The 2-service → 3-service plumbing pack change (adding `boiler-installation`) 
 
 ## Sequencing recommendation
 
-1. **AGT-005** first (XS, decouples future test runs from compliance risk).
-2. **AGT-001** (M, highest leverage; lifts T3, T9, partially T1/T4).
-3. **AGT-004** (S, fixes T4 misrouting; small win).
-4. **AGT-002** (S, fixes T7; depends on AGT-001 being clean).
-5. **AGT-003** (M, lifts T1/T4 to consistent green via state recovery).
-6. Final Tier 1 validation run — expect 9-10/10. The remaining flake (if any) is LLM stochasticity at the router level which AGT-004 should mitigate to <5%.
+1. **AGT-005** first (XS, immediate compliance/cost guard for future test runs).
+2. **AGT-001 + AGT-003 design pass** (M, shared extractor/reconciler API + provenance shape). AGT-003 can still ship after AGT-001, but the state shape must be designed once.
+3. **AGT-001 implementation** (M, highest leverage; lifts T3, T9, partially T1/T4).
+4. **AGT-004** (S, fixes T4 misrouting; small win).
+5. **AGT-002** (S, fixes T7; depends on AGT-001 being clean).
+6. **AGT-003 implementation** (M, lifts T1/T4 to consistent green via state recovery).
+7. Final Tier 1 validation run — expect 9-10/10. The remaining flake (if any) is LLM stochasticity at the router level which AGT-004 should mitigate to <5%.
 
 **Total estimated effort: 5-7 days of focused agent engineering** (vs my earlier 7-11 hours estimate, which was based on the incomplete diagnosis from a single Explore-agent pass).
 
@@ -224,7 +239,7 @@ If the median over 5 runs lands at 9/10 with occasional 10/10, declare the epic 
 
 ## Open questions
 
-1. **AGT-001 false-positive tolerance.** If the regex pre-pass occasionally over-extracts (e.g., treats "Bayswater" as a name fragment), is that acceptable? Default proposal: yes, because the LLM downstream will validate and the customer can correct via "actually my name is ..." which AGT-003 reconciliation handles.
-2. **AGT-002 emergency keyword list.** Hard-code `["burst", "leak", "urgent", "emergency", "asap", "now"]` or read from the vertical pack's `urgencyKeywords`? Default proposal: read from pack.
+1. **AGT-001 false-positive tolerance.** If the regex pre-pass occasionally over-extracts (e.g., treats "Bayswater" as a name fragment), is that acceptable? Default proposal: no for names. Name extraction should fail closed; postcode/email/address can be deterministic, but names need conservative span filtering and negative cases.
+2. **AGT-002 emergency keyword list.** Hard-code `["burst", "leak", "urgent", "emergency", "asap", "now"]` or read from the vertical pack's `urgencyKeywords`? Default proposal: read from pack, with the hard-coded list only as a fallback if the pack field is unavailable.
 3. **AGT-003 reconciliation frequency.** Run on every turn, or only at state transitions? Default proposal: every turn — it's cheap (regex-only) and the cost of missing a correction is high (locks state into bad value).
 4. **Cassette-based router tests (AGT-004).** Acceptable to commit cached LLM responses, or should tests be live-LLM (slow + costly)? Default proposal: commit cassettes, with a manual refresh script for when the model version changes.

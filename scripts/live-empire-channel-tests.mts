@@ -80,6 +80,7 @@ type ActiveConnectionRow = {
   integration_type: "messaging" | "voice";
   provider_key: string;
   phone_number: string | null;
+  account_sid: string | null;
   webhook_base_url: string | null;
 };
 
@@ -137,6 +138,7 @@ type LiveTenantTarget = {
   crmWorkspaceId: string;
   messagingProvider: string;
   voiceProvider: string;
+  messagingAccountSid: string | null;
 };
 
 type CrmEvidence = {
@@ -247,6 +249,39 @@ function requireLiveTarget() {
   return LIVE_TARGET;
 }
 
+function isMockPlatformUrl() {
+  return PLATFORM_API_URL.includes("mock---");
+}
+
+async function enforceLiveTwilioGuard(target: LiveTenantTarget) {
+  if (isMockPlatformUrl()) {
+    return;
+  }
+
+  if (process.env.ALLOW_LIVE_TWILIO !== "1") {
+    console.error("\nRefusing to run Tier 3 live channel tests.");
+    console.error(`Target: ${PLATFORM_API_URL}`);
+    console.error(`Messaging number: ${target.messagingNumber} (${target.messagingProvider})`);
+    console.error("This run can send real Twilio traffic and incur provider charges.");
+    console.error("For Tier 1, set PLATFORM_API_URL to the mock revision URL containing `mock---`.");
+    console.error("For an intentional Tier 3 run, set ALLOW_LIVE_TWILIO=1 and rerun.");
+    process.exit(1);
+  }
+
+  console.warn("\nTIER 3 RUN — real Twilio traffic may be sent.");
+  console.warn(`Target:           ${PLATFORM_API_URL}`);
+  console.warn(`Account SID:      ${target.messagingAccountSid ?? "unknown"}`);
+  console.warn(`Messaging number: ${target.messagingNumber} (${target.messagingProvider})`);
+  console.warn("Cost:             real provider charges may apply.");
+  console.warn("Press Ctrl+C within 10 seconds to abort.\n");
+
+  for (let remaining = 10; remaining > 0; remaining -= 1) {
+    process.stdout.write(`  Starting in ${remaining}s...\r`);
+    await sleep(1_000);
+  }
+  process.stdout.write("  Starting now.           \n\n");
+}
+
 async function resolveLiveTarget() {
   const platformTenantId = process.env.LIVE_TEST_PLATFORM_TENANT_ID ?? DEFAULT_PLATFORM_TENANT_ID;
   const connections = platformDbQuery<ActiveConnectionRow>(
@@ -256,6 +291,7 @@ async function resolveLiveTarget() {
         ic.integration_type,
         ic.provider_key,
         ic.config ->> 'phoneNumber' as phone_number,
+        ic.config ->> 'accountSid' as account_sid,
         ic.config ->> 'webhookBaseUrl' as webhook_base_url
       from integration_connections ic
       join tenants t on t.id = ic.tenant_id
@@ -314,6 +350,7 @@ async function resolveLiveTarget() {
     crmWorkspaceId: alias.workspace_id,
     messagingProvider: messaging.provider_key,
     voiceProvider: voice.provider_key,
+    messagingAccountSid: messaging.account_sid,
   };
 
   return LIVE_TARGET;
@@ -1547,6 +1584,7 @@ async function main() {
   const managedVoiceSecret = gcloudSecret("elevenlabs-managed-webhook-secret");
   PLATFORM_DB_URL = gcloudSecret("platform-database-url");
   const target = await resolveLiveTarget();
+  await enforceLiveTwilioGuard(target);
   console.log("  Secrets loaded ✓");
   console.log(`  Acceptance tenant: ${target.platformTenantName}`);
   console.log(`  Messaging number:  ${target.messagingNumber} (${target.messagingProvider})`);

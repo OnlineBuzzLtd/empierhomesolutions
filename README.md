@@ -43,7 +43,7 @@ Current validated behavior (as of April 16, 2026):
 - **[2026-04-16] CRM ingestion hardened**: `LinkConversationToCustomerOrJob` now runs before `CreateOrUpdateAppointment` on every `BookingConfirmed` event, and the appointment handler self-heals when `customer_id` is missing — no more orphaned bookings that sit in platform state but fail to reach the engineer diary
 - **[2026-04-16] Engineer auto-assignment**: CustomerJourneys now sends `booking_resource_id` + `booking_resource_name` on `BookingConfirmed`, so the correct engineer is set on the diary job at ingestion time instead of requiring a manual reassign
 - **[2026-04-16] Diary time display fix** (`src/modules/crm/lib/format.ts`): scheduled times now render in `Europe/London` (BST/GMT) instead of UTC, so the engineer diary matches the booking confirmation SMS/email the customer received
-- Live validation: `scripts/live-empire-channel-tests.mts` — 6/6 end-to-end channel scenarios passing against production CustomerJourneys runtime
+- Live validation: `scripts/live-empire-channel-tests.mts` — 10-scenario end-to-end channel suite; current 9-10/10 reliability work is tracked in `docs/agent-reliability-prd.md`
 
 Current local operator setup:
 

@@ -17,6 +17,25 @@ What's already shipped (DO NOT redo):
 - `packages/integrations/src/messaging/mock.ts` MockMessagingAdapter + env-var-driven selector in `webhooks.ts` (commit `09197932`) — enables Tier 1 testing.
 - `packages/vertical-config/src/default-packs/plumbing.ts` registers `boiler-installation` (commit `8df1850a`).
 - Empire CRM test harness improvements (commits `186b6c8`, `26b322d`, `2b9ab61`, `69c0913`).
+- **AGT-001** Deterministic identity-extraction pre-pass (CustomerJourneys commits leading to `a932b5bf`) — 12+ positive + 6+ negative test cases passing. Gated by `IDENTITY_EXTRACTOR=off`. Live; partially helps T7. **Insufficient to lift score alone — see remaining bottleneck below.**
+- **AGT-005** Tier 3 Twilio guard in `scripts/live-empire-channel-tests.mts` (Empire commit `ef9e7dc`) — refuses to run without `ALLOW_LIVE_TWILIO=1`, auto-allows URLs containing `mock---`. May 12 incident impossible to recur.
+- **AGT-006** Deterministic scheduling pre-pass (CustomerJourneys commit `06e48bad`) — 17 tests passing. Writes `pendingDateIso`, `preferredDateText`, `preferredTimeWindow`, `preferredExplicitTime`, `preferredSlotOrdinal` to `bookingState.collectedData.textRuntime`. Gated by `SCHEDULING_EXTRACTOR=off`. Live but **not effective** — see Confirmed bottleneck below.
+- **AGT-006b** Auto check_availability when scheduling hint complete (CustomerJourneys, same commit chain as 006b deploy) — synthesizes concrete UTC start/end from `pendingDateIso + preferredTimeWindow + service duration`, calls `checkAvailability()` directly. Gated by `SCHEDULING_AUTO_AVAIL=off`. Live but rarely fires (gating too tight; service must be classified before date message lands).
+
+## Confirmed reliability ceiling (2026-05-13 measurements)
+
+Six Tier 1 runs against the `mock---` revision with various combinations of the above:
+
+| State of agent | Booking-path PASS rate |
+|---|---|
+| Pre-AGT (Twilio live) | 6-7/10 (variance) |
+| AGT-001 only | 6/10 |
+| AGT-001 + AGT-006 | 5/10 |
+| AGT-001 + AGT-006 + AGT-006b | 5/10 |
+
+Voice channel + escalation + info-only scenarios are stable 5/5 across every run. The 4 booking-path scenarios that should book (T1, T4, T7, T9) flake between green and red on the same transcripts.
+
+**Confirmed bottleneck**: the LLM availability-stage system prompt receives only the user payload — it does NOT read `bookingState.collectedData.textRuntime` from context when building its turn. AGT-006 and AGT-006b therefore write data the LLM never sees. Evidence: T1 transcript shows agent saying "to hold that slot" (sees the hint *somewhere*) then later "What date and time would you like?" (the prompt for the next turn doesn't include it). The pre-pass approach has reached its limit.
 
 ## Root cause (revised from live-transcript analysis)
 
@@ -53,7 +72,7 @@ The 2-service → 3-service plumbing pack change (adding `boiler-installation`) 
 
 # Epic — Agent reliability uplift
 
-## 🟡 AGT-001 · Deterministic identity-extraction pre-pass
+## 🟢 AGT-001 · Deterministic identity-extraction pre-pass (SHIPPED 2026-05-13)
 
 **Severity**: P0 · **Effort**: M · **Depends on**: none
 
@@ -175,7 +194,7 @@ The 2-service → 3-service plumbing pack change (adding `boiler-installation`) 
 
 ---
 
-## 🟡 AGT-005 · Test-harness Tier 1 enforcement guard
+## 🟢 AGT-005 · Test-harness Tier 1 enforcement guard (SHIPPED 2026-05-13)
 
 **Severity**: P0 · **Effort**: XS · **Depends on**: none
 
@@ -243,3 +262,74 @@ If the median over 5 runs lands at 9/10 with occasional 10/10, declare the epic 
 2. **AGT-002 emergency keyword list.** Hard-code `["burst", "leak", "urgent", "emergency", "asap", "now"]` or read from the vertical pack's `urgencyKeywords`? Default proposal: read from pack, with the hard-coded list only as a fallback if the pack field is unavailable.
 3. **AGT-003 reconciliation frequency.** Run on every turn, or only at state transitions? Default proposal: every turn — it's cheap (regex-only) and the cost of missing a correction is high (locks state into bad value).
 4. **Cassette-based router tests (AGT-004).** Acceptable to commit cached LLM responses, or should tests be live-LLM (slow + costly)? Default proposal: commit cassettes, with a manual refresh script for when the model version changes.
+
+---
+
+# Addendum — 2026-05-13 measurements + next-step priorities
+
+After AGT-001 + AGT-006 + AGT-006b shipped and were measured against the Tier 1 mock revision, the booking-path PASS rate is **5-6/10 across multiple runs**. The pre-pass approach has plateaued. The dominant remaining failure modes:
+
+1. **LLM availability-stage doesn't see `textRuntime` hints.** The stage's user payload is built from the customer body + minimal state; `bookingState.collectedData.textRuntime` is invisible. AGT-006's writes are dead-letter for the stage that needs them most. **This is the next ticket to land.**
+
+2. **Service-classification mid-conversation drift** (the T7 "Boiler Service vs Emergency Callout" loop) is the next biggest scoring delta after #1. Still tracked as **AGT-002** above.
+
+3. **`bookingState.collectedData.identity` synthesis from `addressLine1` + `city` + `postcode`** sometimes fails when the LLM populates only `addressLine1`. Confirmed at `platform-repository.ts:2074-2086`. AGT-003-style reconciliation would catch this.
+
+## 🔴 AGT-007 · Inject textRuntime hints into LLM stage payloads (next priority)
+
+**Severity**: P0 · **Effort**: M · **Depends on**: AGT-006 (shipped)
+
+**Problem.** The LLM availability-stage system prompt and user payload don't include `bookingState.collectedData.textRuntime` fields (`pendingDateIso`, `preferredDateText`, `preferredTimeWindow`, `preferredExplicitTime`, `preferredSlotOrdinal`). AGT-006 writes these fields, but the LLM can't read them when deciding whether to call `check_availability`. Result: same conversation keeps asking "What date and time would you like?" even though state has the date.
+
+**Scope.**
+- Find the availability-stage payload builder (likely in `managed-text-agent.ts` or `booking-stages/availability-stage.ts`).
+- Add a `bookingContext` block to the LLM user payload containing populated textRuntime scheduling hints + serviceKey + identityComplete flag.
+- Update `AVAILABILITY_STAGE_SYSTEM_PROMPT` to explicitly read from `bookingContext` and call `check_availability` whenever `bookingContext.pendingDateIso` is set with a non-null time hint.
+- Mirror the same approach for `identity-stage.ts` and `service-stage.ts` so hints propagate consistently.
+
+**Acceptance criteria.**
+- After deploying, T1/T4/T9 transcripts no longer show "What date and time would you like?" after the customer has named a date.
+- 3 consecutive Tier 1 runs land **≥8/10**, with at least 1 hitting **9/10**.
+- No regression on voice (T5/T6/T10), escalation (T2), or info-only (T8).
+- New unit test: `managed-text-agent-payload-context.test.ts` proves textRuntime hints flow into the LLM payload.
+
+**Test plan.**
+1. `npx vitest run services/platform-api/src/lib/managed-text-agent-payload-context.test.ts`.
+2. Deploy via `node scripts/production/deploy-cloudrun.mjs`, re-tag mock revision, run Tier 1.
+
+**Rollback.** Env var `INJECT_TEXT_RUNTIME=off` short-circuits the payload addition.
+
+## 🔴 AGT-006c · Loosen auto-availability gating (low-cost incremental)
+
+**Severity**: P2 · **Effort**: XS · **Depends on**: AGT-006b
+
+**Problem.** AGT-006b's auto check_availability requires service to be classified BEFORE the date message lands. In practice the customer often gives date AND service in the SAME message, but service classification runs AFTER the pre-pass, so the gating misses every time.
+
+**Scope.**
+- In `prefillDeterministicScheduling`, when `service` isn't classified but `pendingDateIso` + a time hint are set, infer the most likely service from the customer body using the same deterministic catalog matcher `service-stage.ts` uses. If a unique match exists, use it.
+- Otherwise, fall back to a default 60-min duration and skip the service-key arg to `check_availability` — the calendar resource handles the default.
+
+**Acceptance criteria.**
+- T1/T4/T9 transcripts show `check_availability` firing in the FIRST customer turn that contains a date.
+- Existing AGT-006b unit tests still pass.
+
+**Rollback.** Single-file revert.
+
+## Updated sequencing (next 2-3 days)
+
+1. **AGT-007** (M, P0) — payload context injection. The next biggest single lever.
+2. **AGT-006c** (XS, P2) — loosen gating.
+3. **AGT-002** (S, P1) — service-classification stability guard.
+4. **AGT-003** (M, P1) — identity reconciliation.
+5. **AGT-004** (S, P1) — router prompt tightening, if needed after above.
+6. Three consecutive Tier 1 runs to validate ≥9/10 with one 10/10.
+
+## Verification handoff command
+
+```bash
+# Quick health check of current production agent (Tier 1, zero cost):
+PLATFORM_API_URL="https://mock---customerjourneys-platform-api-cnz7crlx2a-nw.a.run.app" \
+  npx tsx scripts/live-empire-channel-tests.mts
+```
+
+Expected current state: 5-6/10 booking-path passing, 9-10/10 overall (counting T2 + T8 on their non-booking predicates). The mock revision has all of AGT-001 + AGT-006 + AGT-006b live; production traffic is unaffected (mock is `--no-traffic`).

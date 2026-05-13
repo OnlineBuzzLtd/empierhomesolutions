@@ -918,6 +918,13 @@ type PlatformBookingPayload = {
     postcode: string | null;
   };
   metadata: Record<string, unknown> | null;
+  // CAL-003: when the platform-api emits a BookingConfirmed event for a
+  // mock-adapter validation run (MESSAGING_ADAPTER=mock), it sets this
+  // flag in the event payload. The CRM stores it on
+  // crm.appointments.is_test so the check-availability route excludes
+  // these rows from conflict detection. Real customer bookings always
+  // arrive with is_test = false (the default).
+  isTest: boolean;
 };
 
 function extractPlatformBookingPayload(payload: Record<string, unknown>, fallbackStart: string): PlatformBookingPayload {
@@ -945,6 +952,14 @@ function extractPlatformBookingPayload(payload: Record<string, unknown>, fallbac
     metadata: (() => {
       const raw = asRecord(payload.metadata);
       return Object.keys(raw).length > 0 ? raw : null;
+    })(),
+    isTest: (() => {
+      // Accept either a top-level `is_test` field or `metadata.is_test`.
+      // Tolerant of common true-ish encodings (boolean, "true", "1", 1).
+      const top = payload.is_test;
+      const meta = asRecord(payload.metadata).is_test;
+      const value = top ?? meta;
+      return value === true || value === "true" || value === 1 || value === "1";
     })(),
   };
 }
@@ -1053,6 +1068,11 @@ async function upsertAppointmentFromPlatformBooking(
     if (customerId && !existing.customer_id) {
       patch.customer_id = customerId;
     }
+    // CAL-003: once flagged as test, stay flagged (never un-flag on update).
+    // Update only flips to true if the latest event payload says so.
+    if (booking.isTest) {
+      patch.is_test = true;
+    }
     const { error } = await supabase
       .schema("crm")
       .from("appointments")
@@ -1083,6 +1103,7 @@ async function upsertAppointmentFromPlatformBooking(
       recurrence_rule: null,
       source: "platform",
       external_id: booking.bookingId,
+      is_test: booking.isTest,
     });
 
   if (error) {

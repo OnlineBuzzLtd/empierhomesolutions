@@ -62,6 +62,11 @@ export async function POST(request: Request) {
     .select("id")
     .eq("assigned_to", parsed.resourceRef)
     .neq("status", "cancelled")
+    // CAL-003: ignore test-flagged appointments so mock-adapter validation
+    // runs (MESSAGING_ADAPTER=mock on platform-api) never block real
+    // customer availability. Migration 202605130001 adds the column;
+    // default false on all existing rows.
+    .eq("is_test", false)
     .lt("starts_at", parsed.endTime)
     .gt("ends_at", parsed.startTime)
     .limit(1);

@@ -461,6 +461,10 @@ export type Appointment = {
   recurrence_rule: string | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
+  // CAL-003: marks rows created by Tier 1 mock-adapter test runs so the
+  // check-availability route can exclude them from conflict detection.
+  // Always false for real customer bookings.
+  is_test?: boolean;
   created_at: string;
 };
 

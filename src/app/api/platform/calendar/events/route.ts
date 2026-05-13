@@ -33,6 +33,13 @@ const requestSchema = z.object({
   startTime: z.string().min(1),
   endTime: z.string().min(1),
   summary: z.string().optional(),
+  // CAL-003: when the platform-api is running with MESSAGING_ADAPTER=mock,
+  // the mock-tagged Cloud Run revision flags create-hold calls so the
+  // resulting appointment row is excluded from availability conflict
+  // detection. Production platform-api never sets this. Accept boolean,
+  // "true"/"1" string, or 1/0 numeric for compatibility with adapter
+  // serialization choices.
+  isTest: z.union([z.boolean(), z.literal("true"), z.literal("false"), z.literal(1), z.literal(0)]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -90,6 +97,7 @@ export async function POST(request: Request) {
   // column-list syntax can't bind to — supabase-js's `.upsert()` falls
   // through to "no unique constraint" 42P10. We do the find/insert/update
   // explicitly so the route stays idempotent without changing the index.
+  const isTest = parsed.isTest === true || parsed.isTest === "true" || parsed.isTest === 1;
   const basePayload = {
     tenant_id: engineer.tenant_id,
     assigned_to: engineer.user_id,
@@ -98,6 +106,9 @@ export async function POST(request: Request) {
     starts_at: parsed.startTime,
     ends_at: parsed.endTime,
     status: "scheduled" as const,
+    // CAL-003: tag the hold so it never blocks real-customer availability.
+    // Once true, stay true on subsequent updates (never launder back to false).
+    ...(isTest ? { is_test: true } : {}),
   };
 
   const { data: existing, error: lookupError } = await supabase

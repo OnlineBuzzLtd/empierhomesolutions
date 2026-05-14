@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-05-14
+
+### Fixed
+
+- **Calendar squatter cleanup — platform-api side** ([scripts/cancel-platform-api-squatters.mts](scripts/cancel-platform-api-squatters.mts)). CAL-006 sibling of CAL-002. CAL-002 cleaned Empire's `crm.appointments`, but the platform-api's separate Cloud SQL `bookings` table still held **93 untagged test-persona rows** from runs that pre-dated CAL-003's `is_test=true` tagging. `hasAvailabilityConflict` consulted that table FIRST and reported a conflict on every weekday slot through 2026-06-15, which is why the production agent kept saying "earliest is the 15th of June" after CAL-002. New idempotent ops script: dry-run by default, cancels with `--cancel --confirm-cancel-bookings=I-AM-SURE`, tags rows with `metadata.is_test=true` AND `metadata.cancelled_reason='CAL-006-platform-squatter-cleanup'` (defence in depth + cancellation rollback key). Predicate matched exactly **90 rows**, left 3 real customers (Shaz × 2, Karen × 1) untouched. After cleanup the engineer resource had blockers on only 2 days (the 3 real bookings) instead of every weekday for a month.
+
+### Investigated
+
+- **ElevenLabs managed-voice agent stalled on availability lookups** — a real customer call this morning failed `search_availability` 5 times in a row, then `check_availability` returned "that time has already passed" for 2 PM today. Root cause was in the CustomerJourneys repo (not Empire): `limit` declared as `type: "string"` in the ElevenLabs tool definition vs `z.number()` in the platform-api schema (every call → HTTP 400), and a static `Today's date is Wednesday, 13 May 2026` baked into the agent's system prompt at provision time. Fix landed in CustomerJourneys `601db752` (see that repo's CHANGELOG); no Empire-side code change.
+
+### Verified
+
+- Predicate dry-run + cancel run + post-cleanup query: 110 → 20 active rows in the next 30 days, untagged real-customer count: 3.
+- Production calendar availability search for tomorrow (2026-05-15) returns open slots from 08:00 onwards.
+
 ## 2026-05-13
 
 ### Fixed

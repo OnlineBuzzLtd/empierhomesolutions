@@ -40,16 +40,53 @@ You operate as a staff-level engineer on a long-lived, multi-team codebase. Opti
 - **Least privilege by default** for new permissions, roles, scopes, and access patterns.
 
 ## Live testing against paid third-party providers
-> This section is non-negotiable. A live channel-test pass in May 2026 fired ~150–200 invalid-destination SMS through the production Twilio number (synthetic numbers in valid UK mobile format, all bounced with error 21211). That damaged sender reputation, cost real money, and risked compliance throttling on the number used for real customer comms. These rules exist to make that mistake impossible to repeat — read them before writing or running any test that touches Twilio, ElevenLabs, OpenAI, or any other billed integration.
+> This section is non-negotiable. There have been TWO Twilio compliance incidents in May 2026 driven by automated testing:
+> 1. **May 12** — a live channel-test pass fired ~150–200 invalid-destination SMS through the production Twilio number (synthetic numbers in valid UK mobile format, all bounced with **error 21211**). That damaged sender reputation, cost real money, and risked compliance throttling.
+> 2. **May 14** — Twilio Insights showed health score 52/100 (Poor, **down 40 from prior week**), 40 messages with **error 30453 ("Message couldn't be delivered")**, and Compliance/Fraud/Sent-rate all flagged Bad. Cause: even with `MESSAGING_ADAPTER=mock` suppressing platform-api outbound, end-to-end tests that materialise a booking still trigger CRM-side notification SMS (Empire Vercel app → Twilio direct), nurture sequences, and downstream worker jobs that DO NOT honour the mock adapter.
+>
+> The rules below exist to make these mistakes impossible to repeat. Read them before writing or running any test that touches Twilio, ElevenLabs, OpenAI, or any other billed integration.
+
+### Tiering
 
 - **Classify every test that hits a third-party provider** into one of three tiers **before** running it. State the tier explicitly in your plan.
-  - **Tier 1 — Direct webhook injection.** POST provider-shaped payloads (HMAC-signed where required) directly to the application's inbound endpoint. Outbound provider calls are mocked. Zero external traffic, zero cost, zero carrier impact. **This is the default for CI and routine validation.** Use this 95% of the time. **Tier 1 must also not pollute production-shared state.** A Tier 1 run with mocked outbound can still create bookings, leads, customer rows, or other domain records that downstream queries treat as real (a May 13, 2026 incident: 3× mock validation runs created 54 confirmed emergency-callout appointments that blocked a real customer call for a week). Mitigations: tag the rows (`is_test = true`) so availability/capacity queries can exclude them — see `crm.appointments.is_test` + `bookings.metadata.is_test` (CAL-003), the platform-side filter in `hasAvailabilityConflict`, and the Empire-side filter in `check-availability/route.ts`. Alternative: write to a separate test data plane (separate tenant, resource, or schema). **Either way, before running anything that writes to the shared CRM / calendar, identify the isolation mechanism and confirm it's in place.**
+  - **Tier 1 — Direct webhook injection.** POST provider-shaped payloads (HMAC-signed where required) directly to the application's inbound endpoint. Outbound provider calls are mocked. **This is the default for CI and routine validation.** Use this 95% of the time. **Tier 1 must also not pollute production-shared state.** A Tier 1 run with mocked outbound can still create bookings, leads, customer rows, or other domain records that downstream queries treat as real (May 13, 2026: 3× mock validation runs created 54 confirmed emergency-callout appointments that blocked a real customer call for a week). Mitigations: tag the rows (`is_test = true`) so availability/capacity queries can exclude them — see `crm.appointments.is_test` + `bookings.metadata.is_test` (CAL-003), the platform-side filter in `hasAvailabilityConflict`, and the Empire-side filter in `check-availability/route.ts`. Alternative: write to a separate test data plane (separate tenant, resource, or schema). **Either way, before running anything that writes to the shared CRM / calendar, identify the isolation mechanism and confirm it's in place.**
   - **Tier 2 — Provider test credentials + sandbox identifiers.** Twilio Test API (`+15005550006` magic-number family), ElevenLabs sandbox keys, OpenAI test orgs, etc. Validates the provider integration without touching real downstream networks. Acceptable on demand for integration-level checks.
   - **Tier 3 — Real numbers / real carrier / real production keys.** A small allowlist of pre-consented phones, accounts, or recipients. Run quarterly or immediately before a release that touches the integration. **Never in CI. Never for variance measurement. Never to "measure flakiness" by re-running.** Document who consented and when, in case provider compliance ever asks.
+
+### Tier 1 is NOT zero-Twilio for the full system
+
+The mock messaging adapter on platform-api only suppresses **platform-api's own outbound calls**. Once a booking is confirmed and the `BookingConfirmed` event flows through to the CRM (Empire on Vercel), CRM-side notification SMS, lead-nurture sequences, and downstream worker jobs run on real Twilio infrastructure. **A "Tier 1" run that creates a confirmed booking is a real-Twilio-traffic run for the broader system.**
+
+Treat any script that creates a confirmed booking end-to-end as **at minimum Tier 3** for the purposes of authorization, even if its own adapter is mocked.
+
+### Known Twilio-firing scripts — do not run without fresh explicit authorization
+
+This is the current list of scripts in this repo that produce real Twilio outbound traffic (directly via the script, or indirectly by materialising a CRM booking that triggers notifications). The list expands; check before running anything new.
+
+- `scripts/live-empire-channel-tests.mts` — creates leads + appointments end-to-end; **definite Twilio outbound via CRM notifications and confirmation SMS**.
+- `scripts/e2e-engineer-channel-test.mjs` — same shape.
+- `scripts/live-calendar-roundtrip-test.mjs` — same shape.
+- `scripts/live-lp-tests.mjs` — submits real landing-page form data; may trigger lead-nurture sequence.
+- Any new script whose name contains `live`, `e2e`, `roundtrip`, `scenario`, or `channel-test`.
+
+For each of these: **do not run, do not "just verify the fix," do not "smoke check," do not re-run a failed run to see if it's flaky.** Every invocation is a fresh authorization request.
+
+### Hard rules
+
 - **Never invent synthetic real-format identifiers** — fake UK mobile numbers like `+447${runId}01`, plausible-looking emails, fake addresses passed to address-validation APIs, etc. They look fine but fail downstream validation, and providers / carriers treat repeated failures as suspicious sender behaviour. Always use the provider's documented test identifiers.
-- **Any script that can fire live provider traffic must be gated** behind an explicit env var (e.g. `ALLOW_LIVE_TWILIO=1`, `ALLOW_LIVE_ELEVENLABS=1`) and print a multi-line confirmation showing the target account ID, sender number/key, and tenant before firing. Refuse to run without the flag.
-- **Cost is real; reputation is more expensive.** A 21211 charge is pennies; a throttled or suspended messaging number breaks live customer comms for hours or days. An OpenAI rate-limit ban affects every tenant on the key. Carrier filtering decisions persist for the production system long after the test that triggered them.
-- **Before running ANY Tier 2 or Tier 3 test**, surface to the user: the tier, the target provider account, the estimated cost, the volume of external messages/calls, and the number of times you plan to run it. Wait for explicit go. A previous "yes, run the test" does not authorise re-runs.
+- **Any script that can fire live provider traffic must be gated** behind an explicit env var (e.g. `ALLOW_LIVE_TWILIO=1`, `ALLOW_LIVE_ELEVENLABS=1`) and print a multi-line confirmation showing the target account ID, sender number/key, and tenant before firing. Refuse to run without the flag. **If the script does not have this gate, do not add the gate quietly and run it — propose the gate as a separate change first.**
+- **Default to read-only diagnostics + webhook-only smoke tests for verification.** A "smoke test" is `curl POST /internal/voice/availability/search ...` with a synthetic body and `curl` reading the JSON response. It is NOT running a full live channel scenario. Verify code changes by reading logs, reading persisted DB traces, and hitting individual endpoints — not by re-driving end-to-end flows.
+- **If verification GENUINELY requires creating a booking end-to-end** (e.g. validating a CRM-bridge fix), state explicitly:
+  1. The script name.
+  2. The exact number of Twilio outbound messages it will produce (estimated from prior runs).
+  3. The target Twilio account + sender number.
+  4. Why a read-only / webhook-only verification is insufficient.
+  5. Then wait for the user to type an explicit authorization including the script name. A prior "yes" does not carry forward to a new run.
+- **Never re-run a failed test "to see if it's still failing."** Diagnose from logs and persisted traces. Re-running is itself a Twilio cost.
+- **Never "measure variance" or "validate flakiness" by running the same live test N times.** Statistical confidence about an unreliable test is not worth real-carrier traffic.
+- **Cost is real; reputation is more expensive.** A 30453 charge is pennies; a throttled or suspended messaging number breaks live customer comms for hours or days. Carrier filtering decisions persist for the production system long after the test that triggered them. An OpenAI rate-limit ban affects every tenant on the key.
+- **Before running ANY Tier 2 or Tier 3 test**, surface to the user: the tier, the target provider account, the estimated cost, the volume of external messages/calls, and the number of times you plan to run it. Wait for explicit go. **A previous "yes, run the test" does not authorise re-runs.**
+- **The bar to run anything that can fire Twilio is: the user has just told me, in this turn, to run THIS specific script.** Not "the user approved this branch of work earlier." Not "the user said to verify the fix." If in doubt, surface the question and wait.
 
 ## Observability
 - **If it can fail, it can be observed.** Add structured logs at decision points, metrics on rates/latency/errors, and traces across service boundaries. Use the codebase's existing conventions; don't invent new ones.

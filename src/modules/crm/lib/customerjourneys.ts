@@ -837,6 +837,87 @@ export async function ensureCustomerJourneysRuntimeLink(
   };
 }
 
+// Tenant phone numbers (voice / SMS / WhatsApp) read from platform-api.
+// Used by the Demo Console (E-1 in plans/okay-create-a-plan-merry-russell.md)
+// so the in-person prospect-facing tiles show the SAME numbers the
+// CRM uses for real customer comms — no separate DEMO_* env vars on
+// Vercel that drift from platform-api truth.
+//
+// The endpoint is platform-api `GET /v1/internal/crm/tenants/:tenantId/numbers`
+// (added in the same plan). It's authenticated with the
+// x-internal-service-token; the tenant id passed is the
+// customerjourneys_tenant_id from the runtime link, not the CRM tenant id.
+//
+// Returns null when:
+//   - the runtime link is missing or has no platform-api base URL
+//   - the internal-service token env var is unset
+//   - the upstream call fails (5xx, network error, parse error)
+// Callers should handle null gracefully (the tile will fall back to a
+// "not configured" message).
+
+export type CustomerJourneysTenantNumbers = {
+  voiceNumber: string | null;
+  smsNumber: string | null;
+  whatsappDisplayNumber: string | null;
+  whatsappSenderSid: string | null;
+  voiceConfigured: boolean;
+  smsConfigured: boolean;
+  whatsappConfigured: boolean;
+  lastValidatedAt: string | null;
+};
+
+// Pure parser extracted for unit-test coverage. The network call wraps
+// this; tests pin the parsing logic against the platform-api response
+// contract without needing fetch mocks.
+export function parseCustomerJourneysTenantNumbers(
+  body: unknown,
+): CustomerJourneysTenantNumbers | null {
+  if (!body || typeof body !== "object") return null;
+  const raw = body as Partial<CustomerJourneysTenantNumbers>;
+  return {
+    voiceNumber: typeof raw.voiceNumber === "string" ? raw.voiceNumber : null,
+    smsNumber: typeof raw.smsNumber === "string" ? raw.smsNumber : null,
+    whatsappDisplayNumber:
+      typeof raw.whatsappDisplayNumber === "string" ? raw.whatsappDisplayNumber : null,
+    whatsappSenderSid:
+      typeof raw.whatsappSenderSid === "string" ? raw.whatsappSenderSid : null,
+    voiceConfigured: raw.voiceConfigured === true,
+    smsConfigured: raw.smsConfigured === true,
+    whatsappConfigured: raw.whatsappConfigured === true,
+    lastValidatedAt: typeof raw.lastValidatedAt === "string" ? raw.lastValidatedAt : null,
+  };
+}
+
+export async function fetchCustomerJourneysTenantNumbers(
+  link: CustomerJourneysRuntimeLink | null,
+): Promise<CustomerJourneysTenantNumbers | null> {
+  if (!link) return null;
+  const env = getCrmEnv();
+  const baseUrl = getRuntimeBaseUrl(link);
+  if (!baseUrl || !link.customerjourneys_tenant_id || !env.customerJourneysInternalApiToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/v1/internal/crm/tenants/${link.customerjourneys_tenant_id}/numbers`,
+      {
+        method: "GET",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-service-token": env.customerJourneysInternalApiToken,
+        },
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) return null;
+    const body = (await response.json()) as unknown;
+    return parseCustomerJourneysTenantNumbers(body);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchCustomerJourneysRuntimeSurface(link: CustomerJourneysRuntimeLink) {
   const env = getCrmEnv();
   const baseUrl = getRuntimeBaseUrl(link);

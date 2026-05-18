@@ -27,6 +27,12 @@ type DemoRunStageProps = {
   voiceNumber: string | null;
   smsNumber: string | null;
   whatsappNumber: string | null;
+  // E-2: when numbers come from the live platform-api connection, the
+  // tiles point at Empire's REAL prod Twilio sender — same sender at
+  // 52/100 from the May incidents. Surface this so the operator knows
+  // before they invite a prospect to text. "env_or_none" = numbers
+  // came from the Vercel DEMO_* env vars OR are absent (no banner).
+  numbersSource?: "platform_api" | "env_or_none";
 };
 
 export function DemoRunStage({
@@ -35,6 +41,7 @@ export function DemoRunStage({
   voiceNumber,
   smsNumber,
   whatsappNumber,
+  numbersSource = "env_or_none",
 }: DemoRunStageProps) {
   const [activeSession, setActiveSession] = useState<ActiveDemoSession | null>(null);
   const [killSwitchAt, setKillSwitchAt] = useState<Date | null>(null);
@@ -124,6 +131,21 @@ export function DemoRunStage({
         </div>
         <div className="flex items-center gap-2 text-xs">
           <PreflightBanner />
+          {/*
+            E-2: surfaces that the tiles point at Empire's REAL prod
+            Twilio sender. Per CLAUDE.md the May 12 / 14 incidents
+            already damaged that sender to 52/100; every demo SMS
+            compounds that on a number used for real customer comms.
+            Operator must see this before inviting a prospect to text.
+          */}
+          {numbersSource === "platform_api" ? (
+            <span
+              className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800"
+              title="Tiles point at Empire's live prod Twilio sender. Outbound counts against the same number used for real customer comms (currently 52/100 sender reputation per May incidents)."
+            >
+              ⚠ Live Twilio sender
+            </span>
+          ) : null}
           {activeSession ? (
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-700">
               {activeSession.prospectName} · {formatElapsed(elapsedSec)}

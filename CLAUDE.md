@@ -99,7 +99,23 @@ For each of these: **do not run, do not "just verify the fix," do not "smoke che
 - **Flag, don't fix, unrelated issues.** Surface them as a list at the end. The person reviewing decides.
 - **Surface risk early.** If a request is the wrong shape — wrong layer, wrong abstraction, fighting the framework, accumulating tech debt — say so before implementing it.
 
+## Debugging AI agent bugs (cross-repo)
+
+Most bugs Empire users see — wrong agent reply, wrong handoff, wrong name, repeated prompt, fabricated info — surface in Empire's UI (Demo Console pane, CRM dashboard, customer view) but the actual fix lives in the Customer Journeys repo's `services/platform-api/src/lib/managed-text-agent.ts` + `text-booking-orchestrator.ts`. The bug-fix system itself lives in CJ.
+
+When you hit one of those bugs **do not** start changing prompts or orchestrator code from memory. Instead:
+
+1. Get the conversation id (Twilio Insights row, the CRM's conversation viewer, or `crm.customerjourneys_runtime_links` + the timestamp).
+2. In the CJ repo: `pnpm debug:conversation <id>` → opens a local trace bundle + summary.
+3. Walk [`docs/bugs/PLAYBOOK.md`](../Customer-Journeys-AI-v1/customerjourneys-site/docs/bugs/PLAYBOOK.md) (in the CJ repo) against the summary to classify the bug.
+4. Check [`docs/bugs/BUGS.md`](../Customer-Journeys-AI-v1/customerjourneys-site/docs/bugs/BUGS.md) (also CJ) to see if it's already filed / fixed / in progress.
+5. If new: file a row, write a diagnosis.md, fix with a replay test, flip the BUGS.md row to `fixed` with the commit hash in the same PR.
+
+Empire-side: when an agent bug shows up in the Demo Console live pane or the CRM, the same flow applies — the actual code fix is in CJ, but the BUGS.md row also gets created from this repo's perspective (a customer-facing screenshot is the trigger). Reference the BUGS.md row hash in Empire commits when the symptom is Empire-visible even though the fix is upstream.
+
 ## Definition of done
 A change is done when: it solves the stated problem, **it has tests proving it (see "No rollouts without tests" above)**, types and linters pass, the build is green, observability is in place, the contract impact is documented, the rollback path is clear, and nothing unrelated was changed. Anything missing is called out explicitly.
 
 If a change ships without the corresponding test, the change is **not done** — even if the code is on `main` and Vercel has deployed. Open a follow-up to backfill the test before any further work in that area. Repeated "tests follow in a follow-up PR" produces the exact pattern of incidents this section was added to prevent.
+
+If the change fixes an AI agent bug, **the [`docs/bugs/BUGS.md`](../Customer-Journeys-AI-v1/customerjourneys-site/docs/bugs/BUGS.md) row (in the CJ repo) is flipped from `open` to `fixed` with the commit hash in the same PR**. A bug is not done until its ledger row reflects the fix.

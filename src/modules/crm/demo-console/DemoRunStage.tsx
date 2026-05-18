@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { LiveDemoPane } from "@/modules/crm/demo-console/LiveDemoPane";
+import { PreflightBanner } from "@/modules/crm/demo-console/PreflightBanner";
 import { WebchatTile } from "@/modules/crm/demo-console/tiles/WebchatTile";
 import { VoiceTile } from "@/modules/crm/demo-console/tiles/VoiceTile";
 import { MessagingTile } from "@/modules/crm/demo-console/tiles/MessagingTile";
@@ -113,6 +114,7 @@ export function DemoRunStage({
           <p className="text-sm font-semibold text-slate-900">In-person demo</p>
         </div>
         <div className="flex items-center gap-2 text-xs">
+          <PreflightBanner />
           {activeSession ? (
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-700">
               {activeSession.prospectName} · {formatElapsed(elapsedSec)}

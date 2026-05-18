@@ -101,6 +101,30 @@ export default async function SettingsPage() {
           <p className="mt-3 text-xs text-slate-500">Re-runs the Twilio + CustomerJourneys provisioning pipeline for this tenant idempotently. Safe to run any time — existing SIDs are reused.</p>
         </SectionCard>
 
+        <SectionCard title="Demo Console">
+          <ApiForm endpoint="/api/crm/settings/demo-console" submitLabel="Save" className="grid gap-3">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="demo_console_enabled"
+                defaultChecked={Boolean(tenantSettings?.demo_console_enabled)}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                <span className="font-semibold text-slate-900">Enable Demo Console</span>
+                <span className="ml-1 text-slate-600">
+                  — in-person sales demo capability at <code>/demo</code> and <code>/demo/run</code>. Manager/admin only.
+                </span>
+              </span>
+            </label>
+          </ApiForm>
+          <p className="mt-3 text-xs text-slate-500">
+            When enabled, this tenant gets a &quot;Demo&quot; item in the admin sidebar and the
+            tenant-gated routes start returning 200 instead of 404. See{" "}
+            <code>src/modules/crm/demo-console/README.md</code> for the operator runbook.
+          </p>
+        </SectionCard>
+
         <SectionCard title="Create New Tenant">
           <ApiForm endpoint="/api/crm/settings/tenants" submitLabel="Create Tenant" className="grid gap-3 md:grid-cols-2">
             <input name="name" required placeholder="Business name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />

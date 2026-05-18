@@ -152,6 +152,44 @@ stream to be safe to deploy. CI runs it on every PR.
 
 ---
 
+## Running a demo (F-3 runbook)
+
+### Pre-meeting checklist (do once per day before any demo)
+
+1. **Preflight green.** Open `/demo/run`, expand the preflight strip in the header. All four checks should be `ok` or `skipped`. If `twilio` is `skipped`, that's expected until A-2 ships — your demo can still run but you won't get a Twilio reputation score check in the banner.
+2. **DEMO_CONSOLE_ALLOWLIST contains your number** AND any test partner who'll receive SMS/WA during the demo. Verify via the preflight `env` line.
+3. **Demo Twilio subaccount health.** Open Twilio Insights for the demo subaccount in another tab. Score should be the expected baseline (target ≥80). If it's poor, don't pitch from this sender — investigate before running.
+4. **Browser cache cleared / private window**, so a previous session's cookies don't leak in.
+5. **You have the prospect's phone number ready** and have explained to them out loud that one SMS and one WhatsApp will arrive during the demo.
+
+### Channel demo order (recommended)
+
+A 5–7 minute run that covers the full story. Adjust based on what the prospect's interested in.
+
+1. Open `/demo/run` fullscreen. Show the right-hand "Live CRM" pane sitting idle — "Waiting for the first lead…".
+2. Press `Ctrl+Shift+D` to open the operator panel. **Fill in the consent form**: prospect's name + mobile, read the consent text out loud, check the box, click **Start demo session**.
+3. **Webchat** (lowest friction). Hand the laptop to the prospect: "Try typing what you'd say if your boiler broke." Watch the right pane fill in — customer card, lead card, then a booking appointment.
+4. **Google lead** (you trigger). In the operator panel, click **Google lead**. Right pane shows the new customer arrive within a couple of seconds.
+5. **Meta lead** (you trigger). Same shape, different channel badge.
+6. **SMS / WhatsApp**. Point at the messaging tile. "Now text us from your phone." Prospect texts, the AI replies on their phone, an SMS/WA confirmation lands when the booking confirms. Right pane shows the appointment row.
+7. **Voice**. Point at the voice tile. "Now call us." Prospect dials from their mobile, the AI receptionist answers, books them in, right pane lights up.
+8. Show the prospect their own confirmation SMS / WhatsApp on their phone, and the booking on the live pane. Story complete.
+
+### Post-meeting cleanup (do every time)
+
+1. In the operator panel, click **End session & wipe demo rows**.
+2. The confirmation modal shows what will be deleted. Click **Yes, wipe**. The trigger log adds a "Cleanup: deleted N rows across M tables" line.
+3. Open `/dashboard` and confirm the prospect's records are gone (customers, leads, jobs, appointments). Plumbersrus / other tenants are untouched.
+4. If you ran a demo that triggered a real Twilio issue: hit **Stop all demo triggers** in the operator panel before leaving the room. That sets the kill switch — clear it later from the operator panel once you've investigated.
+
+### Things to NOT do
+
+- Don't run another demo without clearing the previous session (the operator panel auto-closes any prior active session, but the first demo's rows linger until you cleanup).
+- Don't share `/demo` or `/demo/run` URLs with prospects after the meeting; the routes only resolve while signed in to the demoing tenant.
+- Don't add prospect numbers to `DEMO_CONSOLE_ALLOWLIST` permanently. The allowlist exists for your test phones and pre-consented partners; prospect consent is recorded on the `demo_sessions` row for that session only.
+
+---
+
 ## Tickets referencing this README
 
 A-1, A-2, A-3, B-1, B-2, B-3, C-1..C-4, D-1..D-5, E-1..E-6, F-1..F-4, G-1.

@@ -238,8 +238,8 @@ export function WebchatTile({ prospectName }: WebchatTileProps) {
         </form>
 
         <p className="text-[10px] text-slate-400">
-          Webchat rows are not tagged is_test — they survive the session cleanup. Use the Google /
-          Meta triggers in the operator panel for clean teardown.
+          Webchat bookings show up in the live pane, but the rows aren't tagged is_test so the
+          end-session cleanup won't wipe them — manual cleanup until E-7 lands.
         </p>
       </div>
     </section>

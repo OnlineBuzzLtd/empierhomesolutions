@@ -188,6 +188,16 @@ A 5–7 minute run that covers the full story. Adjust based on what the prospect
 - Don't share `/demo` or `/demo/run` URLs with prospects after the meeting; the routes only resolve while signed in to the demoing tenant.
 - Don't add prospect numbers to `DEMO_CONSOLE_ALLOWLIST` permanently. The allowlist exists for your test phones and pre-consented partners; prospect consent is recorded on the `demo_sessions` row for that session only.
 
+### Webchat cleanup gap (E-7 pending)
+
+Bookings made through the **webchat** tile during a demo show up in the live pane (since the 2026-05-18 filter widening — `tests/unit/should-include-row.test.ts`), but the underlying customer / lead / job / appointment rows are NOT tagged `is_test=true` because the public webchat → CJ runtime path doesn't propagate that flag. **The end-session cleanup endpoint won't wipe them.** Workarounds until E-7 lands:
+
+1. After end-of-session cleanup, run a manual delete via `/customers` for the demo prospect rows the cleanup missed.
+2. Or run a one-off cleanup script that filters by `source = 'ai_webchat'` and `created_at >= sessionStartedAt`.
+3. Or just accept the accumulation — they're tagged `source = "ai_webchat"` so they're identifiable for periodic bulk cleanup.
+
+The Google / Meta replay triggers and the voice / SMS / WhatsApp paths all go through `/api/platform/events` with `is_test=true` baked in, so cleanup catches those without effort. The gap is webchat-only.
+
 ---
 
 ## Tickets referencing this README

@@ -4,7 +4,7 @@ import { applySecurityHeaders, generateNonce } from "@/lib/security-headers";
 import { resolveTenantFromHost } from "@/lib/tenant-host";
 
 const CRM_PROTECTED_PATH_PATTERN =
-  /^\/(login|signup|dashboard|leads|customers|jobs|calendar|ai-hub|quotes|invoices|staff|reports|settings|api\/crm)(\/.*)?$/;
+  /^\/(login|signup|dashboard|leads|customers|jobs|calendar|ai-hub|quotes|invoices|staff|reports|settings|demo|api\/crm)(\/.*)?$/;
 
 function shouldRunCrmSession(pathname: string): boolean {
   return CRM_PROTECTED_PATH_PATTERN.test(pathname);

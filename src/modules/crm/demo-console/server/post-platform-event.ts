@@ -1,6 +1,68 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 
+// Pure helpers (exported for unit-testability). The trigger endpoints
+// shipped without tests of the envelope shape; the workspace_id bug
+// (2026-05-18) wasted real production time because of it. These
+// helpers stay pure so tests/unit/post-platform-event.test.ts can
+// pin both the envelope shape and the HMAC computation without
+// touching the network.
+
+export type DemoPlatformEnvelope = {
+  event_id: string;
+  event_type: "BookingConfirmed";
+  event_version: 1;
+  workspace_id: string;
+  occurred_at: string;
+  source_system: "agentic_runtime";
+  idempotency_key: string;
+  correlation_id: null;
+  causation_id: null;
+  aggregate: { type: "booking"; id: null };
+  payload: Record<string, unknown> & { channel: string; is_test: true };
+};
+
+export function buildDemoPlatformEnvelope(input: {
+  channel: string;
+  workspaceId: string;
+  payload: Record<string, unknown>;
+  // Both are injected so the helper is deterministic in tests; the
+  // real call site uses randomUUID + new Date().toISOString().
+  eventId: string;
+  occurredAt: string;
+}): DemoPlatformEnvelope {
+  return {
+    event_id: input.eventId,
+    event_type: "BookingConfirmed",
+    event_version: 1,
+    workspace_id: input.workspaceId,
+    occurred_at: input.occurredAt,
+    source_system: "agentic_runtime",
+    idempotency_key: `demo-console:${input.eventId}`,
+    correlation_id: null,
+    causation_id: null,
+    aggregate: { type: "booking", id: null },
+    payload: {
+      ...input.payload,
+      channel: input.channel,
+      // is_test is non-negotiable on this code path — the cleanup
+      // endpoint scope-filters by it, so any row produced by a demo
+      // event must carry the flag through.
+      is_test: true,
+    },
+  };
+}
+
+export function computeDemoEventSignature(
+  sharedSecret: string,
+  timestampSeconds: number,
+  rawBody: string,
+): string {
+  const hmac = createHmac("sha256", sharedSecret);
+  hmac.update(`${timestampSeconds}.${rawBody}`);
+  return `sha256=${hmac.digest("hex")}`;
+}
+
 // Server-side helper for the Demo Console trigger endpoints (E-3). The
 // replay endpoints (Google / Meta) build a BookingConfirmed envelope
 // from a captured fixture, sign it with PLATFORM_SHARED_SECRET, and
@@ -57,23 +119,13 @@ export async function postPlatformEventFromDemo(
   const eventId = randomUUID();
   const occurredAt = new Date().toISOString();
 
-  const envelope = {
-    event_id: eventId,
-    event_type: "BookingConfirmed" as const,
-    event_version: 1,
-    workspace_id: input.workspaceId,
-    occurred_at: occurredAt,
-    source_system: "agentic_runtime" as const,
-    idempotency_key: `demo-console:${eventId}`,
-    correlation_id: null,
-    causation_id: null,
-    aggregate: { type: "booking", id: null },
-    payload: {
-      ...input.payload,
-      channel: input.channel,
-      is_test: true,
-    },
-  };
+  const envelope = buildDemoPlatformEnvelope({
+    channel: input.channel,
+    workspaceId: input.workspaceId,
+    payload: input.payload,
+    eventId,
+    occurredAt,
+  });
 
   const rawBody = JSON.stringify(envelope);
   const timestampSeconds = Math.floor(Date.now() / 1000);
@@ -82,9 +134,7 @@ export async function postPlatformEventFromDemo(
     // catching loudly if process clocks ever drift wildly during a build.
     throw new Error("Generated timestamp outside allowed skew window.");
   }
-  const hmac = createHmac("sha256", env.platformSharedSecret);
-  hmac.update(`${timestampSeconds}.${rawBody}`);
-  const signature = `sha256=${hmac.digest("hex")}`;
+  const signature = computeDemoEventSignature(env.platformSharedSecret, timestampSeconds, rawBody);
 
   // Use the in-process URL — Next.js routes are reachable at
   // process.env.NEXT_PUBLIC_SITE_URL or VERCEL_URL on prod. For local

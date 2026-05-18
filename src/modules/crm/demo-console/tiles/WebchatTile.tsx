@@ -17,6 +17,7 @@
 // the /messages endpoint with conversationId.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { parseWebchatSessionResponse } from "@/modules/crm/demo-console/parse-webchat-session";
 
 type ChatMessage = {
   id: string;
@@ -65,20 +66,20 @@ export function WebchatTile({ prospectName }: WebchatTileProps) {
             fullName: prospectName,
           }),
         });
-        const result = (await res.json().catch(() => null)) as
-          | { ok: true; session: { conversationId?: string; conversation_id?: string } }
-          | { ok: false; error?: { code: string; message: string } }
-          | null;
-        if (!res.ok || !result || !("ok" in result) || !result.ok) {
+        const result = await res.json().catch(() => null);
+        if (!res.ok || !result || typeof result !== "object" || !("ok" in result) || result.ok !== true) {
           const serverMsg =
-            result && "error" in result && result.error?.message ? result.error.message : null;
+            result && typeof result === "object" && "error" in result
+              ? (result as { error?: { message?: string } }).error?.message ?? null
+              : null;
           throw new Error(serverMsg ?? `Session create HTTP ${res.status}`);
         }
-        const id =
-          result.session.conversationId ?? result.session.conversation_id ?? null;
-        if (!id) throw new Error("Session response missing conversationId.");
-        setConversationId(id);
-        return id;
+        const parsed = parseWebchatSessionResponse(result);
+        if (!parsed) {
+          throw new Error("Session response missing conversationId.");
+        }
+        setConversationId(parsed.conversationId);
+        return parsed.conversationId;
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Unable to start chat.");
         return null;

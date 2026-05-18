@@ -155,6 +155,14 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                 <div className="flex items-center gap-2">
                   {session.tenant && tenantOptions.length > 1 ? <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} /> : null}
                   <CrmTopNav items={topNavItems} />
+                  {isEngineer && !isCommsoftMode ? (
+                    <Link
+                      href="/preferences"
+                      className="hidden rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:inline-flex"
+                    >
+                      Switch view
+                    </Link>
+                  ) : null}
                   <DemoModeToggle canManage={canManageDemo} />
                   <LogoutButton />
                 </div>
@@ -181,7 +189,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             )}
             {isEngineer && !isCommsoftMode ? (
               <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-                <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold">
+                <div className="grid grid-cols-5 gap-2 text-center text-xs font-semibold">
                   <Link
                     href="/dashboard"
                     className={`rounded-full px-3 py-2 ${pathname === "/dashboard" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
@@ -202,6 +210,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                     className={`rounded-full px-3 py-2 ${pathname.startsWith("/calendar") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
                     Calendar
+                  </Link>
+                  <Link
+                    href="/preferences"
+                    className={`rounded-full px-3 py-2 ${pathname.startsWith("/preferences") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
+                  >
+                    View
                   </Link>
                 </div>
               </nav>

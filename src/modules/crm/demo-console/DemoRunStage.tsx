@@ -147,15 +147,25 @@ export function DemoRunStage({
         </div>
       </header>
 
-      <main className="grid flex-1 grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-2">
-        <div className="grid min-h-0 grid-cols-1 gap-3 md:grid-cols-2">
+      {/*
+        Layout discipline so tile growth doesn't push others off-screen:
+          - main is grid with overflow-hidden + flex-1 → fixed to the
+            remaining viewport.
+          - left half is a 2×2 grid with explicit grid-rows-2 so each
+            tile gets exactly half the available height.
+          - inner grids carry min-h-0 so flex children inside the tiles
+            (notably the webchat transcript) can shrink and scroll
+            instead of forcing their cell to grow.
+      */}
+      <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-2">
+        <div className="grid min-h-0 grid-cols-1 grid-rows-4 gap-3 md:grid-cols-2 md:grid-rows-2">
           <WebchatTile
             prospectName={activeSession?.prospectName}
             prospectPhone={activeSession?.prospectPhone}
           />
           <VoiceTile voiceNumber={voiceNumber} />
           <MessagingTile smsNumber={smsNumber} whatsappNumber={whatsappNumber} />
-          <div className="grid grid-rows-2 gap-3">
+          <div className="grid min-h-0 grid-rows-2 gap-3">
             <InboundLeadTile kind="google" />
             <InboundLeadTile kind="meta" />
           </div>

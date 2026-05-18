@@ -176,7 +176,10 @@ export function WebchatTile({ prospectName }: WebchatTileProps) {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    // h-full + min-h-0 → fills the grid cell instead of expanding to fit
+    // every message. Without these the transcript pushes everything
+    // below it off-screen as the conversation grows.
+    <section className="flex h-full min-h-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <header className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-900">Chat with us</h3>
         <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-700">
@@ -184,8 +187,8 @@ export function WebchatTile({ prospectName }: WebchatTileProps) {
         </span>
       </header>
 
-      <div className="flex flex-1 flex-col gap-3">
-        <div className="flex-1 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-sm">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-sm">
           {messages.length === 0 ? (
             <p className="text-xs text-slate-400">
               Try typing something like &quot;My boiler&apos;s broken, can someone come tomorrow?&quot;

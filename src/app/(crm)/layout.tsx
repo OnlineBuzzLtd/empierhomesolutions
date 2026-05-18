@@ -67,6 +67,13 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const uiMode = isEngineer ? await getUiPreference() : "classic";
   const isCommsoftMode = isEngineer && uiMode === "commusoft";
 
+  // Demo Console fullscreen prospect view (ticket D-1). Suppresses the
+  // CRM chrome (sidebar, header, demo banner) so the laptop shows a
+  // focused split-screen the plumber sees during the in-person demo.
+  // Tenant gate is enforced inside /demo/run itself, the same way /demo
+  // is. The chrome bypass is purely presentation.
+  const isDemoRunMode = pathname.startsWith("/demo/run");
+
   // Demo Console item is conditional — only appears for tenants with the
   // demo_console_enabled flag, and only for manager/admin roles. See
   // src/modules/crm/demo-console/README.md.
@@ -108,6 +115,16 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   if (!session.user) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100">{children}</div>
+    );
+  }
+
+  if (isDemoRunMode && session.user) {
+    return (
+      <DemoModeProvider state={demoState}>
+        <div className="min-h-screen bg-slate-50 text-slate-900">
+          {children}
+        </div>
+      </DemoModeProvider>
     );
   }
 

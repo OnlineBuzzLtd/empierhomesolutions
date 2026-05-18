@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { LiveDemoPane } from "@/modules/crm/demo-console/LiveDemoPane";
@@ -32,10 +33,16 @@ export default async function DemoConsolePage() {
         </p>
         <h1 className="text-3xl font-bold text-slate-900">In-person sales demo</h1>
         <p className="text-sm text-slate-600">
-          Live demo capability for {tenantName}. Streams A and B (safety + schema) shipped;
-          Stream C (this preview pane) is live; Streams D–F (prospect-facing tiles, consent
-          capture, captured-payload replay, cleanup, kill switch, polish) are next.
+          Live demo capability for {tenantName}. Open the fullscreen prospect view to run a demo.
         </p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Link
+            href="/demo/run"
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            Open /demo/run
+          </Link>
+        </div>
       </header>
 
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

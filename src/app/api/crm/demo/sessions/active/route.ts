@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { guardDemoApi } from "@/modules/crm/demo-console/server/session-guard";
 
-// Read the currently-active demo session for the operator's tenant, if
-// any. The UI uses this on mount + after consent / end-session actions
-// so client state stays in sync with what the DB believes is open
-// (even across tabs and across the kill switch flip).
+// Active state for the demo console (session + kill switch).
 //
-// Returns 200 with { active: false } when there's no open session.
+// The UI calls this on /demo/run mount so client state reflects the
+// server: a session created in another tab + a kill switch left on
+// after a previous session both have to propagate to a fresh page
+// load, otherwise the operator gets confused state.
+//
+// Returns 200 always (no "no session" 404). The kill switch can be
+// set without an active session.
 
 export async function GET() {
   const guard = await guardDemoApi({ requireActiveSession: false });
@@ -14,34 +17,43 @@ export async function GET() {
 
   const { admin, tenantId } = guard;
 
-  const { data, error } = await admin
-    .schema("crm")
-    .from("demo_sessions")
-    .select("id, started_at, prospect_name, prospect_phone")
-    .eq("tenant_id", tenantId)
-    .is("ended_at", null)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{
-      id: string;
-      started_at: string;
-      prospect_name: string;
-      prospect_phone: string;
-    }>();
+  const [sessionResult, settingsResult] = await Promise.all([
+    admin
+      .schema("crm")
+      .from("demo_sessions")
+      .select("id, started_at, prospect_name, prospect_phone")
+      .eq("tenant_id", tenantId)
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        started_at: string;
+        prospect_name: string;
+        prospect_phone: string;
+      }>(),
+    admin
+      .schema("crm")
+      .from("tenant_settings")
+      .select("demo_kill_switch_at")
+      .eq("tenant_id", tenantId)
+      .maybeSingle<{ demo_kill_switch_at: string | null }>(),
+  ]);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (sessionResult.error) {
+    return NextResponse.json({ error: sessionResult.error.message }, { status: 500 });
+  }
+  if (settingsResult.error) {
+    return NextResponse.json({ error: settingsResult.error.message }, { status: 500 });
   }
 
-  if (!data) {
-    return NextResponse.json({ active: false });
-  }
-
+  const session = sessionResult.data;
   return NextResponse.json({
-    active: true,
-    session_id: data.id,
-    started_at: data.started_at,
-    prospect_name: data.prospect_name,
-    prospect_phone: data.prospect_phone,
+    active: Boolean(session),
+    session_id: session?.id ?? null,
+    started_at: session?.started_at ?? null,
+    prospect_name: session?.prospect_name ?? null,
+    prospect_phone: session?.prospect_phone ?? null,
+    demo_kill_switch_at: settingsResult.data?.demo_kill_switch_at ?? null,
   });
 }

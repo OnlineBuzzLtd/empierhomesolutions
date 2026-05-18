@@ -1,49 +1,44 @@
 "use client";
 
-// Webchat tile (ticket D-2, post-fix). Lightweight inline chat that uses
-// the same public webchat endpoints the marketing site widget uses:
-//   POST /api/public/webchat/sessions  (creates a CJ runtime session)
-//   POST /api/public/webchat/messages  (sends a subsequent message)
+// Webchat tile (D-2, post-fixes). Inline chat that uses the same public
+// webchat endpoints the marketing site widget uses:
+//   POST /api/public/webchat/sessions  → opens a CJ runtime session
+//                                        AND returns the AI's opening
+//                                        reply in the same response.
+//   POST /api/public/webchat/messages  → sends a turn AND returns the
+//                                        AI's reply in the same
+//                                        response. No polling needed.
 //
-// **Important caveat**: the public webchat endpoint hardcodes source =
-// "empire_lp" and does not accept an is_test flag — the resulting
-// customer/lead/job/appointment rows will NOT be tagged is_test=true.
-// The session-cleanup endpoint (E-5) only deletes is_test rows, so
-// webchat-driven rows survive the cleanup. Document this in the
-// runbook and prefer the Google/Meta replay buttons for demos where
-// you need clean teardown.
+// Both responses are parsed by parseWebchatSessionResponse /
+// parseWebchatTurnResponse from a sibling module (unit-tested in
+// tests/unit/parse-webchat-session.test.ts).
 //
-// First message uses session.openingMessage; subsequent messages use
-// the /messages endpoint with conversationId.
+// Caveat (unchanged): the public webchat path hardcodes source =
+// "empire_lp" and does not accept is_test, so downstream CRM rows
+// won't carry is_test=true and won't appear in the LiveDemoPane.
+// For clean teardown, use the Google / Meta replay buttons.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { parseWebchatSessionResponse } from "@/modules/crm/demo-console/parse-webchat-session";
+import {
+  parseWebchatSessionResponse,
+  parseWebchatTurnResponse,
+  type ParsedWebchatMessage,
+} from "@/modules/crm/demo-console/parse-webchat-session";
 
-type ChatMessage = {
-  id: string;
-  body: string;
-  direction: "inbound" | "outbound" | "system";
-};
+type LocalMessage = ParsedWebchatMessage & { local?: boolean };
 
 type WebchatTileProps = {
-  // Reserved for future per-prospect identity hints (currently the
-  // public session schema doesn't accept name/phone, only fullName as
-  // optional). Kept on the props so DemoRunStage doesn't have to break
-  // its call signature when we add an internal demo session endpoint.
   prospectName?: string;
   prospectPhone?: string;
 };
 
 function makeVisitorId(): string {
-  // Public session schema requires visitorId min 8 chars. Use a
-  // demo-prefixed UUID-like value so server-side logs make it obvious
-  // these came from the Demo Console.
   const random = Math.random().toString(36).slice(2, 14);
   return `demo-${random}`;
 }
 
 export function WebchatTile({ prospectName }: WebchatTileProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,77 +46,121 @@ export function WebchatTile({ prospectName }: WebchatTileProps) {
   const visitorIdRef = useRef<string>(makeVisitorId());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Open a session on first message — the session-create endpoint
-  // requires an openingMessage, so the prospect's first typed message
-  // doubles as it.
-  const openSessionWithMessage = useCallback(
-    async (openingMessage: string): Promise<string | null> => {
-      try {
-        const res = await fetch("/api/public/webchat/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            visitorId: visitorIdRef.current,
-            openingMessage,
-            fullName: prospectName,
-          }),
-        });
-        const result = await res.json().catch(() => null);
-        if (!res.ok || !result || typeof result !== "object" || !("ok" in result) || result.ok !== true) {
-          const serverMsg =
-            result && typeof result === "object" && "error" in result
-              ? (result as { error?: { message?: string } }).error?.message ?? null
-              : null;
-          throw new Error(serverMsg ?? `Session create HTTP ${res.status}`);
-        }
-        const parsed = parseWebchatSessionResponse(result);
-        if (!parsed) {
-          throw new Error("Session response missing conversationId.");
-        }
-        setConversationId(parsed.conversationId);
-        return parsed.conversationId;
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Unable to start chat.");
-        return null;
-      }
+  // Optimistic local message for the in-flight turn. Replaced by the
+  // server's echoed message once the response lands. Lets the prospect
+  // see their text appear instantly rather than wait for the round-trip.
+  const upsertOptimistic = useCallback((localId: string, body: string) => {
+    setMessages((prev) => [
+      ...prev,
+      { id: localId, body, direction: "inbound", local: true },
+    ]);
+  }, []);
+
+  const replaceOptimisticWithServerTurn = useCallback(
+    (localId: string, echoed: ParsedWebchatMessage | null, reply: ParsedWebchatMessage | null) => {
+      setMessages((prev) => {
+        const withoutOptimistic = prev.filter((m) => m.id !== localId);
+        const next = [...withoutOptimistic];
+        if (echoed) next.push(echoed);
+        if (reply) next.push(reply);
+        return next;
+      });
     },
-    [prospectName],
+    [],
   );
 
-  const sendSubsequentMessage = useCallback(
-    async (cid: string, body: string): Promise<void> => {
+  const rollbackOptimistic = useCallback((localId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== localId));
+  }, []);
+
+  // First turn: opens a session with `openingMessage` and reads back
+  // both the conversation id AND any initial AI reply that arrived in
+  // the same response.
+  const openSessionWithFirstMessage = useCallback(
+    async (firstMessage: string, localId: string): Promise<void> => {
+      const res = await fetch("/api/public/webchat/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorId: visitorIdRef.current,
+          openingMessage: firstMessage,
+          fullName: prospectName,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || typeof body !== "object" || !("ok" in body) || body.ok !== true) {
+        const serverMsg =
+          body && typeof body === "object" && "error" in body
+            ? (body as { error?: { message?: string } }).error?.message ?? null
+            : null;
+        throw new Error(serverMsg ?? `Session create HTTP ${res.status}`);
+      }
+      const parsed = parseWebchatSessionResponse(body);
+      if (!parsed) throw new Error("Session response missing conversationId.");
+      setConversationId(parsed.conversationId);
+
+      // If the server returned an AI reply in the initial response,
+      // surface it as a system/outbound message. The server may or may
+      // not echo the prospect's opening message — we always have the
+      // local optimistic version, so we just replace it with whatever
+      // shape the server gave back.
+      const echoed = parsed.messages.find((m) => m.direction === "inbound") ?? null;
+      const reply = parsed.messages.find((m) => m.direction === "outbound") ?? null;
+      replaceOptimisticWithServerTurn(localId, echoed, reply);
+    },
+    [prospectName, replaceOptimisticWithServerTurn],
+  );
+
+  // Subsequent turns: posts to /messages and reads the AI reply from
+  // the same response.
+  const sendSubsequentTurn = useCallback(
+    async (cid: string, body: string, localId: string): Promise<void> => {
       const res = await fetch("/api/public/webchat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversationId: cid, body }),
       });
-      if (!res.ok) {
-        const detail = await res.text();
-        throw new Error(`Message send HTTP ${res.status}: ${detail.slice(0, 120)}`);
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json || typeof json !== "object" || !("ok" in json) || json.ok !== true) {
+        const serverMsg =
+          json && typeof json === "object" && "error" in json
+            ? (json as { error?: { message?: string } }).error?.message ?? null
+            : null;
+        throw new Error(serverMsg ?? `Message send HTTP ${res.status}`);
       }
+      const turn = parseWebchatTurnResponse(json);
+      if (!turn) throw new Error("Message response shape unrecognised.");
+      replaceOptimisticWithServerTurn(localId, turn.echoedMessage, turn.replyMessage);
     },
-    [],
+    [replaceOptimisticWithServerTurn],
   );
 
   const sendMessage = useCallback(
     async (body: string) => {
+      const localId = `local-${Date.now()}`;
       setBusy(true);
       setError(null);
-      const localId = `local-${Date.now()}`;
-      setMessages((prev) => [...prev, { id: localId, body, direction: "inbound" }]);
+      upsertOptimistic(localId, body);
       try {
         if (!conversationId) {
-          await openSessionWithMessage(body);
+          await openSessionWithFirstMessage(body, localId);
         } else {
-          await sendSubsequentMessage(conversationId, body);
+          await sendSubsequentTurn(conversationId, body, localId);
         }
       } catch (caught) {
+        rollbackOptimistic(localId);
         setError(caught instanceof Error ? caught.message : "Unable to send.");
       } finally {
         setBusy(false);
       }
     },
-    [conversationId, openSessionWithMessage, sendSubsequentMessage],
+    [
+      conversationId,
+      openSessionWithFirstMessage,
+      sendSubsequentTurn,
+      upsertOptimistic,
+      rollbackOptimistic,
+    ],
   );
 
   useEffect(() => {
@@ -165,6 +204,11 @@ export function WebchatTile({ prospectName }: WebchatTileProps) {
               </div>
             ))
           )}
+          {busy ? (
+            <p className="max-w-[80%] rounded-2xl rounded-bl-sm bg-slate-50 px-3 py-2 text-xs italic text-slate-500">
+              …
+            </p>
+          ) : null}
           <div ref={messagesEndRef} />
         </div>
 

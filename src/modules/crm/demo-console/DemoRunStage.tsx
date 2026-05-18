@@ -41,8 +41,11 @@ export function DemoRunStage({
   const [elapsedSec, setElapsedSec] = useState(0);
   const [operatorPanelOpen, setOperatorPanelOpen] = useState(false);
 
-  // On mount: hydrate active session from the server so a refresh /
-  // second tab doesn't lose the demo state.
+  // On mount: hydrate session + kill switch state from the server so
+  // a refresh / second tab / cleared local state doesn't desync from
+  // the DB. The kill switch in particular is per-tenant in
+  // tenant_settings — without this fetch, the UI would always show
+  // "off" on page load even if a previous session left it set.
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -55,14 +58,20 @@ export function DemoRunStage({
           started_at?: string;
           prospect_name?: string;
           prospect_phone?: string;
+          demo_kill_switch_at?: string | null;
         };
-        if (cancelled || !body.active || !body.session_id || !body.started_at) return;
-        setActiveSession({
-          sessionId: body.session_id,
-          startedAt: new Date(body.started_at),
-          prospectName: body.prospect_name ?? "Prospect",
-          prospectPhone: body.prospect_phone ?? "",
-        });
+        if (cancelled) return;
+        if (body.active && body.session_id && body.started_at) {
+          setActiveSession({
+            sessionId: body.session_id,
+            startedAt: new Date(body.started_at),
+            prospectName: body.prospect_name ?? "Prospect",
+            prospectPhone: body.prospect_phone ?? "",
+          });
+        }
+        if (body.demo_kill_switch_at) {
+          setKillSwitchAt(new Date(body.demo_kill_switch_at));
+        }
       } catch {
         /* ignore: panel can still start a fresh session */
       }

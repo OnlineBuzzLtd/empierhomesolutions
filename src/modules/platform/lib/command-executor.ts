@@ -33,6 +33,25 @@ type JobMatchRow = {
 
 export type PlatformJobMatchCandidate = JobMatchRow;
 
+// Extract an is_test flag from a platform event payload. Accepts either
+// a top-level `is_test` field or `metadata.is_test`, in any of the common
+// true-ish encodings (boolean, "true", "1", 1). The same helper drives
+// is_test propagation into crm.customers / crm.leads / crm.jobs (Demo
+// Console B-3) and the pre-existing crm.appointments path (CAL-003).
+//
+// Note: when a payload sets is_test=true we want every row created by
+// that event to carry the flag, so cleanup at end-of-demo (E-5) can
+// find them all by `tenant_id + is_test=true + created_at >= session_start`.
+export function extractIsTestFromPayload(payload: Record<string, unknown>): boolean {
+  const top = payload.is_test;
+  const meta =
+    payload.metadata && typeof payload.metadata === "object"
+      ? (payload.metadata as Record<string, unknown>).is_test
+      : undefined;
+  const value = top ?? meta;
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
@@ -363,6 +382,7 @@ async function createLead(
       status: buildLeadStatus(payload),
       source: buildLeadSource(payload),
       notes: buildLeadNotes(payload) || null,
+      is_test: extractIsTestFromPayload(payload),
       ...leadFieldPatch,
     })
     .select("id")
@@ -479,6 +499,7 @@ async function createCustomerFromPayload(
       source: buildLeadSource(payload),
       notes: buildLeadNotes(payload) || null,
       archived: false,
+      is_test: extractIsTestFromPayload(payload),
     })
     .select("id, tenant_id, full_name, first_name, last_name, phone, email, address_line1, city, postcode, archived")
     .single<CustomerMatchRow>();
@@ -745,6 +766,7 @@ async function createJobFromBooking(
     description: string | null;
     startsAt: string;
     assignedEngineer: string | null;
+    isTest?: boolean;
   },
 ): Promise<string> {
   const scheduledDate = input.startsAt.slice(0, 10);
@@ -764,6 +786,7 @@ async function createJobFromBooking(
       scheduled_time: scheduledTime,
       assigned_engineer: input.assignedEngineer ?? null,
       is_demo: false,
+      is_test: input.isTest ?? false,
     })
     .select("id")
     .single<{ id: string }>();
@@ -953,14 +976,7 @@ function extractPlatformBookingPayload(payload: Record<string, unknown>, fallbac
       const raw = asRecord(payload.metadata);
       return Object.keys(raw).length > 0 ? raw : null;
     })(),
-    isTest: (() => {
-      // Accept either a top-level `is_test` field or `metadata.is_test`.
-      // Tolerant of common true-ish encodings (boolean, "true", "1", 1).
-      const top = payload.is_test;
-      const meta = asRecord(payload.metadata).is_test;
-      const value = top ?? meta;
-      return value === true || value === "true" || value === 1 || value === "1";
-    })(),
+    isTest: extractIsTestFromPayload(payload),
   };
 }
 
@@ -1188,6 +1204,7 @@ async function upsertLeadFromPlatform(
       intake_source: "platform_api",
       problem_description: String(flat.problem_description ?? "") || null,
       urgency_level: String(flat.urgency_level ?? "") || null,
+      is_test: extractIsTestFromPayload(payload),
     });
 
   if (error) {
@@ -1550,6 +1567,7 @@ export async function executePlatformCommand(
           description: buildLeadNotes(payload) || null,
           startsAt,
           assignedEngineer,
+          isTest: extractIsTestFromPayload(payload),
         });
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,

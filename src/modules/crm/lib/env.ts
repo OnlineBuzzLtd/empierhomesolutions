@@ -1,3 +1,5 @@
+import { parseAllowlistEnv } from "@/modules/platform/lib/synthetic-number-guard";
+
 function normalizeEnv(value: string | undefined) {
   return value && value.trim().length > 0 ? value : null;
 }
@@ -7,6 +9,7 @@ export function getCrmEnv() {
   const publishableKey = normalizeEnv(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const serviceRoleKey = normalizeEnv(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const platformSharedSecret = normalizeEnv(process.env.PLATFORM_SHARED_SECRET);
+  const demoConsoleAllowlist = parseAllowlistEnv(process.env.DEMO_CONSOLE_ALLOWLIST);
   const agenticPlatformEventWebhookUrl = normalizeEnv(process.env.AGENTIC_PLATFORM_EVENT_WEBHOOK_URL);
   const liveAgentUrl = normalizeEnv(process.env.AGENTIC_LIVE_AGENT_URL);
   const liveAgentToken = normalizeEnv(process.env.AGENTIC_LIVE_AGENT_TOKEN);
@@ -32,6 +35,7 @@ export function getCrmEnv() {
     publishableKey,
     serviceRoleKey,
     platformSharedSecret,
+    demoConsoleAllowlist,
     agenticPlatformEventWebhookUrl,
     liveAgentUrl,
     liveAgentToken,

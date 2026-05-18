@@ -4,6 +4,10 @@ import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { platformEventEnvelopeSchema } from "@/modules/platform/contracts";
 import { processPlatformEvent } from "@/modules/platform/lib/processor";
+import {
+  collectPhonesFromPayload,
+  evaluatePhoneNumber,
+} from "@/modules/platform/lib/synthetic-number-guard";
 
 const MAX_SKEW_SECONDS = 5 * 60;
 
@@ -113,6 +117,21 @@ export async function POST(request: Request) {
       { error: "Invalid platform event payload.", issues: parsed.error.issues },
       { status: 400 },
     );
+  }
+
+  // Synthetic-number guard. Refuses payloads whose phone fields match
+  // historical synthetic patterns (the May 12 / May 14 Twilio incident
+  // fingerprints). DEMO_CONSOLE_ALLOWLIST overrides; Twilio Magic Numbers
+  // always pass. See synthetic-number-guard.ts for the full rationale.
+  const phones = collectPhonesFromPayload(parsed.data);
+  for (const { field, value } of phones) {
+    const decision = evaluatePhoneNumber(value, { allowlist: env.demoConsoleAllowlist });
+    if (!decision.ok) {
+      return NextResponse.json(
+        { code: "synthetic_number_blocked", pattern: decision.pattern, field },
+        { status: 422 },
+      );
+    }
   }
 
   const supabase = createCrmServiceRoleClient();

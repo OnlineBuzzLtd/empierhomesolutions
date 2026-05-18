@@ -216,6 +216,17 @@ For Empire tenant 1 specifically:
 - Use `npm run crm:demo:bootstrap` to ensure the demo dataset and demo auth-linked profiles exist.
 - Live mode and demo mode keep staff data separate. Engineer assignment dropdowns only show active staff profiles with the `engineer` role in the current mode.
 
+## Demo Console (in-person sales demo)
+
+Tenant-scoped capability for live in-person demos to plumber prospects.
+Distinct from the canned "Demo Mode" above — the Demo Console fires real
+channels (webchat, voice, SMS, WhatsApp, Google/Meta lead replay) and rows
+land in the prod CRM tagged `is_test=true`, then wiped at session end.
+
+- Module: [src/modules/crm/demo-console](src/modules/crm/demo-console/README.md) — read this first.
+- Tenant-gated; off by default for all tenants except Empire.
+- Phone-number policy is enforced by [synthetic-number-guard.ts](src/modules/platform/lib/synthetic-number-guard.ts) — Twilio Magic Numbers always allowed, `DEMO_CONSOLE_ALLOWLIST` env var overrides; all other UK-format numbers matching the May 12 / 14 incident patterns are rejected at `/api/platform/events` with HTTP 422.
+
 ## Docs
 
 - `docs/crm-prd.md`

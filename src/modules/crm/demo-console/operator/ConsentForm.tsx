@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ActiveDemoSession } from "@/modules/crm/demo-console/operator/OperatorPanel";
+import { normaliseUkMobileToE164 } from "@/modules/crm/demo-console/normalise-uk-mobile";
 
 // PECR-compliant consent capture form (ticket E-2). The displayed text
 // is sent verbatim to the consent endpoint and stored on the
@@ -40,12 +41,18 @@ export function ConsentForm({ onSessionStarted }: ConsentFormProps) {
     setError(null);
     setBusy(true);
     try {
+      // Operators type natural UK shapes like "07779305853" — the
+      // downstream Twilio + WhatsApp links need strict E.164. Normalise
+      // before send so the prospect actually receives the SMS / WA
+      // confirmation (and so the synthetic-number guard sees what
+      // it expects).
+      const normalisedPhone = normaliseUkMobileToE164(phone);
       const res = await fetch("/api/crm/demo/consent", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           prospect_name: name.trim(),
-          prospect_phone: phone.trim(),
+          prospect_phone: normalisedPhone,
           consent_text: CONSENT_TEXT,
           consent_acknowledged: true,
         }),
@@ -92,13 +99,13 @@ export function ConsentForm({ onSessionStarted }: ConsentFormProps) {
           />
         </label>
         <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-          Mobile (E.164)
+          Mobile
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
-            placeholder="+447…"
+            placeholder="07700 900123 or +447700900123"
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-900"
           />
         </label>

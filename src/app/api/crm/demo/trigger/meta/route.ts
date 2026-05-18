@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardDemoApi } from "@/modules/crm/demo-console/server/session-guard";
 import { replayCapturedLeadFixture } from "@/modules/crm/demo-console/server/replay-fixture";
+import { getWorkspaceAlias } from "@/modules/platform/lib/repository";
 
 // Demo Console "Trigger Meta lead" endpoint (ticket E-3 / E-4).
 // Mirror of /api/crm/demo/trigger/google with the meta-lead.json
@@ -16,10 +17,20 @@ export async function POST() {
     return NextResponse.json({ error: "No active session." }, { status: 409 });
   }
 
+  // Same workspace_id resolution as the Google trigger — see the
+  // comment in /api/crm/demo/trigger/google/route.ts for rationale.
+  const alias = await getWorkspaceAlias(guard.admin, guard.tenantId);
+  if (!alias?.workspace_id) {
+    return NextResponse.json(
+      { error: "No workspace_alias for this tenant — cannot fire platform events." },
+      { status: 409 },
+    );
+  }
+
   try {
     const { result } = await replayCapturedLeadFixture({
       channel: "meta",
-      workspaceId: guard.tenantId,
+      workspaceId: alias.workspace_id,
       session: guard.activeSession,
     });
     if (!result.ok) {

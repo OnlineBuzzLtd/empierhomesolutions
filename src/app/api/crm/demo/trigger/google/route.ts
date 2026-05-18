@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardDemoApi } from "@/modules/crm/demo-console/server/session-guard";
 import { replayCapturedLeadFixture } from "@/modules/crm/demo-console/server/replay-fixture";
+import { getWorkspaceAlias } from "@/modules/platform/lib/repository";
 
 // Demo Console "Trigger Google lead" endpoint (ticket E-3 / E-4).
 // Requires an active demo session. Replays the captured Google Lead Ads
@@ -16,10 +17,21 @@ export async function POST() {
     return NextResponse.json({ error: "No active session." }, { status: 409 });
   }
 
+  // The platform-events route enforces workspace_id matches a row in
+  // crm.workspace_aliases. Empire's tenant_id != workspace_id, so we
+  // resolve the alias here rather than naively passing tenant_id.
+  const alias = await getWorkspaceAlias(guard.admin, guard.tenantId);
+  if (!alias?.workspace_id) {
+    return NextResponse.json(
+      { error: "No workspace_alias for this tenant — cannot fire platform events." },
+      { status: 409 },
+    );
+  }
+
   try {
     const { result } = await replayCapturedLeadFixture({
       channel: "google",
-      workspaceId: guard.tenantId,
+      workspaceId: alias.workspace_id,
       session: guard.activeSession,
     });
     if (!result.ok) {

@@ -63,13 +63,23 @@ export function OperatorPanel({
     setTriggerBusy(channel);
     try {
       const res = await fetch(`/api/crm/demo/trigger/${channel}`, { method: "POST" });
-      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        status?: number;
+        detail?: string;
+      };
       const ok = res.ok && body.ok === true;
+      const errorLine = body.error ?? `HTTP ${res.status}`;
+      const detailLine =
+        body.status || body.detail
+          ? ` [downstream ${body.status ?? "?"}: ${(body.detail ?? "").slice(0, 200)}]`
+          : "";
       setTriggerResults((prev) => [
         {
           channel,
           ok,
-          message: ok ? "Fired — watch the live pane." : body.error ?? `HTTP ${res.status}`,
+          message: ok ? "Fired — watch the live pane." : `${errorLine}${detailLine}`,
           at: new Date(),
         },
         ...prev.slice(0, 9),

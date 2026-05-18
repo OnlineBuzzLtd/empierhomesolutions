@@ -1,17 +1,20 @@
 "use client";
 
-// Webchat tile (ticket D-2). Lightweight inline chat widget for the
-// prospect to type into during the demo. Creates a session via the
-// existing /api/public/webchat/sessions endpoint with source=demo_console
-// so any rows it produces are obviously demo-tagged in the CRM.
+// Webchat tile (ticket D-2, post-fix). Lightweight inline chat that uses
+// the same public webchat endpoints the marketing site widget uses:
+//   POST /api/public/webchat/sessions  (creates a CJ runtime session)
+//   POST /api/public/webchat/messages  (sends a subsequent message)
 //
-// Why not embed the production AiChatBubble directly? AiChatBubble is
-// designed as a floating widget for the marketing site; it expects to be
-// a singleton and reads conversation IDs from window-scoped storage.
-// Here we want an inline-tile widget that resets cleanly for each demo
-// and posts an `is_test=true` hint into platform-api so downstream
-// rows are flagged correctly. The shape mirrors AiChatBubble's transport
-// without inheriting its global state.
+// **Important caveat**: the public webchat endpoint hardcodes source =
+// "empire_lp" and does not accept an is_test flag — the resulting
+// customer/lead/job/appointment rows will NOT be tagged is_test=true.
+// The session-cleanup endpoint (E-5) only deletes is_test rows, so
+// webchat-driven rows survive the cleanup. Document this in the
+// runbook and prefer the Google/Meta replay buttons for demos where
+// you need clean teardown.
+//
+// First message uses session.openingMessage; subsequent messages use
+// the /messages endpoint with conversationId.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -21,88 +24,103 @@ type ChatMessage = {
   direction: "inbound" | "outbound" | "system";
 };
 
-type SessionResponse = {
-  conversationId?: string;
-  conversation_id?: string;
-};
-
 type WebchatTileProps = {
-  // E-2 will pass the active consented prospect name + phone so the
-  // platform-api conversation opens with identity already populated.
-  // Until E-2 lands these are undefined and the prospect types their
-  // own name into the chat as they go.
+  // Reserved for future per-prospect identity hints (currently the
+  // public session schema doesn't accept name/phone, only fullName as
+  // optional). Kept on the props so DemoRunStage doesn't have to break
+  // its call signature when we add an internal demo session endpoint.
   prospectName?: string;
   prospectPhone?: string;
 };
 
-export function WebchatTile({ prospectName, prospectPhone }: WebchatTileProps) {
+function makeVisitorId(): string {
+  // Public session schema requires visitorId min 8 chars. Use a
+  // demo-prefixed UUID-like value so server-side logs make it obvious
+  // these came from the Demo Console.
+  const random = Math.random().toString(36).slice(2, 14);
+  return `demo-${random}`;
+}
+
+export function WebchatTile({ prospectName }: WebchatTileProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const visitorIdRef = useRef<string>(makeVisitorId());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Open a session lazily on first message — avoids consuming
-  // platform-api quota for tiles the prospect never types into.
-  const ensureSession = useCallback(async (): Promise<string | null> => {
-    if (conversationId) return conversationId;
-    try {
-      const res = await fetch("/api/public/webchat/sessions", {
+  // Open a session on first message — the session-create endpoint
+  // requires an openingMessage, so the prospect's first typed message
+  // doubles as it.
+  const openSessionWithMessage = useCallback(
+    async (openingMessage: string): Promise<string | null> => {
+      try {
+        const res = await fetch("/api/public/webchat/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            visitorId: visitorIdRef.current,
+            openingMessage,
+            fullName: prospectName,
+          }),
+        });
+        const result = (await res.json().catch(() => null)) as
+          | { ok: true; session: { conversationId?: string; conversation_id?: string } }
+          | { ok: false; error?: { code: string; message: string } }
+          | null;
+        if (!res.ok || !result || !("ok" in result) || !result.ok) {
+          const serverMsg =
+            result && "error" in result && result.error?.message ? result.error.message : null;
+          throw new Error(serverMsg ?? `Session create HTTP ${res.status}`);
+        }
+        const id =
+          result.session.conversationId ?? result.session.conversation_id ?? null;
+        if (!id) throw new Error("Session response missing conversationId.");
+        setConversationId(id);
+        return id;
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Unable to start chat.");
+        return null;
+      }
+    },
+    [prospectName],
+  );
+
+  const sendSubsequentMessage = useCallback(
+    async (cid: string, body: string): Promise<void> => {
+      const res = await fetch("/api/public/webchat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: "demo_console",
-          customer_full_name: prospectName,
-          customer_phone: prospectPhone,
-          is_test: true,
-        }),
+        body: JSON.stringify({ conversationId: cid, body }),
       });
       if (!res.ok) {
         const detail = await res.text();
-        throw new Error(`Session create failed (${res.status}): ${detail.slice(0, 120)}`);
+        throw new Error(`Message send HTTP ${res.status}: ${detail.slice(0, 120)}`);
       }
-      const json = (await res.json()) as SessionResponse;
-      const id = json.conversationId ?? json.conversation_id ?? null;
-      if (!id) throw new Error("Session response missing conversationId.");
-      setConversationId(id);
-      return id;
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to start chat.");
-      return null;
-    }
-  }, [conversationId, prospectName, prospectPhone]);
+    },
+    [],
+  );
 
   const sendMessage = useCallback(
     async (body: string) => {
       setBusy(true);
       setError(null);
+      const localId = `local-${Date.now()}`;
+      setMessages((prev) => [...prev, { id: localId, body, direction: "inbound" }]);
       try {
-        const sid = await ensureSession();
-        if (!sid) return;
-        const localId = `local-${Date.now()}`;
-        setMessages((prev) => [...prev, { id: localId, body, direction: "inbound" }]);
-        const res = await fetch(`/api/public/webchat/messages/${sid}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body, is_test: true }),
-        });
-        if (!res.ok) {
-          const detail = await res.text();
-          throw new Error(`Message send failed (${res.status}): ${detail.slice(0, 120)}`);
+        if (!conversationId) {
+          await openSessionWithMessage(body);
+        } else {
+          await sendSubsequentMessage(conversationId, body);
         }
-        // The agent reply lands via the underlying platform-api
-        // streaming/polling. For the demo we only need the prospect's
-        // message to be acknowledged in the UI; the CRM realtime pane
-        // (C-4) is the convincing visible evidence that the conversation
-        // worked.
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Unable to send.");
       } finally {
         setBusy(false);
       }
     },
-    [ensureSession],
+    [conversationId, openSessionWithMessage, sendSubsequentMessage],
   );
 
   useEffect(() => {
@@ -118,12 +136,19 @@ export function WebchatTile({ prospectName, prospectPhone }: WebchatTileProps) {
   }
 
   return (
-    <Tile title="Chat with us" channel="webchat">
+    <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <header className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-900">Chat with us</h3>
+        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-700">
+          webchat
+        </span>
+      </header>
+
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex-1 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-sm">
           {messages.length === 0 ? (
             <p className="text-xs text-slate-400">
-              Try typing something like "My boiler's broken, can someone come tomorrow?"
+              Try typing something like &quot;My boiler&apos;s broken, can someone come tomorrow?&quot;
             </p>
           ) : (
             messages.map((m) => (
@@ -163,29 +188,12 @@ export function WebchatTile({ prospectName, prospectPhone }: WebchatTileProps) {
             {busy ? "…" : "Send"}
           </button>
         </form>
-      </div>
-    </Tile>
-  );
-}
 
-function Tile({
-  title,
-  channel,
-  children,
-}: {
-  title: string;
-  channel: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <header className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-700">
-          {channel}
-        </span>
-      </header>
-      {children}
+        <p className="text-[10px] text-slate-400">
+          Webchat rows are not tagged is_test — they survive the session cleanup. Use the Google /
+          Meta triggers in the operator panel for clean teardown.
+        </p>
+      </div>
     </section>
   );
 }

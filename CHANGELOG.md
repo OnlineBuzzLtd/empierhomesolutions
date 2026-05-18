@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-05-18 — calendar week-grid + bug-fix workflow
+
+Calendar timeline view replaces the stacked "Upcoming Schedule" list with a Google-Calendar-style week grid. Demo Console live pane fixed for webchat bookings. Engineering workflow tightened with a formal bug-fix system reference in CLAUDE.md.
+
+### Added — calendar week-grid timeline view
+
+- **`/calendar` page now renders a proper week grid** ([WeekTimeline.tsx](src/modules/crm/components/calendar/WeekTimeline.tsx), commit `e3615f9`). 7 day columns × hourly rows (default 7am→8pm, auto-expands if appointments fall outside), half-hour gridlines, appointments as absolutely-positioned blocks with type-coloured fills, side-by-side stacking for overlaps via interval-graph greedy colouring, a red "now" line across today's column at the current time, and Prev / Today / Next week navigation via `?week=YYYY-MM-DD` query param. Click a block → existing entity link / `/calendar/schedule` flow. Replaces the previous list-grouped-by-day inside the "Upcoming Schedule" `SectionCard`.
+- **Pure layout helpers** ([calendar-layout.ts](src/modules/crm/lib/calendar-layout.ts)) — `getWeekRange` (Monday-anchored UK week), `appointmentToChunks` (multi-day splitting in `Europe/London` local time, DST-safe via `Intl.DateTimeFormat`), `assignOverlapColumns` (greedy column assignment), `computeBlockPosition` (top/height %), `formatHourLabel`. Fully typed, no DOM, no React, no I/O — 39 unit tests cover boundary cases (Sunday reference snaps to prior Monday, DST spring forward / fall back, three-way overlap, staircase patterns, single-day inside view, before/after view → empty, partial outside hours).
+- **`listAppointmentsForCalendar` accepts an optional `from` parameter** ([data.ts](src/modules/crm/lib/data.ts)) for arbitrary week windows. Engineer dashboard's existing `days` call path is unchanged.
+
+### Fixed — Demo Console live pane
+
+- **Live CRM pane now shows webchat bookings** ([LiveDemoPane.tsx](src/modules/crm/demo-console/LiveDemoPane.tsx), commit `6f779f0`). Dropped the `is_test=true` server-filter on the initial backfill — webchat bookings still land with `is_test=false` (pending E-7 cross-repo fix), so the filter was hiding the very rows the operator needs to see during a demo. Filtering by `demo_session_id` + tenant remains. The realtime channel filter was already correct. Surfaced by the 2026-05-18 prospect demo where a confirmed webchat booking never appeared in the live pane.
+
+### Added — engineering workflow
+
+- **CLAUDE.md references the CJ bug-fix system** ([CLAUDE.md](CLAUDE.md), commit `2642caf`). When triaging a recurring AI-agent / booking bug, the workflow is: capture conversation (`pnpm exec tsx scripts/debug/capture-conversation.mts <conv-id>` in the CJ repo) → classify against `docs/bugs/PLAYBOOK.md` 7-flavours taxonomy → file in `docs/bugs/BUGS.md` ledger → diagnose → fix with replay test in same PR → update status. Empire-side bugs without a CJ conversation id get an E-* entry under "Open follow-ups" in the same ledger.
+
+### Verified
+
+- 39/39 calendar-layout unit tests passing.
+- Typecheck clean.
+- Manual browser smoke: week grid renders with day columns + hour rows, the 2× Tue 19 May 8-10am appointments appear as overlapping side-by-side blocks, prev/next/today navigation works, empty weeks render as grid-with-no-blocks (not a fallback empty state), today's column has the "now" line, existing filter chips still work, "Add Calendar Item" right pane still works.
+- Vercel auto-deployed `e3615f9` on push.
+
 ## 2026-05-18
 
 In-person sales Demo Console reached its first working end-to-end state today. Built the full feature (Streams A→F), shipped a layout fix and the engineer-view sidebar fix, then a series of bug-corrections after first contact with reality.

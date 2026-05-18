@@ -170,6 +170,7 @@ CRM:
 - line items group visually under their `section_header` row in the quote builder; items before any header land in an implicit "Unnamed Section"
 - per-line and per-quote Cost / Profit / Margin / Mark-up driven by the single source of truth `computeQuoteRollup` and persisted on `crm.quotes`
 - platform-bridge calendar event routes accept the CRM's own appointment id (`providerReference`) as well as the platform's `bookingId` — the CRM calendar is now the canonical scheduler for the multi-tenant booking platform
+- **[2026-05-18] `/calendar` is a week-grid timeline** ([WeekTimeline.tsx](src/modules/crm/components/calendar/WeekTimeline.tsx)). Day columns × hour rows, type-coloured appointment blocks with side-by-side stacking for overlaps, a "now" line on today, and prev/today/next week navigation via `?week=YYYY-MM-DD`. Replaces the previous stacked list. Pure layout logic in [calendar-layout.ts](src/modules/crm/lib/calendar-layout.ts) with 39 unit tests covering DST boundaries, multi-day spans, and overlap colouring.
 
 ## Supabase Notes
 

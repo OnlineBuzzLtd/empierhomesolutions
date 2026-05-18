@@ -911,6 +911,13 @@ export async function listAppointmentsForCalendar(filters?: {
   type?: string | null;
   status?: string | null;
   days?: number;
+  /**
+   * Anchor date for the window. When omitted, behaviour is unchanged
+   * (window is today → today + `days`). When supplied (e.g. by the
+   * week-timeline nav), the window becomes [from, from + days].
+   * Accepts a Date or any string Date can parse.
+   */
+  from?: Date | string;
   mode?: CrmMode;
 }) {
   if (!getCrmEnv().enabled) {
@@ -920,7 +927,8 @@ export async function listAppointmentsForCalendar(filters?: {
   const context = await getCrmModeContext(filters?.mode);
   const supabase = await createCrmServerClient();
   const days = filters?.days ?? 7;
-  const start = startOfDay(new Date());
+  const anchor = filters?.from ? new Date(filters.from) : new Date();
+  const start = startOfDay(anchor);
   const end = endOfDay(addDays(start, days));
   const appointmentsQuery = supabase
     .schema("crm")

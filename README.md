@@ -223,9 +223,15 @@ Distinct from the canned "Demo Mode" above — the Demo Console fires real
 channels (webchat, voice, SMS, WhatsApp, Google/Meta lead replay) and rows
 land in the prod CRM tagged `is_test=true`, then wiped at session end.
 
-- Module: [src/modules/crm/demo-console](src/modules/crm/demo-console/README.md) — read this first.
-- Tenant-gated; off by default for all tenants except Empire.
-- Phone-number policy is enforced by [synthetic-number-guard.ts](src/modules/platform/lib/synthetic-number-guard.ts) — Twilio Magic Numbers always allowed, `DEMO_CONSOLE_ALLOWLIST` env var overrides; all other UK-format numbers matching the May 12 / 14 incident patterns are rejected at `/api/platform/events` with HTTP 422.
+- **Module + operator runbook**: [src/modules/crm/demo-console/README.md](src/modules/crm/demo-console/README.md) — read this first.
+- **Routes**: `/demo` (operator landing) and `/demo/run` (fullscreen prospect-facing split-screen). Both tenant-gated by `crm.tenant_settings.demo_console_enabled` + manager/admin role. Empire seeded enabled; all other tenants off by default. Toggle in `/settings` → "Demo Console" card.
+- **Tile numbers** come from `crm.customerjourneys_runtime_links.display_*_number` first (instant, no cross-service hop), then platform-api `/v1/internal/crm/tenants/:tenantId/numbers` as fallback, then `DEMO_*` env vars as final fallback. Empire's row has all three populated to its real Twilio sender `+447401248976`.
+- **Operator panel** opens with `Ctrl+Shift+D` on `/demo/run`. Captures PECR consent (placeholder legal text — get lawyer review before first real prospect), runs Google + Meta lead-replay triggers, ends + wipes the session, fires the kill switch.
+- **Live CRM pane** uses Supabase realtime (the first in this codebase) to render incoming `is_test=true` customers / leads / jobs / appointments for the active session in real time.
+- **Phone-number policy** is enforced by [synthetic-number-guard.ts](src/modules/platform/lib/synthetic-number-guard.ts) — Twilio Magic Numbers always allowed, `DEMO_CONSOLE_ALLOWLIST` env var overrides; all UK-format numbers matching the May 12 / 14 incident patterns are rejected at `/api/platform/events` with HTTP 422.
+- **UK mobile normalisation**: operators type natural shapes (`07779305853`, `0044 7779 305853`); the consent form runs [normaliseUkMobileToE164](src/modules/crm/demo-console/normalise-uk-mobile.ts) before sending so downstream Twilio + WhatsApp links get strict E.164.
+- **"⚠ Live Twilio sender" banner** appears in the `/demo/run` header when tile numbers come from the runtime link or platform-api — visible reminder that demo outbound runs through Empire's main Twilio sender (currently 52/100 reputation from the May incidents). Use Twilio Magic Numbers (`+15005550006`) for smoke tests so you don't compound the reputation cost.
+- **Cross-repo dependencies**: the platform-api side ([Customer Journeys AI v1](https://github.com/OnlineBuzzLtd/CustomerJourneysAI)) hosts the `/v1/internal/crm/tenants/:tenantId/numbers` endpoint and the agent / text-orchestrator. The Demo Console depends on Cloud Run deploys of that repo for the agent's softer wordings and loop-guard exemptions to be live.
 
 ## Docs
 

@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-05-18
+
+In-person sales Demo Console reached its first working end-to-end state today. Built the full feature (Streams A→F), shipped a layout fix and the engineer-view sidebar fix, then a series of bug-corrections after first contact with reality.
+
+### Added — Demo Console (full feature)
+
+- **Tenant-scoped `/demo` + fullscreen `/demo/run`** ([src/app/(crm)/demo/](src/app/(crm)/demo/), [src/modules/crm/demo-console/](src/modules/crm/demo-console/)). Manager/admin only, gated by new `crm.tenant_settings.demo_console_enabled` column (seeded `true` for Empire, `false` everywhere else). Sidebar item conditional on the same flag. Settings page gets a "Demo Console" toggle ([/api/crm/settings/demo-console](src/app/api/crm/settings/demo-console/route.ts)) so future customer tenants can self-serve.
+- **Prospect-facing tiles** ([WebchatTile](src/modules/crm/demo-console/tiles/WebchatTile.tsx), [VoiceTile](src/modules/crm/demo-console/tiles/VoiceTile.tsx), [MessagingTile](src/modules/crm/demo-console/tiles/MessagingTile.tsx), [InboundLeadTile](src/modules/crm/demo-console/tiles/InboundLeadTile.tsx)). Inline webchat backed by the existing CJ runtime; voice / SMS / WhatsApp tiles display Empire's real Twilio numbers (`+447401248976`); Google + Meta tiles are display-only placeholders, triggered from the operator panel.
+- **Operator panel** ([OperatorPanel.tsx](src/modules/crm/demo-console/operator/OperatorPanel.tsx)) opened by `Ctrl+Shift+D`. Sections: PECR consent capture (placeholder legal wording pending lawyer review), Google + Meta lead-replay triggers, end-and-cleanup with two-step confirmation, kill switch.
+- **Live CRM pane** ([LiveDemoPane.tsx](src/modules/crm/demo-console/LiveDemoPane.tsx) + [use-demo-session-feed.ts](src/modules/crm/demo-console/use-demo-session-feed.ts)). First Supabase realtime usage in the codebase; subscribes to INSERT events on customers/leads/jobs/appointments filtered to `is_test=true` for the active tenant, scoped to the open demo session.
+- **6 new API routes** under `/api/crm/demo/*` — consent, sessions/active, trigger/google, trigger/meta, cleanup, kill, preflight. All gated by [session-guard.ts](src/modules/crm/demo-console/server/session-guard.ts) (tenant + role + active-session checks).
+- **Preflight banner** ([PreflightBanner.tsx](src/modules/crm/demo-console/PreflightBanner.tsx)) polls env / Supabase / synthetic-number guard / Twilio status every 60s and renders an expandable strip in the `/demo/run` header.
+- **Demo Console module README** ([src/modules/crm/demo-console/README.md](src/modules/crm/demo-console/README.md)) covering the phone-number policy, allowlist convention, Twilio matrix, and a 5-step operator runbook for running a real demo.
+- **Migrations** — `202605180001` adds `is_test` to customers/leads/jobs with partial indexes; `202605180002` adds `demo_console_enabled`; `202605180003` adds CRM tables to the `supabase_realtime` publication; `202605180004` adds `crm.demo_sessions` (RLS-scoped) + `demo_kill_switch_at` on tenant_settings. All four applied to prod via `supabase db push --linked`.
+
+### Added — Safety scaffolding
+
+- **Synthetic-number guard at `/api/platform/events`** ([synthetic-number-guard.ts](src/modules/platform/lib/synthetic-number-guard.ts)). Rejects payloads whose phone fields match the May 12 / 14 incident fingerprints (`+447463366` prefix; the historical sender `+447401248976` as destination); Twilio Magic Numbers always pass; `DEMO_CONSOLE_ALLOWLIST` env var overrides. Returns HTTP 422 with `{ code: "synthetic_number_blocked", pattern, field }`. **18 unit tests**, CI-required. Makes a repeat of the May incidents mechanically impossible from this code path.
+- **`is_test` propagation through command-executor** ([command-executor.ts](src/modules/platform/lib/command-executor.ts)). Extracted `extractIsTestFromPayload` as the single source of truth; refactored the existing appointment-only path to use it; threaded the flag through customer / lead / job inserts so cleanup can find every demo-created row.
+- **CLAUDE.md tightened** ([CLAUDE.md](CLAUDE.md)) — new Correctness rule "No rollouts without tests for the thing being rolled out", citing the `customer_assets.is_test` cleanup-endpoint bug (shipped because nothing tested the table list against the schema) as the rationale. Definition-of-done now says shipping without the corresponding test means the change is **not done**, even if Vercel deployed.
+
+### Added — UK mobile normaliser
+
+- **`normaliseUkMobileToE164` helper** ([normalise-uk-mobile.ts](src/modules/crm/demo-console/normalise-uk-mobile.ts)) + **11 tests**. Operators type natural shapes (`07700 900123`, `0044 7700 900123`, `(+44) 7700-900123`) and the consent form normalises before sending. Empire's `07779305853` from the 2026-05-18 demo screenshot is pinned as a regression case.
+
+### Fixed — production bugs surfaced by first real run
+
+- **Voice / SMS / WhatsApp tiles read from `crm.customerjourneys_runtime_links.display_*_number` directly** ([(crm)/demo/run/page.tsx](src/app/(crm)/demo/run/page.tsx)). The runtime link already has these populated for every onboarded tenant — no cross-service round-trip needed for Empire. Falls back to a new platform-api endpoint, then to `DEMO_*` env vars.
+- **`/api/crm/demo/cleanup` no longer references `is_test` on cascade-children of `crm.customers`** ([cleanup/route.ts](src/app/api/crm/demo/cleanup/route.ts)). First-run hit `column customer_assets.is_test does not exist` because the original endpoint listed `customer_assets`, `quotes`, `invoices`, `payments` inline. Those tables cascade from `crm.customers`, so the explicit deletes are redundant *and* would always fail. Extracted [cleanup-tables.ts](src/modules/crm/demo-console/server/cleanup-tables.ts) as the contract, added a **4-test** unit suite asserting the cleanup list matches the `is_test` allowlist and that the migrations adding the column exist on disk.
+- **Trigger endpoints look up the real workspace alias** ([trigger/google/route.ts](src/app/api/crm/demo/trigger/google/route.ts), [trigger/meta/route.ts](src/app/api/crm/demo/trigger/meta/route.ts)). Were sending tenant_id where workspace_id was expected; platform-events route 404'd. Fix: resolve `workspace_id` from `crm.workspace_aliases` (Empire = `75d76e43-…`, tenant_id = `11111111-…`). **12 tests** for the envelope builder + HMAC contract.
+- **Webchat tile reads `session.conversation.id`** ([WebchatTile.tsx](src/modules/crm/demo-console/tiles/WebchatTile.tsx)) — was reading `session.conversationId` and throwing "Session response missing conversationId" on every send. Extracted [parseWebchatSessionResponse + parseWebchatTurnResponse](src/modules/crm/demo-console/parse-webchat-session.ts) with **17 tests** pinning the canonical CJ runtime shape + two legacy shapes; tile now also surfaces the AI reply (was sending messages without displaying the response).
+- **`/demo/run` layout no longer pushes the live CRM pane off-screen** ([WebchatTile.tsx](src/modules/crm/demo-console/tiles/WebchatTile.tsx) + [DemoRunStage.tsx](src/modules/crm/demo-console/DemoRunStage.tsx)). Added `h-full min-h-0` + `md:grid-rows-2` so tiles fill their grid cells and the chat transcript scrolls internally instead of growing the cell.
+- **Kill switch state hydrates from server on mount** ([demo/sessions/active/route.ts](src/app/api/crm/demo/sessions/active/route.ts) + [DemoRunStage.tsx](src/modules/crm/demo-console/DemoRunStage.tsx)). Was always `null` on page load; now reads `tenant_settings.demo_kill_switch_at` in parallel with the active-session lookup so the UI matches DB truth on first paint.
+- **`/demo` middleware regex includes `/demo`** ([middleware.ts](middleware.ts)). Was missing from `CRM_PROTECTED_PATH_PATTERN`, so `updateCrmSession` never ran for `/demo*` and `x-crm-pathname` was empty — the `isDemoRunMode` chrome-bypass check silently failed and the sidebar covered most of the fullscreen view.
+- **Consent form drops "(E.164)" jargon** ([ConsentForm.tsx](src/modules/crm/demo-console/operator/ConsentForm.tsx)). Operators on the laptop in front of a prospect don't speak engineer.
+- **Engineer-view sidebar can switch back from Classic to Field App** ([(crm)/layout.tsx](src/app/(crm)/layout.tsx)). Pre-existing bug: the Classic chrome had zero links to `/preferences`, so once an engineer flipped, they were stranded. Added a desktop pill in the header and a 5th mobile bottom-nav item.
+
+### Verified
+
+- 75+ unit tests across the new modules, all green: synthetic-number-guard (18), extract-is-test-from-payload (8), demo-console-cleanup-tables (4), parse-webchat-session (17), substitute-placeholders (10), post-platform-event (12), parse-tenant-numbers (6), normalise-uk-mobile (11). Plus 8 loop-guard tests in the CJ repo.
+- Typecheck clean on both repos.
+- Cloud Run deployed twice today via the Customer Journeys repo: `b80e629f` (numbers endpoint) and `034f991a` (softer wordings + loop-guard exemption). All three services (platform-api, voice-gateway, workers) live and serving traffic.
+- 4 Empire Supabase migrations applied to prod via `supabase db push --linked`.
+- Vercel auto-deployed Empire continuously throughout the day (12 deploys).
+
+### Action items deferred — pick up in a fresh focused turn
+
+- **P-2 (orchestrator offer-is-hold)** in the CJ repo. Structural bug behind today's "slot got taken" wording: [text-booking-orchestrator.ts:1882](Customer-Journeys-AI-v1/customerjourneys-site/services/platform-api/src/lib/text-booking-orchestrator.ts#L1882) offers a concrete slot to the customer *before* any availability check; the check at line 1918 only runs *after* the customer says YES. Today's wording change covers up the symptom — the real fix is to restructure so `checkAvailability` runs before the "I can do X. Reply YES" reply. Affects every real customer text/whatsapp/voice booking, deserves careful staging.
+- **A-2 (dedicated demo Twilio subaccount)** — operational task. Currently the Demo Console points at Empire's main Twilio sender (52/100 reputation). The "⚠ Live Twilio sender" banner in the `/demo/run` header makes the risk visible to the operator but doesn't fix it.
+- **PECR consent text legal review** — placeholder copy in [ConsentForm.tsx](src/modules/crm/demo-console/operator/ConsentForm.tsx). Stored verbatim on every `demo_sessions` row.
+- **Replace placeholder Google + Meta webhook fixtures** with real captured payloads. Currently in [demo-console/fixtures/](src/modules/crm/demo-console/fixtures/).
+
 ## 2026-05-14
 
 ### Fixed

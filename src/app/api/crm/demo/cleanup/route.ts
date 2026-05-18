@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { guardDemoApi } from "@/modules/crm/demo-console/server/session-guard";
+import {
+  CLEANUP_TABLES,
+  IS_TEST_BEARING_TABLES,
+  type CleanupTable,
+} from "@/modules/crm/demo-console/server/cleanup-tables";
 
 // Demo Console end-and-cleanup endpoint (ticket E-5). Closes the
 // active demo session and deletes every is_test=true row created in
@@ -11,8 +16,13 @@ import { guardDemoApi } from "@/modules/crm/demo-console/server/session-guard";
 // rely on just one of those — losing a single constraint would be
 // the difference between "wipe demo pollution" and "wipe real customer
 // records".
+//
+// The table list lives in cleanup-tables.ts and is unit-tested. CASCADE
+// children of crm.customers (customer_assets / quotes / invoices /
+// payments / sites) are deleted implicitly via the customers cascade,
+// so they're intentionally absent from CLEANUP_TABLES.
 
-type TableCounts = Record<string, number>;
+type TableCounts = Partial<Record<CleanupTable, number>>;
 
 export async function POST() {
   const guard = await guardDemoApi({ requireActiveSession: true });
@@ -25,18 +35,21 @@ export async function POST() {
 
   const sessionStartedAt = activeSession.started_at;
   const deleted: TableCounts = {};
+  const tableErrors: Record<string, string> = {};
 
-  // Order matters because of FK CASCADE / SET NULL semantics from the
-  // crm.customers root. We delete the polymorphic / SET NULL children
-  // first so they don't end up orphaned with NULL customer_id, then
-  // let CASCADE clean up customer_assets/jobs/quotes/invoices/payments
-  // when customers go. notes/attachments/custom_field_values are
-  // polymorphic (no FK) and scoped by tenant_id.
-
-  // Helper that runs a delete with the three-fold scope and counts
-  // rows returned via PostgREST's return=representation. Surface
-  // errors as 502 — partial cleanup is worse than no cleanup.
-  async function deleteScoped(table: string, extraFilter?: (qb: ReturnType<typeof admin.schema>) => void): Promise<void> {
+  // Defensive: best-effort per-table. A failure on a non-root table
+  // is logged and surfaced but doesn't block the root delete on
+  // customers (which CASCADE-cleans the dependents anyway). The root
+  // failing is a hard 502 — the session can't be considered cleaned up
+  // if the customer rows survive.
+  for (const table of CLEANUP_TABLES) {
+    // Belt-and-braces: refuse to even attempt a table that the contract
+    // module says doesn't have is_test. Surfaces a config drift as a
+    // 500 in dev rather than a confusing 502 from PostgREST.
+    if (!IS_TEST_BEARING_TABLES.has(table)) {
+      tableErrors[table] = "Table not in IS_TEST_BEARING_TABLES set; refusing to delete.";
+      continue;
+    }
     const { data, error } = await admin
       .schema("crm")
       .from(table)
@@ -47,44 +60,24 @@ export async function POST() {
       .select("id");
 
     if (error) {
-      throw new Error(`Cleanup failed on ${table}: ${error.message}`);
+      tableErrors[table] = error.message;
+      if (table === "customers") {
+        return NextResponse.json(
+          {
+            error: `Cleanup failed on the customers root: ${error.message}`,
+            deleted,
+            table_errors: tableErrors,
+          },
+          { status: 502 },
+        );
+      }
+      continue;
     }
-
-    // Use the parameter so eslint stays quiet — we accept the filter
-    // function param for future extension (E-5.1 may want to scope
-    // notes by entity_type as well).
-    void extraFilter;
-
     deleted[table] = data?.length ?? 0;
   }
 
-  try {
-    // appointments / leads have SET NULL FKs to customers — delete them
-    // explicitly so they don't linger with NULL customer_id.
-    await deleteScoped("appointments");
-    await deleteScoped("leads");
-    // jobs CASCADE from customers but deleting explicitly first keeps
-    // the per-table count visible in the response. Same for
-    // customer_assets/quotes/invoices/payments where present.
-    await deleteScoped("jobs");
-    await deleteScoped("customer_assets");
-    await deleteScoped("quotes");
-    await deleteScoped("invoices");
-    await deleteScoped("payments");
-    // Finally the root.
-    await deleteScoped("customers");
-  } catch (caught) {
-    return NextResponse.json(
-      {
-        error: caught instanceof Error ? caught.message : "Cleanup failed.",
-        partial_counts: deleted,
-      },
-      { status: 502 },
-    );
-  }
-
-  // Close the session row last so cleanup is idempotent: if the wipe
-  // throws midway, the operator can re-invoke cleanup and the same
+  // Close the session row last so cleanup is idempotent: if a partial
+  // failure happens, the operator can re-invoke cleanup and the same
   // session is still active.
   const { error: closeError } = await admin
     .schema("crm")
@@ -97,6 +90,7 @@ export async function POST() {
       {
         error: "Cleanup succeeded but session close failed.",
         deleted,
+        table_errors: tableErrors,
         detail: closeError.message,
       },
       { status: 500 },
@@ -107,5 +101,6 @@ export async function POST() {
     ok: true,
     session_id: activeSession.id,
     deleted,
+    table_errors: Object.keys(tableErrors).length > 0 ? tableErrors : undefined,
   });
 }

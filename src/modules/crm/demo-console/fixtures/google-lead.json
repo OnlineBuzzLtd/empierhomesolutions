@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "channel": "google",
+    "description": "Demo Console replay fixture for Google Lead Ads (ticket E-3). PII placeholders below get substituted at send time with the consented prospect's name and phone from the active demo_sessions row. Replace this fixture with a real captured webhook payload once ticket A-2 (Twilio subaccount) is provisioned and you've run one real Google Lead Form submission through the prod intake.",
+    "do_not_remove_is_test_true_in_replay": true
+  },
+  "payload": {
+    "customerName": "{{prospect_name}}",
+    "customerPhone": "{{prospect_phone}}",
+    "customerEmail": "demo+{{prospect_phone_digits}}@placeholder.test",
+    "serviceAddressLine1": "123 Demo Street",
+    "serviceCity": "Demoville",
+    "servicePostcode": "DE1 0MO",
+    "service_name": "Boiler repair",
+    "service_key": "boiler_repair",
+    "booking_slot_label": "Tomorrow 2-4pm",
+    "job_title": "Boiler repair — Google Ads lead",
+    "urgency": "high",
+    "problem_description": "Boiler not heating water. Google Ads form submission.",
+    "source": "google_lead_ads",
+    "google_form_id": "placeholder-google-form-id",
+    "google_ad_campaign_id": "placeholder-campaign"
+  }
+}

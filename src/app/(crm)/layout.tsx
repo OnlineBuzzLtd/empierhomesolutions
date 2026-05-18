@@ -67,13 +67,20 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const uiMode = isEngineer ? await getUiPreference() : "classic";
   const isCommsoftMode = isEngineer && uiMode === "commusoft";
 
+  // Demo Console item is conditional — only appears for tenants with the
+  // demo_console_enabled flag, and only for manager/admin roles. See
+  // src/modules/crm/demo-console/README.md.
+  const adminItemsWithDemo: CrmNavItem[] = session.settings?.demo_console_enabled
+    ? [...adminItems, { href: "/demo", label: "Demo", icon: "🎬" }]
+    : adminItems;
+
   const groups: CrmNavGroup[] = isEngineer
     ? [{ label: "Field", items: engineerItems }]
     : userCanManageSettings(session.profile?.role)
       ? [
           { label: "Operations", items: operationsItems },
           { label: "AI", items: aiItems },
-          { label: "Admin", items: adminItems },
+          { label: "Admin", items: adminItemsWithDemo },
         ]
       : [
           { label: "Operations", items: operationsItems },

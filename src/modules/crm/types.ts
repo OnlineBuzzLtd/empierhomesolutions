@@ -146,6 +146,10 @@ export type TenantSettings = {
   quote_footer: string | null;
   certificate_footer: string | null;
   demo_mode_enabled: boolean;
+  // Per-tenant gate for the Demo Console (in-person sales demo capability).
+  // See src/modules/crm/demo-console/README.md. Distinct from
+  // `demo_mode_enabled` which controls the canned walkthrough.
+  demo_console_enabled: boolean;
   default_payment_terms: Record<string, unknown>;
   show_per_package_vat: boolean;
   created_at: string;

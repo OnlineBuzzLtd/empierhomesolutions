@@ -5,6 +5,8 @@ import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
 import { CustomFieldSettingsForm } from "@/modules/crm/components/forms/CustomFieldSettingsForm";
 import { JobReportTemplatesForm } from "@/modules/crm/components/settings/JobReportTemplatesForm";
 import { TwilioProvisioningPanel } from "@/modules/crm/components/settings/TwilioProvisioningPanel";
+import { CreateUserForm } from "@/modules/crm/components/settings/CreateUserForm";
+import { UserStatusToggle } from "@/modules/crm/components/settings/UserStatusToggle";
 import { JobTypeSettingsForm } from "@/modules/crm/components/forms/JobTypeSettingsForm";
 import { RequiredDocumentRuleForm } from "@/modules/crm/components/forms/RequiredDocumentRuleForm";
 import { ServiceSettingsForm } from "@/modules/crm/components/forms/ServiceSettingsForm";
@@ -142,21 +144,49 @@ export default async function SettingsPage() {
           <p className="mt-3 text-xs text-slate-500">This creates a new workspace, assigns the current user as owner, and clones the current tenant&apos;s configuration baseline for services, job types, fields, rules, suppliers, products, templates, and add-ons.</p>
         </SectionCard>
 
+        <SectionCard title="Create User">
+          <CreateUserForm />
+          <p className="mt-3 text-xs text-slate-500">
+            Creates an auth user with a password they can log in with directly (no email round-trip).
+            Use this for engineers without a real mailbox &mdash; leave Password blank to auto-generate a strong
+            one. The generated password is shown once and never stored, so copy it immediately.
+          </p>
+        </SectionCard>
+
         <SectionCard title="User Roles">
           {users.length === 0 ? <EmptyState message="No user profiles yet." /> : null}
           <div className="space-y-3">
             {users.map((user) => (
-              <ApiForm key={user.id} endpoint="/api/crm/settings/users" submitLabel="Save Role" className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_180px_auto]">
-                <input type="hidden" name="user_id" value={user.user_id} />
-                <input name="full_name" defaultValue={user.full_name} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                <select name="role" defaultValue={user.role} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                  <option value="management">Management</option>
-                  <option value="admin">Admin</option>
-                  <option value="sales">Sales</option>
-                  <option value="engineer">Engineer</option>
-                  <option value="accounts">Accounts</option>
-                </select>
-              </ApiForm>
+              <div
+                key={user.id}
+                className={`grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_auto] ${
+                  user.active ? "border-slate-200" : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <ApiForm
+                  endpoint="/api/crm/settings/users"
+                  submitLabel="Save Role"
+                  className="grid gap-3 md:grid-cols-[1fr_180px_auto]"
+                >
+                  <input type="hidden" name="user_id" value={user.user_id} />
+                  <div className="flex flex-col gap-1">
+                    <input name="full_name" defaultValue={user.full_name} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                    <p className="px-1 text-xs text-slate-500">
+                      {user.email ?? "no email"} &middot; {user.active ? "Active" : "Inactive"}
+                    </p>
+                  </div>
+                  <select name="role" defaultValue={user.role} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <option value="management">Management</option>
+                    <option value="admin">Admin</option>
+                    <option value="sales">Sales</option>
+                    <option value="engineer">Engineer</option>
+                    <option value="accounts">Accounts</option>
+                  </select>
+                </ApiForm>
+                <div className="flex items-start justify-end">
+                  <UserStatusToggle userId={user.user_id} active={user.active} />
+                </div>
+              </div>
             ))}
           </div>
         </SectionCard>

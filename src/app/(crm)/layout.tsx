@@ -115,11 +115,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     name: membership.tenant?.name ?? membership.tenant_id,
   }));
 
-  if (setup.configured && pathname && pathname !== "/login" && !session.user) {
+  if (setup.configured && pathname && !["/login", "/signup"].includes(pathname) && !session.user) {
     redirect(`/login?next=${encodeURIComponent(pathname)}`);
   }
 
-  if (setup.configured && pathname === "/login" && session.user) {
+  if (setup.configured && ["/login", "/signup"].includes(pathname) && session.user) {
     redirect("/dashboard");
   }
 

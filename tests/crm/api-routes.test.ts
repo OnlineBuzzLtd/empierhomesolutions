@@ -48,7 +48,10 @@ describe("crm api routes", () => {
   });
 
   it("blocks job stage progression when required fields or documents are missing", async () => {
-    const single = vi.fn().mockResolvedValue({ data: { service_id: "svc-1", job_type_id: "job-1", status: "booked" }, error: null });
+    const single = vi.fn().mockResolvedValue({
+      data: { service_id: "svc-1", job_type_id: "job-1", status: "booked" },
+      error: null,
+    });
     const eq = vi.fn().mockReturnValue({ single });
     const select = vi.fn().mockReturnValue({ eq });
     const from = vi.fn().mockReturnValue({ select });
@@ -91,17 +94,24 @@ describe("crm api routes", () => {
   });
 
   it("blocks job completion when compliance records are still open", async () => {
-    const single = vi.fn().mockResolvedValue({ data: { service_id: "svc-1", job_type_id: "job-1", status: "booked" }, error: null });
+    const single = vi.fn().mockResolvedValue({
+      data: { service_id: "svc-1", job_type_id: "job-1", status: "booked" },
+      error: null,
+    });
     const jobsEq = vi.fn().mockReturnValue({ single });
     const jobsSelect = vi.fn().mockReturnValue({ eq: jobsEq });
 
-    const hazardsEq = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ id: "haz-1" }], error: null }) });
+    const hazardsEq = vi
+      .fn()
+      .mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ id: "haz-1" }], error: null }) });
     const hazardsSelect = vi.fn().mockReturnValue({ eq: hazardsEq });
     const checklistsEq = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
     });
     const checklistsSelect = vi.fn().mockReturnValue({ eq: checklistsEq });
-    const certificatesEq = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    const certificatesEq = vi
+      .fn()
+      .mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) });
     const certificatesSelect = vi.fn().mockReturnValue({ eq: certificatesEq });
 
     const from = vi.fn((table: string) => {
@@ -149,13 +159,19 @@ describe("crm api routes", () => {
   });
 
   it("creates a tenant-scoped site contact", async () => {
-    const siteMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "site-1", tenant_id: "tenant-1" }, error: null });
+    const siteMaybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "site-1", tenant_id: "tenant-1" }, error: null });
     const siteEqTenant = vi.fn().mockReturnValue({ maybeSingle: siteMaybeSingle });
     const siteEqId = vi.fn().mockReturnValue({ eq: siteEqTenant });
     const siteSelect = vi.fn().mockReturnValue({ eq: siteEqId });
 
-    const contactSingle = vi.fn().mockResolvedValue({ data: { id: "contact-1", full_name: "Julie Smith" }, error: null });
-    const contactInsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: contactSingle }) });
+    const contactSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "contact-1", full_name: "Julie Smith" }, error: null });
+    const contactInsert = vi
+      .fn()
+      .mockReturnValue({ select: vi.fn().mockReturnValue({ single: contactSingle }) });
 
     const from = vi.fn((table: string) => {
       if (table === "sites") return { select: siteSelect };
@@ -217,13 +233,21 @@ describe("crm api routes", () => {
       },
       error: null,
     });
-    const updateSingle = vi.fn().mockResolvedValue({ data: { id: "job-1", status: "completed" }, error: null });
-    const jobUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: updateSingle }) }) });
+    const updateSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "job-1", status: "completed" }, error: null });
+    const jobUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: updateSingle }) }),
+    });
     const jobSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: singleExisting }) });
 
-    const hazardsSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const hazardsSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    });
     const complianceChecklistSelect = vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }),
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      }),
     });
     const materialsChecklistSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({
@@ -231,7 +255,9 @@ describe("crm api routes", () => {
         error: null,
       }),
     });
-    const certificatesSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const certificatesSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    });
     const attachmentsSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
     });
@@ -242,7 +268,9 @@ describe("crm api routes", () => {
       if (table === "job_checklists") {
         return {
           select: vi.fn((columns: string) =>
-            columns.includes("notes") ? materialsChecklistSelect(columns) : complianceChecklistSelect(columns),
+            columns.includes("notes")
+              ? materialsChecklistSelect(columns)
+              : complianceChecklistSelect(columns),
           ),
         };
       }
@@ -261,7 +289,9 @@ describe("crm api routes", () => {
       requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
     }));
     vi.doMock("@/modules/crm/lib/rules", () => ({
-      validateRequiredProgression: vi.fn().mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
+      validateRequiredProgression: vi
+        .fn()
+        .mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
     }));
     vi.doMock("@/modules/crm/lib/custom-fields", () => ({
       extractCustomFieldValues: vi.fn().mockReturnValue([]),
@@ -305,9 +335,13 @@ describe("crm api routes", () => {
     const jobUpdate = vi.fn();
     const jobSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: singleExisting }) });
 
-    const hazardsSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const hazardsSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    });
     const complianceChecklistSelect = vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }),
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      }),
     });
     const materialsChecklistSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({
@@ -315,7 +349,9 @@ describe("crm api routes", () => {
         error: null,
       }),
     });
-    const certificatesSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const certificatesSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    });
     const attachmentsSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
     });
@@ -326,7 +362,9 @@ describe("crm api routes", () => {
       if (table === "job_checklists") {
         return {
           select: vi.fn((columns: string) =>
-            columns.includes("notes") ? materialsChecklistSelect(columns) : complianceChecklistSelect(columns),
+            columns.includes("notes")
+              ? materialsChecklistSelect(columns)
+              : complianceChecklistSelect(columns),
           ),
         };
       }
@@ -345,7 +383,9 @@ describe("crm api routes", () => {
       requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
     }));
     vi.doMock("@/modules/crm/lib/rules", () => ({
-      validateRequiredProgression: vi.fn().mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
+      validateRequiredProgression: vi
+        .fn()
+        .mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
     }));
     vi.doMock("@/modules/crm/lib/custom-fields", () => ({
       extractCustomFieldValues: vi.fn().mockReturnValue([]),
@@ -418,7 +458,9 @@ describe("crm api routes", () => {
       }),
     }));
     vi.doMock("@/modules/crm/lib/rules", () => ({
-      validateRequiredProgression: vi.fn().mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
+      validateRequiredProgression: vi
+        .fn()
+        .mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
     }));
     vi.doMock("@/modules/crm/lib/custom-fields", () => ({
       extractCustomFieldValues: vi.fn().mockReturnValue([]),
@@ -566,8 +608,12 @@ describe("crm api routes", () => {
     };
 
     const quoteSingle = vi.fn().mockResolvedValue({ data: quote, error: null });
-    const invoiceSingle = vi.fn().mockResolvedValue({ data: { id: "inv-1", invoice_number: "INV-2026-0001" }, error: null });
-    const invoiceInsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: invoiceSingle }) });
+    const invoiceSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "inv-1", invoice_number: "INV-2026-0001" }, error: null });
+    const invoiceInsert = vi
+      .fn()
+      .mockReturnValue({ select: vi.fn().mockReturnValue({ single: invoiceSingle }) });
     const quoteUpdateEq = vi.fn().mockResolvedValue({ data: null, error: null });
     const quoteUpdate = vi.fn().mockReturnValue({ eq: quoteUpdateEq });
     const quoteSelectEq = vi.fn().mockReturnValue({ single: quoteSingle });
@@ -714,7 +760,9 @@ describe("crm api routes", () => {
     const customerEqTenant = vi.fn().mockReturnValue({ eq: customerEqId });
     const customerSelect = vi.fn().mockReturnValue({ eq: customerEqTenant });
 
-    const jobMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "job-2", customer_id: "cust-2" }, error: null });
+    const jobMaybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "job-2", customer_id: "cust-2" }, error: null });
     const jobEqId = vi.fn().mockReturnValue({ maybeSingle: jobMaybeSingle });
     const jobEqTenant = vi.fn().mockReturnValue({ eq: jobEqId });
     const jobSelect = vi.fn().mockReturnValue({ eq: jobEqTenant });
@@ -826,7 +874,9 @@ describe("crm api routes", () => {
     const customerEqTenant = vi.fn().mockReturnValue({ eq: customerEqId });
     const customerSelect = vi.fn().mockReturnValue({ eq: customerEqTenant });
 
-    const jobMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "job-2", customer_id: "cust-2" }, error: null });
+    const jobMaybeSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "job-2", customer_id: "cust-2" }, error: null });
     const jobEqId = vi.fn().mockReturnValue({ maybeSingle: jobMaybeSingle });
     const jobEqTenant = vi.fn().mockReturnValue({ eq: jobEqId });
     const jobSelect = vi.fn().mockReturnValue({ eq: jobEqTenant });
@@ -929,12 +979,19 @@ describe("crm api routes", () => {
       error: null,
     });
     const acceptanceSingle = vi.fn().mockResolvedValue({ data: { id: "accept-1" }, error: null });
-    const quoteUpdateEq = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: quoteUpdateSingle }) });
+    const quoteUpdateEq = vi
+      .fn()
+      .mockReturnValue({ select: vi.fn().mockReturnValue({ single: quoteUpdateSingle }) });
     const quoteSelectEq = vi.fn().mockReturnValue({ single: quoteSingle });
-    const acceptanceUpsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: acceptanceSingle }) });
+    const acceptanceUpsert = vi
+      .fn()
+      .mockReturnValue({ select: vi.fn().mockReturnValue({ single: acceptanceSingle }) });
     const from = vi.fn((table: string) => {
       if (table === "quotes") {
-        return { select: vi.fn().mockReturnValue({ eq: quoteSelectEq }), update: vi.fn().mockReturnValue({ eq: quoteUpdateEq }) };
+        return {
+          select: vi.fn().mockReturnValue({ eq: quoteSelectEq }),
+          update: vi.fn().mockReturnValue({ eq: quoteUpdateEq }),
+        };
       }
       if (table === "quote_acceptances") {
         return { upsert: acceptanceUpsert };
@@ -1002,17 +1059,27 @@ describe("crm api routes", () => {
       },
       error: null,
     });
-    const invoiceSingle = vi.fn().mockResolvedValue({ data: { id: "inv-1", invoice_number: "INV-2026-0002" }, error: null });
-    const scheduleUpdateSingle = vi.fn().mockResolvedValue({ data: { id: "sched-1", invoice_id: "inv-1", status: "invoiced" }, error: null });
+    const invoiceSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "inv-1", invoice_number: "INV-2026-0002" }, error: null });
+    const scheduleUpdateSingle = vi
+      .fn()
+      .mockResolvedValue({ data: { id: "sched-1", invoice_id: "inv-1", status: "invoiced" }, error: null });
     const from = vi.fn((table: string) => {
       if (table === "invoice_schedules") {
         return {
           select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: scheduleSingle }) }),
-          update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: scheduleUpdateSingle }) }) }),
+          update: vi.fn().mockReturnValue({
+            eq: vi
+              .fn()
+              .mockReturnValue({ select: vi.fn().mockReturnValue({ single: scheduleUpdateSingle }) }),
+          }),
         };
       }
       if (table === "invoices") {
-        return { insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: invoiceSingle }) }) };
+        return {
+          insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: invoiceSingle }) }),
+        };
       }
       throw new Error(`Unexpected table ${table}`);
     });
@@ -1027,7 +1094,9 @@ describe("crm api routes", () => {
     }));
     vi.doMock("@/modules/crm/lib/quotes", () => ({
       calculateInvoiceScheduleAmount: vi.fn().mockReturnValue({ subtotal: 250, total: 300 }),
-      buildInvoiceScheduleLineItem: vi.fn().mockReturnValue([{ description: "Deposit (deposit)", qty: 1, unit_price: 250 }]),
+      buildInvoiceScheduleLineItem: vi
+        .fn()
+        .mockReturnValue([{ description: "Deposit (deposit)", qty: 1, unit_price: 250 }]),
     }));
 
     const route = await import("@/app/api/crm/invoice-schedules/[id]/generate/route");
@@ -1065,7 +1134,9 @@ describe("crm api routes", () => {
       createCrmServiceRoleClient: vi.fn().mockReturnValue({
         storage: {
           from: vi.fn().mockReturnValue({
-            createSignedUrl: vi.fn().mockResolvedValue({ data: { signedUrl: "https://signed.example/test.pdf" }, error: null }),
+            createSignedUrl: vi
+              .fn()
+              .mockResolvedValue({ data: { signedUrl: "https://signed.example/test.pdf" }, error: null }),
           }),
         },
       }),
@@ -1114,7 +1185,9 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
-      requireManagerCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
+      requireManagerCrmApiUser: vi
+        .fn()
+        .mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
     }));
 
     const route = await import("@/app/api/crm/settings/users/route");
@@ -1267,7 +1340,9 @@ describe("crm api routes", () => {
     vi.doMock("@/modules/crm/lib/api", () => ({
       jsonSuccess,
       normalizeBlankFields,
-      requireManagerCrmApiUser: vi.fn().mockResolvedValue({ error: jsonError("You do not have access to this CRM action.", 403) }),
+      requireManagerCrmApiUser: vi
+        .fn()
+        .mockResolvedValue({ error: jsonError("You do not have access to this CRM action.", 403) }),
     }));
 
     const route = await import("@/app/api/crm/demo/start/route");

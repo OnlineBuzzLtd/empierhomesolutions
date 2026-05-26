@@ -78,11 +78,12 @@ export async function POST(request: Request) {
 
   // Extract Turnstile token if present; supports either top-level or nested under
   // `turnstileToken` / `cf-turnstile-response` (the Turnstile widget default name).
-  const turnstileToken =
-    (payload && typeof payload === "object"
+  const turnstileToken = (
+    payload && typeof payload === "object"
       ? ((payload as Record<string, unknown>).turnstileToken ??
         (payload as Record<string, unknown>)["cf-turnstile-response"])
-      : null) as string | null | undefined;
+      : null
+  ) as string | null | undefined;
 
   const turnstile = await verifyTurnstileToken(turnstileToken, ip === "unknown" ? null : ip);
   if (!turnstile.ok) {

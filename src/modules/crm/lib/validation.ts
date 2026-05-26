@@ -1,5 +1,28 @@
 import { z } from "zod";
-import { appointmentStatuses, appointmentTypes, certificationCategories, customFieldTypes, engineerAiAssistActions, expenseCategories, invoiceStatuses, jobCertificateStatuses, jobChecklistStatuses, jobHazardStatuses, jobPhaseStatuses, jobStatuses, jobVariationStatuses, leadStatuses, paymentStatuses, paymentTypes, purchaseOrderStatuses, quoteDocumentTypes, quoteStatuses, supplierReconciliationEntryTypes, supplierReconciliationStatuses, supportedEntityTypes } from "@/modules/crm/types";
+import {
+  appointmentStatuses,
+  appointmentTypes,
+  certificationCategories,
+  customFieldTypes,
+  engineerAiAssistActions,
+  expenseCategories,
+  invoiceStatuses,
+  jobCertificateStatuses,
+  jobChecklistStatuses,
+  jobHazardStatuses,
+  jobPhaseStatuses,
+  jobStatuses,
+  jobVariationStatuses,
+  leadStatuses,
+  paymentStatuses,
+  paymentTypes,
+  purchaseOrderStatuses,
+  quoteDocumentTypes,
+  quoteStatuses,
+  supplierReconciliationEntryTypes,
+  supplierReconciliationStatuses,
+  supportedEntityTypes,
+} from "@/modules/crm/types";
 
 const emptyStringToNull = (v: unknown) => (v === "" ? null : v);
 
@@ -26,8 +49,12 @@ export const lineItemSchema = z.object({
   description: z.string().min(1),
   qty: z.coerce.number().nonnegative(),
   unit_price: z.coerce.number().nonnegative(),
-  unit_cost: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nonnegative().nullable()).optional(),
-  markup_percent: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable()).optional(),
+  unit_cost: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nonnegative().nullable())
+    .optional(),
+  markup_percent: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable())
+    .optional(),
   product_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable()).optional(),
   package_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable()).optional(),
   package_role: z.enum(lineItemPackageRoles).nullable().optional(),
@@ -40,7 +67,9 @@ export const packageItemSchema = z.object({
   product_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   description: z.string().min(1),
   qty: z.coerce.number().positive(),
-  unit_cost: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nonnegative().nullable()).optional(),
+  unit_cost: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nonnegative().nullable())
+    .optional(),
   unit_price: z.coerce.number().nonnegative(),
   sort_order: z.coerce.number().int().nonnegative().default(0),
 });
@@ -48,7 +77,9 @@ export const packageItemSchema = z.object({
 export const packageSchema = z.object({
   name: z.string().min(2),
   description: z.string().optional().nullable(),
-  default_markup_percent: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable()).optional(),
+  default_markup_percent: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable())
+    .optional(),
   is_active: z.coerce.boolean().default(true),
   // Restrict to https/http only at the boundary — keeps stored URLs safe to
   // drop into <img src=…> without protocol-relative or javascript: tricks.
@@ -107,35 +138,37 @@ export const publicLinkRequestSchema = z.object({
   ttl_days: z.coerce.number().int().min(1).max(365).default(30),
 });
 
-export const customerSchema = z.object({
-  full_name: z.string().min(2).optional().nullable(),
-  first_name: z.string().optional().nullable(),
-  last_name: z.string().optional().nullable(),
-  phone: z.string().optional().nullable(),
-  email: z.string().email().optional().or(z.literal("")).nullable(),
-  address_line1: z.string().optional().nullable(),
-  address_line2: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  postcode: z.string().optional().nullable(),
-  property_type: z.string().optional().nullable(),
-  occupancy_type: z.string().optional().nullable(),
-  source: z.string().optional().nullable(),
-  referral_notes: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
-  archived: z.coerce.boolean().optional().default(false),
-}).superRefine((value, ctx) => {
-  const fullName = value.full_name?.trim() ?? "";
-  const firstName = value.first_name?.trim() ?? "";
-  const lastName = value.last_name?.trim() ?? "";
+export const customerSchema = z
+  .object({
+    full_name: z.string().min(2).optional().nullable(),
+    first_name: z.string().optional().nullable(),
+    last_name: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    email: z.string().email().optional().or(z.literal("")).nullable(),
+    address_line1: z.string().optional().nullable(),
+    address_line2: z.string().optional().nullable(),
+    city: z.string().optional().nullable(),
+    postcode: z.string().optional().nullable(),
+    property_type: z.string().optional().nullable(),
+    occupancy_type: z.string().optional().nullable(),
+    source: z.string().optional().nullable(),
+    referral_notes: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+    archived: z.coerce.boolean().optional().default(false),
+  })
+  .superRefine((value, ctx) => {
+    const fullName = value.full_name?.trim() ?? "";
+    const firstName = value.first_name?.trim() ?? "";
+    const lastName = value.last_name?.trim() ?? "";
 
-  if (fullName.length === 0 && firstName.length === 0 && lastName.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["first_name"],
-      message: "Enter a name for the customer.",
-    });
-  }
-});
+    if (fullName.length === 0 && firstName.length === 0 && lastName.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["first_name"],
+        message: "Enter a name for the customer.",
+      });
+    }
+  });
 
 export const siteContactSchema = z.object({
   site_id: z.string().uuid(),

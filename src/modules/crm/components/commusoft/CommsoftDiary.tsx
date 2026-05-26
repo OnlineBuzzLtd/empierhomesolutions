@@ -64,20 +64,18 @@ export function CommsoftDiary({
               key={ds}
               onClick={() => setSelectedDate(ds)}
               className={`flex min-w-[52px] flex-col items-center rounded-2xl px-3 py-2.5 transition-colors ${
-                isSelected
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
+                isSelected ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              <span className={`text-base font-bold ${isSelected ? "text-white" : isToday ? "text-blue-600" : "text-slate-900"}`}>
+              <span
+                className={`text-base font-bold ${isSelected ? "text-white" : isToday ? "text-blue-600" : "text-slate-900"}`}
+              >
                 {d.getDate()}
               </span>
               <span className={`mt-0.5 text-xs ${isSelected ? "text-blue-100" : "text-slate-400"}`}>
                 {DAY_LABELS[d.getDay()]}
               </span>
-              {isToday && !isSelected ? (
-                <span className="mt-1 h-1 w-1 rounded-full bg-blue-600" />
-              ) : null}
+              {isToday && !isSelected ? <span className="mt-1 h-1 w-1 rounded-full bg-blue-600" /> : null}
             </button>
           );
         })}
@@ -105,7 +103,9 @@ export function CommsoftDiary({
         )}
         {completedJobs.length > 0 ? (
           <div className="mt-6 pb-6">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">Recent completed</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
+              Recent completed
+            </p>
             <div className="space-y-3">
               {completedJobs.slice(0, 6).map((job) => (
                 <DiaryJobRow key={`completed-${job.id}`} job={job} />
@@ -123,8 +123,7 @@ export function CommsoftDiary({
 function DiaryJobRow({ job }: { job: EngineerDashboardJob }) {
   const address = [job.customer?.address_line1, job.customer?.postcode].filter(Boolean).join(", ");
   const statusCfg = jobStatusConfig[job.status];
-  const statusLabel =
-    job.status === "in_progress" ? "Travelling" : statusCfg?.label ?? job.status;
+  const statusLabel = job.status === "in_progress" ? "Travelling" : (statusCfg?.label ?? job.status);
   const statusColor =
     job.status === "in_progress"
       ? "text-emerald-600"
@@ -137,9 +136,7 @@ function DiaryJobRow({ job }: { job: EngineerDashboardJob }) {
       href={`/jobs/${job.id}`}
       className="block rounded-2xl border border-l-4 border-slate-200 border-l-emerald-500 p-4 hover:bg-slate-50"
     >
-      <p className="text-sm font-semibold text-slate-900 line-clamp-1">
-        {job.title}
-      </p>
+      <p className="text-sm font-semibold text-slate-900 line-clamp-1">{job.title}</p>
       <p className="mt-0.5 text-sm text-slate-600">{job.customer?.full_name}</p>
       {address ? <p className="mt-0.5 text-xs text-slate-400">{address}</p> : null}
       <div className="mt-2 flex items-center gap-3">

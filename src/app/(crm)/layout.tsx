@@ -7,7 +7,13 @@ import { DemoPanel } from "@/modules/crm/components/demo/DemoPanel";
 import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider";
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
 import { CommsoftAccountMenu } from "@/modules/crm/components/commusoft/CommsoftAccountMenu";
-import { CrmMobileMenu, CrmSidebarNav, CrmTopNav, type CrmNavGroup, type CrmNavItem } from "@/modules/crm/components/layout/CrmNav";
+import {
+  CrmMobileMenu,
+  CrmSidebarNav,
+  CrmTopNav,
+  type CrmNavGroup,
+  type CrmNavItem,
+} from "@/modules/crm/components/layout/CrmNav";
 import { getCrmSession, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { LogoutButton } from "@/modules/crm/components/layout/LogoutButton";
@@ -17,7 +23,9 @@ import { getUiPreference } from "@/app/actions/ui-preference";
 
 export async function generateMetadata(): Promise<Metadata> {
   const session = await getCrmSession();
-  const displayName = session.branding?.crm_display_name ?? (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
+  const displayName =
+    session.branding?.crm_display_name ??
+    (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
   const businessName = session.branding?.business_name ?? session.tenant?.name ?? "your business";
 
   return {
@@ -62,7 +70,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const session = await getCrmSession();
   const demoState = await getCrmDemoState();
   const setup = getCrmSetupState();
-  const canManageDemo = userCanManageSettings(session.profile?.role) && !session.profile?.is_demo && session.settings?.demo_mode_enabled !== false;
+  const canManageDemo =
+    userCanManageSettings(session.profile?.role) &&
+    !session.profile?.is_demo &&
+    session.settings?.demo_mode_enabled !== false;
   const isEngineer = session.profile?.role === "engineer";
   const uiMode = isEngineer ? await getUiPreference() : "classic";
   const isCommsoftMode = isEngineer && uiMode === "commusoft";
@@ -97,7 +108,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   const modeBadgeClassName = demoState.active ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
   const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
-  const crmDisplayName = session.branding?.crm_display_name ?? (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
+  const crmDisplayName =
+    session.branding?.crm_display_name ??
+    (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
   const businessName = session.branding?.business_name ?? session.tenant?.name ?? "CRM";
   const logoUrl = session.branding?.logo_url ?? null;
   const tenantOptions = session.memberships.map((membership) => ({
@@ -114,17 +127,13 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   }
 
   if (!session.user) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">{children}</div>
-    );
+    return <div className="min-h-screen bg-slate-950 text-slate-100">{children}</div>;
   }
 
   if (isDemoRunMode && session.user) {
     return (
       <DemoModeProvider state={demoState}>
-        <div className="min-h-screen bg-slate-50 text-slate-900">
-          {children}
-        </div>
+        <div className="min-h-screen bg-slate-50 text-slate-900">{children}</div>
       </DemoModeProvider>
     );
   }
@@ -151,20 +160,32 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <aside className="hidden w-64 shrink-0 flex-col bg-slate-900 text-white lg:flex">
             <div className="border-b border-slate-800 px-5 py-5">
               {logoUrl ? (
-                <img src={logoUrl} alt={`${businessName} logo`} className="mb-3 max-h-12 max-w-44 object-contain" />
+                <img
+                  src={logoUrl}
+                  alt={`${businessName} logo`}
+                  className="mb-3 max-h-12 max-w-44 object-contain"
+                />
               ) : null}
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">{businessName}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
+                {businessName}
+              </p>
               <p className="mt-1 text-lg font-bold">{crmDisplayName}</p>
             </div>
             <CrmSidebarNav groups={groups} />
             <div className="border-t border-slate-800 px-5 py-4">
               <p className="text-xs text-slate-500">Logged in as</p>
-              <p className="mt-1 text-sm font-semibold text-white">{session.profile?.full_name ?? session.user.email}</p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {session.profile?.full_name ?? session.user.email}
+              </p>
               <p className="text-xs capitalize text-slate-400">{session.profile?.role ?? "user"}</p>
-              <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${demoState.active ? "bg-amber-400/20 text-amber-300" : "bg-slate-800 text-slate-300"}`}>
+              <p
+                className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${demoState.active ? "bg-amber-400/20 text-amber-300" : "bg-slate-800 text-slate-300"}`}
+              >
                 {modeBadgeLabel}
               </p>
-              {demoState.locked ? <p className="mt-2 text-xs text-slate-400">This login is pinned to demo records only.</p> : null}
+              {demoState.locked ? (
+                <p className="mt-2 text-xs text-slate-400">This login is pinned to demo records only.</p>
+              ) : null}
             </div>
           </aside>
 
@@ -173,22 +194,34 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
               <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-8">
                 <div className="flex min-w-0 items-center gap-3">
                   {logoUrl ? (
-                    <img src={logoUrl} alt={`${businessName} logo`} className="h-9 w-auto max-w-28 object-contain" />
+                    <img
+                      src={logoUrl}
+                      alt={`${businessName} logo`}
+                      className="h-9 w-auto max-w-28 object-contain"
+                    />
                   ) : null}
                   <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">{crmDisplayName}</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <p className="text-xs text-slate-500">{session.profile?.full_name ?? session.user.email}</p>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${modeBadgeClassName}`}>
-                      {modeBadgeLabel}
-                    </span>
-                  </div>
+                    <p className="text-sm font-semibold text-slate-900">{crmDisplayName}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <p className="text-xs text-slate-500">
+                        {session.profile?.full_name ?? session.user.email}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${modeBadgeClassName}`}
+                      >
+                        {modeBadgeLabel}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {session.tenant && tenantOptions.length > 1 ? <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} /> : null}
+                  {session.tenant && tenantOptions.length > 1 ? (
+                    <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} />
+                  ) : null}
                   <CrmTopNav items={topNavItems} />
-                  {userCanManageSettings(session.profile?.role) ? <CrmMobileMenu items={topNavItems} /> : null}
+                  {userCanManageSettings(session.profile?.role) ? (
+                    <CrmMobileMenu items={topNavItems} />
+                  ) : null}
                   {isEngineer && !isCommsoftMode ? (
                     <Link
                       href="/preferences"
@@ -204,9 +237,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             </header>
 
             {isCommsoftMode ? (
-              <main className="flex-1">
-                {children}
-              </main>
+              <main className="flex-1">{children}</main>
             ) : (
               <main className={`flex-1 px-4 py-6 lg:px-8 ${isEngineer ? "pb-24 lg:pb-6" : ""}`}>
                 <div className="mx-auto w-full max-w-7xl">
@@ -230,7 +261,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                   >
                     Dashboard
                   </Link>
-                  <Link href="/dashboard#today-route" className="rounded-full border border-slate-200 px-3 py-2 text-slate-700">
+                  <Link
+                    href="/dashboard#today-route"
+                    className="rounded-full border border-slate-200 px-3 py-2 text-slate-700"
+                  >
                     Today
                   </Link>
                   <Link

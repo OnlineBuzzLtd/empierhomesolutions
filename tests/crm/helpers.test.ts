@@ -1,27 +1,83 @@
 import { describe, expect, it } from "vitest";
-import { groupAttachmentsByBucket, isImageAttachment, normalizeAttachmentType } from "@/modules/crm/lib/attachments";
+import {
+  groupAttachmentsByBucket,
+  isImageAttachment,
+  normalizeAttachmentType,
+} from "@/modules/crm/lib/attachments";
 import { resolveEngineerAiAssistState } from "@/modules/crm/lib/addons";
 import { buildAiHubAggregateMetrics } from "@/modules/crm/lib/ai-hub";
 import { buildAssetReminderItems, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
 import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
-import { applyCrmModeFilter, crmDemoScenarioKey, crmDemoSteps, findCrmDemoStepIndex, isCrmDemoMutationBlocked, resolveCrmDemoMode } from "@/modules/crm/lib/demo";
+import {
+  applyCrmModeFilter,
+  crmDemoScenarioKey,
+  crmDemoSteps,
+  findCrmDemoStepIndex,
+  isCrmDemoMutationBlocked,
+  resolveCrmDemoMode,
+} from "@/modules/crm/lib/demo";
 import { buildEngineerAiAssistDraft } from "@/modules/crm/lib/engineer-ai";
-import { buildQuoteDraftFromTemplate, buildCatalogLineItem, parsePaymentTermsInput, summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
+import {
+  buildQuoteDraftFromTemplate,
+  buildCatalogLineItem,
+  parsePaymentTermsInput,
+  summarizePaymentTerms,
+} from "@/modules/crm/lib/quote-templates";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
 import { getAssignableEngineerNames } from "@/modules/crm/lib/staff";
-import type { AddonState, Appointment, Attachment, CustomerAsset, EngineerDashboardJob, JobWithRelations, Note, QuoteTemplate } from "@/modules/crm/types";
+import type {
+  AddonState,
+  Appointment,
+  Attachment,
+  CustomerAsset,
+  EngineerDashboardJob,
+  JobWithRelations,
+  Note,
+  QuoteTemplate,
+} from "@/modules/crm/types";
 
 describe("crm attachment helpers", () => {
   it("groups attachments into user-facing buckets", () => {
     const attachments: Attachment[] = [
-      { id: "1", entity_type: "job", entity_id: "job-1", file_name: "before.jpg", file_url: "a", file_type: "photo", created_by: null, created_at: "2026-03-21T10:00:00.000Z" },
-      { id: "2", entity_type: "job", entity_id: "job-1", file_name: "cp12.pdf", file_url: "b", file_type: "certificate", created_by: null, created_at: "2026-03-21T10:00:00.000Z" },
-      { id: "3", entity_type: "job", entity_id: "job-1", file_name: "quote.pdf", file_url: "c", file_type: "quote", created_by: null, created_at: "2026-03-21T10:00:00.000Z" },
+      {
+        id: "1",
+        entity_type: "job",
+        entity_id: "job-1",
+        file_name: "before.jpg",
+        file_url: "a",
+        file_type: "photo",
+        created_by: null,
+        created_at: "2026-03-21T10:00:00.000Z",
+      },
+      {
+        id: "2",
+        entity_type: "job",
+        entity_id: "job-1",
+        file_name: "cp12.pdf",
+        file_url: "b",
+        file_type: "certificate",
+        created_by: null,
+        created_at: "2026-03-21T10:00:00.000Z",
+      },
+      {
+        id: "3",
+        entity_type: "job",
+        entity_id: "job-1",
+        file_name: "quote.pdf",
+        file_url: "c",
+        file_type: "quote",
+        created_by: null,
+        created_at: "2026-03-21T10:00:00.000Z",
+      },
     ];
 
     expect(normalizeAttachmentType("  Photo ")).toBe("photo");
     expect(isImageAttachment(attachments[0])).toBe(true);
-    expect(groupAttachmentsByBucket(attachments).map((group) => group.bucket)).toEqual(["photos", "compliance", "commercial"]);
+    expect(groupAttachmentsByBucket(attachments).map((group) => group.bucket)).toEqual([
+      "photos",
+      "compliance",
+      "commercial",
+    ]);
   });
 });
 
@@ -43,14 +99,20 @@ describe("crm calendar helpers", () => {
       created_at: "2026-03-20T09:00:00.000Z",
     };
 
-    const occurrences = expandAppointmentOccurrences(appointment, new Date("2026-03-21T00:00:00.000Z"), new Date("2026-04-10T00:00:00.000Z"));
+    const occurrences = expandAppointmentOccurrences(
+      appointment,
+      new Date("2026-03-21T00:00:00.000Z"),
+      new Date("2026-04-10T00:00:00.000Z"),
+    );
 
     expect(occurrences).toHaveLength(3);
     expect(occurrences[1]?.id).toContain("appt-1:");
   });
 
   it("creates reminder items for service due and warranty expiry dates", () => {
-    const asset: CustomerAsset & { customer?: { id: string; full_name: string; postcode: string | null } | null } = {
+    const asset: CustomerAsset & {
+      customer?: { id: string; full_name: string; postcode: string | null } | null;
+    } = {
       id: "asset-1",
       customer_id: "cust-1",
       service_id: null,
@@ -68,7 +130,11 @@ describe("crm calendar helpers", () => {
       customer: { id: "cust-1", full_name: "Jane Smith", postcode: "E1 1AA" },
     };
 
-    const reminders = buildAssetReminderItems(asset, new Date("2026-03-21T00:00:00.000Z"), new Date("2026-03-31T23:59:59.000Z"));
+    const reminders = buildAssetReminderItems(
+      asset,
+      new Date("2026-03-21T00:00:00.000Z"),
+      new Date("2026-03-31T23:59:59.000Z"),
+    );
 
     expect(reminders.map((item) => item.source)).toEqual(["service_due", "warranty_expiry"]);
   });

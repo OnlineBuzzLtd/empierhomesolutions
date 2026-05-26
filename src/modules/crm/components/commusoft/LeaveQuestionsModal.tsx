@@ -154,7 +154,7 @@ export function LeaveQuestionsModal({
         ) : null}
 
         {hasChecklists ? (
-        mandatoryChecklists.map((checklist) => (
+          mandatoryChecklists.map((checklist) => (
             <div key={checklist.id}>
               <div className="block">
                 <span className="text-sm font-semibold text-slate-900">
@@ -204,9 +204,7 @@ export function LeaveQuestionsModal({
                     <input
                       type="text"
                       value={answers[checklist.id] ?? ""}
-                      onChange={(e) =>
-                        setAnswers((prev) => ({ ...prev, [checklist.id]: e.target.value }))
-                      }
+                      onChange={(e) => setAnswers((prev) => ({ ...prev, [checklist.id]: e.target.value }))}
                       placeholder="Tap To Enter..."
                       className="w-full bg-transparent py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
                       disabled={busy}
@@ -256,12 +254,7 @@ function CheckIcon() {
 function CloseIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path
-        d="M4 4l12 12M16 4L4 16"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
+      <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

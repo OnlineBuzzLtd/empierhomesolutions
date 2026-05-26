@@ -1,10 +1,57 @@
 import { addDays, endOfDay, isAfter, parseISO, startOfDay } from "date-fns";
-import type { Appointment, Attachment, CalendarItem, Customer, CustomerAsset, CustomerWithCounts, CustomFieldDefinition, DashboardData, EngineerDashboardData, EngineerDashboardJob, Expense, Invoice, InvoiceSchedule, InvoiceWithRelations, JobAssignee, JobCertificate, JobChecklist, JobHazard, JobPhase, JobType, JobVariation, JobWithRelations, LeadWithRelations, Note, Payment, Product, PurchaseOrder, Quote, QuoteAcceptance, QuoteTemplate, QuoteVersion, QuoteWithRelations, ReportsSummary, RequiredDocumentRule, Service, Site, SiteContact, StaffDirectoryEntry, Supplier, SupplierReconciliation, UserCertification, UserProfile } from "@/modules/crm/types";
+import type {
+  Appointment,
+  Attachment,
+  CalendarItem,
+  Customer,
+  CustomerAsset,
+  CustomerWithCounts,
+  CustomFieldDefinition,
+  DashboardData,
+  EngineerDashboardData,
+  EngineerDashboardJob,
+  Expense,
+  Invoice,
+  InvoiceSchedule,
+  InvoiceWithRelations,
+  JobAssignee,
+  JobCertificate,
+  JobChecklist,
+  JobHazard,
+  JobPhase,
+  JobType,
+  JobVariation,
+  JobWithRelations,
+  LeadWithRelations,
+  Note,
+  Payment,
+  Product,
+  PurchaseOrder,
+  Quote,
+  QuoteAcceptance,
+  QuoteTemplate,
+  QuoteVersion,
+  QuoteWithRelations,
+  ReportsSummary,
+  RequiredDocumentRule,
+  Service,
+  Site,
+  SiteContact,
+  StaffDirectoryEntry,
+  Supplier,
+  SupplierReconciliation,
+  UserCertification,
+  UserProfile,
+} from "@/modules/crm/types";
 import { createCrmServerClient, createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { applyCrmModeFilter, crmDemoScenarioKey } from "@/modules/crm/lib/demo";
 import { runCrmList } from "@/modules/crm/lib/data-runner";
 import { getCrmEnv } from "@/modules/crm/lib/env";
-import { buildAssetReminderItems, buildLeadFollowUpItem, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
+import {
+  buildAssetReminderItems,
+  buildLeadFollowUpItem,
+  expandAppointmentOccurrences,
+} from "@/modules/crm/lib/calendar";
 import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -199,7 +246,11 @@ async function listQuoteAcceptancesByQuoteIds(quoteIds: string[], mode?: CrmMode
 
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const acceptancesQuery = supabase.schema("crm").from("quote_acceptances").select("*").in("quote_id", quoteIds);
+  const acceptancesQuery = supabase
+    .schema("crm")
+    .from("quote_acceptances")
+    .select("*")
+    .in("quote_id", quoteIds);
   filterByMode(acceptancesQuery, context.mode, context.scenarioKey);
   const { data } = await acceptancesQuery;
 
@@ -238,7 +289,12 @@ async function listJobHazardsByJobIds(jobIds: string[], mode?: CrmMode) {
   }
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const query = supabase.schema("crm").from("job_hazards").select("*").in("job_id", jobIds).order("created_at", { ascending: false });
+  const query = supabase
+    .schema("crm")
+    .from("job_hazards")
+    .select("*")
+    .in("job_id", jobIds)
+    .order("created_at", { ascending: false });
   filterByMode(query, context.mode, context.scenarioKey);
   const { data } = await query;
   const map = new Map<string, JobHazard[]>();
@@ -256,7 +312,12 @@ async function listJobChecklistsByJobIds(jobIds: string[], mode?: CrmMode) {
   }
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const query = supabase.schema("crm").from("job_checklists").select("*").in("job_id", jobIds).order("created_at", { ascending: false });
+  const query = supabase
+    .schema("crm")
+    .from("job_checklists")
+    .select("*")
+    .in("job_id", jobIds)
+    .order("created_at", { ascending: false });
   filterByMode(query, context.mode, context.scenarioKey);
   const { data } = await query;
   const map = new Map<string, JobChecklist[]>();
@@ -274,7 +335,12 @@ async function listJobCertificatesByJobIds(jobIds: string[], mode?: CrmMode) {
   }
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const query = supabase.schema("crm").from("job_certificates").select("*").in("job_id", jobIds).order("created_at", { ascending: false });
+  const query = supabase
+    .schema("crm")
+    .from("job_certificates")
+    .select("*")
+    .in("job_id", jobIds)
+    .order("created_at", { ascending: false });
   filterByMode(query, context.mode, context.scenarioKey);
   const { data } = await query;
   const map = new Map<string, JobCertificate[]>();
@@ -409,12 +475,16 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   const todaysJobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select(
+      "*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)",
+    );
   filterByMode(todaysJobsQuery, context.mode, context.scenarioKey);
   const activeJobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)");
+    .select(
+      "*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)",
+    );
   filterByMode(activeJobsQuery, context.mode, context.scenarioKey);
   const invoicesQuery = supabase.schema("crm").from("invoices").select("total, status");
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
@@ -455,7 +525,10 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   };
 }
 
-export async function getEngineerDashboardData(engineerName: string, mode?: CrmMode): Promise<EngineerDashboardData> {
+export async function getEngineerDashboardData(
+  engineerName: string,
+  mode?: CrmMode,
+): Promise<EngineerDashboardData> {
   if (!getCrmEnv().enabled || engineerName.trim().length === 0) {
     return emptyEngineerDashboard();
   }
@@ -466,7 +539,9 @@ export async function getEngineerDashboardData(engineerName: string, mode?: CrmM
   const jobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)");
+    .select(
+      "*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
+    );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   const { data: jobs } = await jobsQuery
     .ilike("assigned_engineer", engineerName.trim())
@@ -488,15 +563,21 @@ export async function getEngineerDashboardData(engineerName: string, mode?: CrmM
   filterByMode(quotesQuery, context.mode, context.scenarioKey);
   const invoicesQuery = supabase.schema("crm").from("invoices").select("job_id");
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
-  const rulesQuery = supabase.schema("crm").from("required_document_rules").select("*").eq("entity_type", "job").eq("active", true);
+  const rulesQuery = supabase
+    .schema("crm")
+    .from("required_document_rules")
+    .select("*")
+    .eq("entity_type", "job")
+    .eq("active", true);
 
-  const [{ data: notes }, { data: attachments }, { data: quotes }, { data: invoices }, { data: rules }] = await Promise.all([
-    notesQuery.eq("entity_type", "job").in("entity_id", jobIds).order("created_at", { ascending: false }),
-    attachmentsQuery.eq("entity_type", "job").in("entity_id", jobIds),
-    quotesQuery.in("job_id", jobIds),
-    invoicesQuery.in("job_id", jobIds),
-    rulesQuery,
-  ]);
+  const [{ data: notes }, { data: attachments }, { data: quotes }, { data: invoices }, { data: rules }] =
+    await Promise.all([
+      notesQuery.eq("entity_type", "job").in("entity_id", jobIds).order("created_at", { ascending: false }),
+      attachmentsQuery.eq("entity_type", "job").in("entity_id", jobIds),
+      quotesQuery.in("job_id", jobIds),
+      invoicesQuery.in("job_id", jobIds),
+      rulesQuery,
+    ]);
 
   const latestNoteByJobId = new Map<string, EngineerDashboardJob["latestNote"]>();
   for (const note of (notes ?? []) as Array<Pick<Note, "body" | "created_at"> & { entity_id: string }>) {
@@ -506,7 +587,9 @@ export async function getEngineerDashboardData(engineerName: string, mode?: CrmM
   }
 
   const attachmentsByJobId = new Map<string, string[]>();
-  for (const attachment of (attachments ?? []) as Array<Pick<Attachment, "file_type"> & { entity_id: string }>) {
+  for (const attachment of (attachments ?? []) as Array<
+    Pick<Attachment, "file_type"> & { entity_id: string }
+  >) {
     const current = attachmentsByJobId.get(attachment.entity_id) ?? [];
     current.push(attachment.file_type);
     attachmentsByJobId.set(attachment.entity_id, current);
@@ -536,7 +619,11 @@ export async function getEngineerDashboardData(engineerName: string, mode?: CrmM
       missingNote: latestNote === null,
       missingPhoto: !availableTypes.has("photo"),
       missingRequiredDocument: matchingRules.some((rule) => !availableTypes.has(rule.document_type)),
-      overdue: Boolean(job.scheduled_date && job.scheduled_date < todayDate && ["enquiry", "booked", "in_progress"].includes(job.status)),
+      overdue: Boolean(
+        job.scheduled_date &&
+        job.scheduled_date < todayDate &&
+        ["enquiry", "booked", "in_progress"].includes(job.status),
+      ),
     };
   });
 
@@ -557,10 +644,7 @@ export async function listLeads(mode?: CrmMode) {
       "*, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
-  return runCrmList<LeadWithRelations>(
-    "listLeads",
-    leadsQuery.order("created_at", { ascending: false }),
-  );
+  return runCrmList<LeadWithRelations>("listLeads", leadsQuery.order("created_at", { ascending: false }));
 }
 
 export async function listCustomers(mode?: CrmMode) {
@@ -624,7 +708,10 @@ export async function listSiteContacts(mode?: CrmMode) {
 
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const contactsQuery = supabase.schema("crm").from("site_contacts").select("*, site:sites(id, label, customer_id)");
+  const contactsQuery = supabase
+    .schema("crm")
+    .from("site_contacts")
+    .select("*, site:sites(id, label, customer_id)");
   filterByMode(contactsQuery, context.mode, context.scenarioKey);
   return runCrmList<SiteContact & { site?: Pick<Site, "id" | "label" | "customer_id"> | null }>(
     "listSiteContacts",
@@ -644,7 +731,9 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   const jobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)");
+    .select(
+      "*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
+    );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);
@@ -654,16 +743,34 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   filterByMode(sitesQuery, context.mode, context.scenarioKey);
   const attachmentsQuery = supabase.schema("crm").from("attachments").select("*");
   filterByMode(attachmentsQuery, context.mode, context.scenarioKey);
-  const [{ data: customer }, { data: jobs }, { data: notes }, { data: assets }, { data: sites }, { data: attachments }, { data: customFields }] =
-    await Promise.all([
-      customerQuery.eq("id", id).maybeSingle(),
-      jobsQuery.eq("customer_id", id).order("created_at", { ascending: false }),
-      notesQuery.eq("entity_type", "customer").eq("entity_id", id).order("created_at", { ascending: false }),
-      assetsQuery.eq("customer_id", id).order("created_at", { ascending: false }),
-      sitesQuery.eq("customer_id", id).order("is_primary", { ascending: false }).order("created_at", { ascending: false }),
-      attachmentsQuery.eq("entity_type", "customer").eq("entity_id", id).order("created_at", { ascending: false }),
-      supabase.schema("crm").from("custom_field_values").select("*, field_definition:custom_field_definitions(*)").eq("entity_type", "customer").eq("entity_id", id),
-    ]);
+  const [
+    { data: customer },
+    { data: jobs },
+    { data: notes },
+    { data: assets },
+    { data: sites },
+    { data: attachments },
+    { data: customFields },
+  ] = await Promise.all([
+    customerQuery.eq("id", id).maybeSingle(),
+    jobsQuery.eq("customer_id", id).order("created_at", { ascending: false }),
+    notesQuery.eq("entity_type", "customer").eq("entity_id", id).order("created_at", { ascending: false }),
+    assetsQuery.eq("customer_id", id).order("created_at", { ascending: false }),
+    sitesQuery
+      .eq("customer_id", id)
+      .order("is_primary", { ascending: false })
+      .order("created_at", { ascending: false }),
+    attachmentsQuery
+      .eq("entity_type", "customer")
+      .eq("entity_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .schema("crm")
+      .from("custom_field_values")
+      .select("*, field_definition:custom_field_definitions(*)")
+      .eq("entity_type", "customer")
+      .eq("entity_id", id),
+  ]);
 
   if (!customer) {
     return null;
@@ -679,7 +786,10 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   if (siteIds.length > 0) {
     const siteContactsQuery = supabase.schema("crm").from("site_contacts").select("*, site:sites(id, label)");
     filterByMode(siteContactsQuery, context.mode, context.scenarioKey);
-    const { data } = await siteContactsQuery.in("site_id", siteIds).order("is_primary", { ascending: false }).order("created_at", { ascending: false });
+    const { data } = await siteContactsQuery
+      .in("site_id", siteIds)
+      .order("is_primary", { ascending: false })
+      .order("created_at", { ascending: false });
     siteContacts = (data ?? []) as Array<SiteContact & { site?: Pick<Site, "id" | "label"> | null }>;
   }
 
@@ -705,7 +815,9 @@ export async function listJobs(mode?: CrmMode) {
   const jobsQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)");
+    .select(
+      "*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
+    );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   // Jobs behave like an inbox: the top of the list should be the most recently
   // submitted booking, not "what's next on the diary" (that's the Calendar
@@ -713,7 +825,9 @@ export async function listJobs(mode?: CrmMode) {
   // instant still sort deterministically.
   const jobs = await runCrmList<JobWithRelations>(
     "listJobs",
-    jobsQuery.order("created_at", { ascending: false }).order("scheduled_date", { ascending: false, nullsFirst: false }),
+    jobsQuery
+      .order("created_at", { ascending: false })
+      .order("scheduled_date", { ascending: false, nullsFirst: false }),
   );
   const jobIds = jobs.map((job) => job.id);
   const [assigneesByJobId, phasesByJobId, variationsByJobId] = await Promise.all([
@@ -739,7 +853,9 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   const jobQuery = supabase
     .schema("crm")
     .from("jobs")
-    .select("*, customer:customers(id, full_name, phone, email, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)");
+    .select(
+      "*, customer:customers(id, full_name, phone, email, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
+    );
   filterByMode(jobQuery, context.mode, context.scenarioKey);
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);
@@ -751,21 +867,36 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   filterByMode(quoteQuery, context.mode, context.scenarioKey);
   const invoiceQuery = supabase.schema("crm").from("invoices").select("*");
   filterByMode(invoiceQuery, context.mode, context.scenarioKey);
-  const [{ data: job }, { data: notes }, { data: expenses }, { data: attachments }, { data: quote }, { data: invoice }] =
-    await Promise.all([
-      jobQuery.eq("id", id).maybeSingle(),
-      notesQuery.eq("entity_type", "job").eq("entity_id", id).order("created_at", { ascending: false }),
-      expensesQuery.eq("job_id", id).order("created_at", { ascending: false }),
-      attachmentsQuery.eq("entity_type", "job").eq("entity_id", id).order("created_at", { ascending: false }),
-      quoteQuery.eq("job_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      invoiceQuery.eq("job_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
+  const [
+    { data: job },
+    { data: notes },
+    { data: expenses },
+    { data: attachments },
+    { data: quote },
+    { data: invoice },
+  ] = await Promise.all([
+    jobQuery.eq("id", id).maybeSingle(),
+    notesQuery.eq("entity_type", "job").eq("entity_id", id).order("created_at", { ascending: false }),
+    expensesQuery.eq("job_id", id).order("created_at", { ascending: false }),
+    attachmentsQuery.eq("entity_type", "job").eq("entity_id", id).order("created_at", { ascending: false }),
+    quoteQuery.eq("job_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    invoiceQuery.eq("job_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
 
   if (!job) {
     return null;
   }
 
-  const [assigneesByJobId, phasesByJobId, variationsByJobId, hazardsByJobId, checklistsByJobId, certificatesByJobId, purchaseOrdersByJobId, supplierReconciliationByJobId] = await Promise.all([
+  const [
+    assigneesByJobId,
+    phasesByJobId,
+    variationsByJobId,
+    hazardsByJobId,
+    checklistsByJobId,
+    certificatesByJobId,
+    purchaseOrdersByJobId,
+    supplierReconciliationByJobId,
+  ] = await Promise.all([
     listJobAssigneesByJobIds([id], context.mode),
     listJobPhasesByJobIds([id], context.mode),
     listJobVariationsByJobIds([id], context.mode),
@@ -778,7 +909,9 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
 
   const paymentsQuery = supabase.schema("crm").from("payments").select("*");
   filterByMode(paymentsQuery, context.mode, context.scenarioKey);
-  const { data: payments } = invoice ? await paymentsQuery.eq("invoice_id", invoice.id).order("created_at", { ascending: false }) : { data: [] };
+  const { data: payments } = invoice
+    ? await paymentsQuery.eq("invoice_id", invoice.id).order("created_at", { ascending: false })
+    : { data: [] };
 
   return {
     job: {
@@ -950,16 +1083,26 @@ export async function listAppointmentsForCalendar(filters?: {
   filterByMode(usersQuery, context.mode, context.scenarioKey);
 
   const [{ data: appointments }, { data: leads }, { data: assets }, { data: users }] = await Promise.all([
-    appointmentsQuery.gte("starts_at", start.toISOString()).lte("starts_at", end.toISOString()).order("starts_at"),
-    leadsQuery.not("next_action_at", "is", null).gte("next_action_at", start.toISOString()).lte("next_action_at", end.toISOString()),
+    appointmentsQuery
+      .gte("starts_at", start.toISOString())
+      .lte("starts_at", end.toISOString())
+      .order("starts_at"),
+    leadsQuery
+      .not("next_action_at", "is", null)
+      .gte("next_action_at", start.toISOString())
+      .lte("next_action_at", end.toISOString()),
     assetsQuery.order("service_due_date"),
     usersQuery,
   ]);
 
-  const usersById = new Map<string, UserProfile>(((users ?? []) as UserProfile[]).map((user) => [user.user_id, user]));
+  const usersById = new Map<string, UserProfile>(
+    ((users ?? []) as UserProfile[]).map((user) => [user.user_id, user]),
+  );
   const items: CalendarItem[] = [];
 
-  for (const appointment of (appointments ?? []) as Array<Appointment & { customer?: CalendarItem["customer"]; lead?: CalendarItem["lead"] }>) {
+  for (const appointment of (appointments ?? []) as Array<
+    Appointment & { customer?: CalendarItem["customer"]; lead?: CalendarItem["lead"] }
+  >) {
     const appointmentEntityLink = deriveAppointmentEntityLink({
       job_id: appointment.job_id,
       customer_id: appointment.customer_id,
@@ -969,7 +1112,7 @@ export async function listAppointmentsForCalendar(filters?: {
     });
 
     for (const occurrence of expandAppointmentOccurrences(appointment, start, end)) {
-      const owner = occurrence.assigned_to ? usersById.get(occurrence.assigned_to) ?? null : null;
+      const owner = occurrence.assigned_to ? (usersById.get(occurrence.assigned_to) ?? null) : null;
       items.push({
         ...occurrence,
         source: "appointment",
@@ -988,18 +1131,27 @@ export async function listAppointmentsForCalendar(filters?: {
     source: string | null;
     assigned_to: string | null;
     next_action_at: string | null;
-    customer?: Array<{ id: string; full_name: string; postcode: string | null }> | { id: string; full_name: string; postcode: string | null } | null;
+    customer?:
+      | Array<{ id: string; full_name: string; postcode: string | null }>
+      | { id: string; full_name: string; postcode: string | null }
+      | null;
   }>) {
     if (!lead.next_action_at) {
       continue;
     }
-    const customer = Array.isArray(lead.customer) ? lead.customer[0] ?? null : lead.customer ?? null;
+    const customer = Array.isArray(lead.customer) ? (lead.customer[0] ?? null) : (lead.customer ?? null);
     const nextActionAt = lead.next_action_at;
     items.push(buildLeadFollowUpItem({ ...lead, customer, next_action_at: nextActionAt }, usersById));
   }
 
   for (const asset of assets ?? []) {
-    items.push(...buildAssetReminderItems(asset as CustomerAsset & { customer?: CalendarItem["customer"] }, start, end));
+    items.push(
+      ...buildAssetReminderItems(
+        asset as CustomerAsset & { customer?: CalendarItem["customer"] },
+        start,
+        end,
+      ),
+    );
   }
 
   return items
@@ -1019,7 +1171,10 @@ export async function listAttachmentsForEntity(entityType: string, entityId: str
   const supabase = await createCrmServerClient();
   const attachmentsQuery = supabase.schema("crm").from("attachments").select("*");
   filterByMode(attachmentsQuery, context.mode, context.scenarioKey);
-  const { data } = await attachmentsQuery.eq("entity_type", entityType).eq("entity_id", entityId).order("created_at", { ascending: false });
+  const { data } = await attachmentsQuery
+    .eq("entity_type", entityType)
+    .eq("entity_id", entityId)
+    .order("created_at", { ascending: false });
   return (data ?? []) as Attachment[];
 }
 

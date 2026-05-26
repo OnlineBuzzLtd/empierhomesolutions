@@ -256,7 +256,12 @@ export function QuoteForm({
 
         {turnstileSiteKey ? (
           <div className="space-y-2">
-            <Turnstile siteKey={turnstileSiteKey} onToken={handleTurnstileToken} onError={handleTurnstileError} size="normal" />
+            <Turnstile
+              siteKey={turnstileSiteKey}
+              onToken={handleTurnstileToken}
+              onError={handleTurnstileError}
+              size="normal"
+            />
             {turnstileError ? <p className="text-xs text-red-600">{turnstileError}</p> : null}
           </div>
         ) : null}

@@ -41,7 +41,9 @@ export function TrustStrip({
           {
             key: "finance",
             icon: <PoundSterling size={15} className="text-[var(--ehs-brand-dark)]" />,
-            label: trust.financeAvailable ? "Finance available over 3, 5, 8, and 10 years" : "Finance unavailable",
+            label: trust.financeAvailable
+              ? "Finance available over 3, 5, 8, and 10 years"
+              : "Finance unavailable",
             emphasize: false,
           },
         ]

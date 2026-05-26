@@ -29,7 +29,9 @@ export function CrmSidebarNav({ groups }: { groups: CrmNavGroup[] }) {
     <nav className="flex-1 space-y-6 px-3 py-5">
       {groups.map((group) => (
         <div key={group.label} className="space-y-0.5">
-          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{group.label}</p>
+          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            {group.label}
+          </p>
           {group.items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
@@ -43,7 +45,9 @@ export function CrmSidebarNav({ groups }: { groups: CrmNavGroup[] }) {
                     : "text-slate-300 hover:bg-slate-800 hover:text-white"
                 }`}
               >
-                <span aria-hidden className="text-base leading-none">{item.icon}</span>
+                <span aria-hidden className="text-base leading-none">
+                  {item.icon}
+                </span>
                 <span>{item.label}</span>
               </Link>
             );
@@ -66,7 +70,9 @@ export function CrmTopNav({ items }: { items: CrmNavItem[] }) {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-              active ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              active
+                ? "bg-slate-100 text-slate-900"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
             {item.label}
@@ -128,7 +134,9 @@ export function CrmMobileMenu({ items }: { items: CrmNavItem[] }) {
                   active ? "bg-slate-100 text-slate-900" : "text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                <span aria-hidden className="text-base leading-none">{item.icon}</span>
+                <span aria-hidden className="text-base leading-none">
+                  {item.icon}
+                </span>
                 <span>{item.label}</span>
               </Link>
             );

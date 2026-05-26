@@ -3,10 +3,14 @@ import type { Attachment, JobChecklist } from "@/modules/crm/types";
 export const materialsUsedQuestionTitle = "Materials used?";
 
 export function isMaterialsUsedChecklist(checklist: Pick<JobChecklist, "title">) {
-  return checklist.title.trim().toLowerCase().replace(/\s+/g, " ") === materialsUsedQuestionTitle.toLowerCase();
+  return (
+    checklist.title.trim().toLowerCase().replace(/\s+/g, " ") === materialsUsedQuestionTitle.toLowerCase()
+  );
 }
 
-export function materialsAnswerRequiresReceipt(checklists: Array<Pick<JobChecklist, "title" | "notes"> & { status: string }>) {
+export function materialsAnswerRequiresReceipt(
+  checklists: Array<Pick<JobChecklist, "title" | "notes"> & { status: string }>,
+) {
   const checklist = checklists.find(isMaterialsUsedChecklist);
   if (!checklist || checklist.status !== "completed") {
     return false;

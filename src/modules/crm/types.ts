@@ -20,7 +20,15 @@ export type LeadCustomerMatchResult = (typeof leadCustomerMatchResults)[number];
 export const leadDedupeResults = ["created", "updated_existing"] as const;
 export type LeadDedupeResult = (typeof leadDedupeResults)[number];
 
-export const jobStatuses = ["enquiry", "booked", "in_progress", "completed", "invoiced", "no_access", "aborted"] as const;
+export const jobStatuses = [
+  "enquiry",
+  "booked",
+  "in_progress",
+  "completed",
+  "invoiced",
+  "no_access",
+  "aborted",
+] as const;
 export type JobStatus = (typeof jobStatuses)[number];
 
 export const jobPhaseStatuses = ["planned", "ready", "in_progress", "completed"] as const;
@@ -74,7 +82,16 @@ export type AppointmentType = (typeof appointmentTypes)[number];
 export const appointmentStatuses = ["scheduled", "completed", "cancelled"] as const;
 export type AppointmentStatus = (typeof appointmentStatuses)[number];
 
-export const customFieldTypes = ["text", "textarea", "number", "select", "multiselect", "date", "boolean", "file"] as const;
+export const customFieldTypes = [
+  "text",
+  "textarea",
+  "number",
+  "select",
+  "multiselect",
+  "date",
+  "boolean",
+  "file",
+] as const;
 export type CustomFieldType = (typeof customFieldTypes)[number];
 
 export const supportedEntityTypes = ["lead", "customer", "asset", "job", "quote", "invoice"] as const;
@@ -944,7 +961,10 @@ export type LeadWithRelations = Lead & {
 
 export type JobWithRelations = Job & {
   customer?: Pick<Customer, "id" | "full_name" | "phone" | "email" | "address_line1" | "postcode"> | null;
-  site?: Pick<Site, "id" | "label" | "address_line1" | "postcode" | "city" | "access_notes" | "parking_notes"> | null;
+  site?: Pick<
+    Site,
+    "id" | "label" | "address_line1" | "postcode" | "city" | "access_notes" | "parking_notes"
+  > | null;
   site_contact?: Pick<SiteContact, "id" | "full_name" | "phone" | "email" | "role_label"> | null;
   service?: Pick<Service, "id" | "name"> | null;
   job_type?: Pick<JobType, "id" | "name"> | null;

@@ -15,7 +15,10 @@ function compareScheduledJobs(a: EngineerDashboardJob, b: EngineerDashboardJob) 
   return timeA.localeCompare(timeB);
 }
 
-export function summarizeEngineerDashboardJobs(jobs: EngineerDashboardJob[], todayDate: string): EngineerDashboardData {
+export function summarizeEngineerDashboardJobs(
+  jobs: EngineerDashboardJob[],
+  todayDate: string,
+): EngineerDashboardData {
   const todaysAssignedJobs = jobs
     .filter((job) => job.scheduled_date === todayDate && openJobStatuses.has(job.status))
     .sort(compareScheduledJobs);
@@ -30,7 +33,9 @@ export function summarizeEngineerDashboardJobs(jobs: EngineerDashboardJob[], tod
       if (!openJobStatuses.has(job.status)) {
         return false;
       }
-      return job.scheduled_date === todayDate || Boolean(job.scheduled_date && job.scheduled_date < todayDate);
+      return (
+        job.scheduled_date === todayDate || Boolean(job.scheduled_date && job.scheduled_date < todayDate)
+      );
     })
     .sort(compareScheduledJobs);
   const completedAssignedJobs = jobs
@@ -45,7 +50,11 @@ export function summarizeEngineerDashboardJobs(jobs: EngineerDashboardJob[], tod
     });
 
   const nextAssignedJob =
-    readyJobs[0] ?? todaysAssignedJobs.find((job) => openJobStatuses.has(job.status)) ?? todaysAssignedJobs[0] ?? upcomingAssignedJobs[0] ?? null;
+    readyJobs[0] ??
+    todaysAssignedJobs.find((job) => openJobStatuses.has(job.status)) ??
+    todaysAssignedJobs[0] ??
+    upcomingAssignedJobs[0] ??
+    null;
   const outstandingJobs = readyJobs.length > 0 ? readyJobs : todaysAssignedJobs;
 
   return {

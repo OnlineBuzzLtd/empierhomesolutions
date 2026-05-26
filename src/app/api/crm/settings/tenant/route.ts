@@ -65,13 +65,27 @@ export async function POST(request: Request) {
       show_per_package_vat: parsed.data.show_per_package_vat ?? false,
     };
 
-    const [{ data: branding, error: brandingError }, { data: settings, error: settingsError }] = await Promise.all([
-      supabase.schema("crm").from("tenant_branding").upsert(brandingPayload, { onConflict: "tenant_id" }).select("*").single(),
-      supabase.schema("crm").from("tenant_settings").upsert(settingsPayload, { onConflict: "tenant_id" }).select("*").single(),
-    ]);
+    const [{ data: branding, error: brandingError }, { data: settings, error: settingsError }] =
+      await Promise.all([
+        supabase
+          .schema("crm")
+          .from("tenant_branding")
+          .upsert(brandingPayload, { onConflict: "tenant_id" })
+          .select("*")
+          .single(),
+        supabase
+          .schema("crm")
+          .from("tenant_settings")
+          .upsert(settingsPayload, { onConflict: "tenant_id" })
+          .select("*")
+          .single(),
+      ]);
 
     if (brandingError || settingsError) {
-      return jsonError(brandingError?.message ?? settingsError?.message ?? "Failed to save workspace settings.", 500);
+      return jsonError(
+        brandingError?.message ?? settingsError?.message ?? "Failed to save workspace settings.",
+        500,
+      );
     }
 
     const occurredAt = String(settings.updated_at ?? branding.updated_at ?? new Date().toISOString());

@@ -4,17 +4,13 @@ import { hasReceiptAttachment, materialsAnswerRequiresReceipt } from "@/modules/
 describe("materials receipt helpers", () => {
   it("does not require a receipt when materials answer is no", () => {
     expect(
-      materialsAnswerRequiresReceipt([
-        { title: "Materials used?", notes: "No", status: "completed" },
-      ]),
+      materialsAnswerRequiresReceipt([{ title: "Materials used?", notes: "No", status: "completed" }]),
     ).toBe(false);
   });
 
   it("requires a receipt when materials answer is yes", () => {
     expect(
-      materialsAnswerRequiresReceipt([
-        { title: "Materials used?", notes: "Yes", status: "completed" },
-      ]),
+      materialsAnswerRequiresReceipt([{ title: "Materials used?", notes: "Yes", status: "completed" }]),
     ).toBe(true);
   });
 

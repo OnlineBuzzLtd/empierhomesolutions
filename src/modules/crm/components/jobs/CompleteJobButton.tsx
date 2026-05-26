@@ -19,13 +19,7 @@ const blockerTypeDescriptions: Record<Blocker["type"], string> = {
   receipt: "missing",
 };
 
-export function CompleteJobButton({
-  endpoint,
-  className,
-}: {
-  endpoint: string;
-  className?: string;
-}) {
+export function CompleteJobButton({ endpoint, className }: { endpoint: string; className?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [succeeded, setSucceeded] = useState(false);
@@ -75,7 +69,8 @@ export function CompleteJobButton({
         className={
           succeeded
             ? "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-default"
-            : (className ?? "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400")
+            : (className ??
+              "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400")
         }
       >
         {busy ? "Checking..." : succeeded ? "Completed" : "Mark Complete"}
@@ -92,7 +87,9 @@ export function CompleteJobButton({
             <ul className="mt-2 space-y-1">
               {blockers.map((blocker, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-rose-700">
-                  <span className="mt-0.5 flex-shrink-0 font-semibold">{blockerTypeLabels[blocker.type]}:</span>
+                  <span className="mt-0.5 flex-shrink-0 font-semibold">
+                    {blockerTypeLabels[blocker.type]}:
+                  </span>
                   <span>
                     {blocker.label} — {blockerTypeDescriptions[blocker.type]}
                   </span>

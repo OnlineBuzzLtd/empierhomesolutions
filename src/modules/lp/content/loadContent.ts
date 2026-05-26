@@ -156,7 +156,8 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       hero: {
         ...defaultLpContent.hero,
         headline: "Get {{service}} in {{location}} with flexible finance terms",
-        subline: "Fixed-install quotes from trusted engineers, plus domestic power flushing support where needed.",
+        subline:
+          "Fixed-install quotes from trusted engineers, plus domestic power flushing support where needed.",
         heroImage: {
           ...defaultLpContent.hero.heroImage,
           alt: "Smiling engineer installing a modern boiler",
@@ -223,7 +224,8 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       hero: {
         ...defaultLpContent.hero,
         headline: "Book {{service}} in {{location}}",
-        subline: "Restore radiator performance, reduce boiler noise, and improve circulation with a full domestic system flush.",
+        subline:
+          "Restore radiator performance, reduce boiler noise, and improve circulation with a full domestic system flush.",
         heroImage: {
           ...defaultLpContent.hero.heroImage,
           alt: "Engineer carrying out a domestic power flushing visit",
@@ -306,7 +308,8 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       repairRangeMax: 450,
       installRangeMin: 1995,
       installRangeMax: 5000,
-      pricingDisclaimer: "Prices are shown plus VAT with the including-VAT total alongside. Final quote confirmed after diagnosis.",
+      pricingDisclaimer:
+        "Prices are shown plus VAT with the including-VAT total alongside. Final quote confirmed after diagnosis.",
       financeExample: defaultLpContent.pricing.financeExample,
     },
     faults: defaultLpContent.faults,
@@ -370,7 +373,8 @@ export function loadLpContent(params: {
     return null;
   }
 
-  const resolvedContent = rawContent ?? (locationEntry ? buildGeneratedLpContent(params.service, locationEntry) : null);
+  const resolvedContent =
+    rawContent ?? (locationEntry ? buildGeneratedLpContent(params.service, locationEntry) : null);
   if (!resolvedContent) {
     return null;
   }

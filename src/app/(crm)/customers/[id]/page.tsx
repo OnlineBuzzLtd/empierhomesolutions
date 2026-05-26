@@ -43,18 +43,55 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               <p className="text-sm text-slate-700">Postcode: {customer.postcode || "Not set"}</p>
               <p className="text-sm text-slate-700">Source: {customer.source || "Not set"}</p>
             </div>
-            <p className="text-sm text-slate-700">Address: {[customer.address_line1, customer.address_line2, customer.city].filter(Boolean).join(", ") || "Not set"}</p>
+            <p className="text-sm text-slate-700">
+              Address:{" "}
+              {[customer.address_line1, customer.address_line2, customer.city].filter(Boolean).join(", ") ||
+                "Not set"}
+            </p>
             <p className="text-sm text-slate-700">Notes: {customer.notes || "No notes"}</p>
           </div>
 
-          <ApiForm endpoint={`/api/crm/customers/${customer.id}`} method="PATCH" submitLabel="Update Customer" className="grid gap-3">
-            <input name="full_name" defaultValue={customer.full_name} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input name="phone" defaultValue={customer.phone ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input name="email" defaultValue={customer.email ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input name="address_line1" defaultValue={customer.address_line1 ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input name="city" defaultValue={customer.city ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input name="postcode" defaultValue={customer.postcode ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <textarea name="notes" defaultValue={customer.notes ?? ""} className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <ApiForm
+            endpoint={`/api/crm/customers/${customer.id}`}
+            method="PATCH"
+            submitLabel="Update Customer"
+            className="grid gap-3"
+          >
+            <input
+              name="full_name"
+              defaultValue={customer.full_name}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              name="phone"
+              defaultValue={customer.phone ?? ""}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              name="email"
+              defaultValue={customer.email ?? ""}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              name="address_line1"
+              defaultValue={customer.address_line1 ?? ""}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              name="city"
+              defaultValue={customer.city ?? ""}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              name="postcode"
+              defaultValue={customer.postcode ?? ""}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <textarea
+              name="notes"
+              defaultValue={customer.notes ?? ""}
+              className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
           </ApiForm>
         </div>
       </SectionCard>
@@ -67,13 +104,18 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             <ul className="space-y-2">
               {jobs.map((job) => (
                 <li key={job.id}>
-                  <Link href={`/jobs/${job.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-3 hover:bg-slate-50">
+                  <Link
+                    href={`/jobs/${job.id}`}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-3 hover:bg-slate-50"
+                  >
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{job.title}</p>
                       <p className="mt-1 text-xs text-slate-500">
                         {job.site?.label ?? "Primary site"} · {job.scheduled_date || "TBC"} ·{" "}
                         {job.assignees && job.assignees.length > 0
-                          ? job.assignees.map((assignee) => assignee.user_profile?.full_name ?? "Engineer").join(", ")
+                          ? job.assignees
+                              .map((assignee) => assignee.user_profile?.full_name ?? "Engineer")
+                              .join(", ")
                           : job.assigned_engineer || "Unassigned"}
                       </p>
                     </div>
@@ -93,10 +135,12 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 <li key={asset.id} className="rounded-lg border border-slate-200 p-3">
                   <p className="text-sm font-semibold text-slate-900">{asset.asset_type}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {[asset.make, asset.model, asset.serial_number].filter(Boolean).join(" · ") || "No model details"}
+                    {[asset.make, asset.model, asset.serial_number].filter(Boolean).join(" · ") ||
+                      "No model details"}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Service due {formatDate(asset.service_due_date)} · Warranty ends {formatDate(asset.warranty_end_date)}
+                    Service due {formatDate(asset.service_due_date)} · Warranty ends{" "}
+                    {formatDate(asset.warranty_end_date)}
                   </p>
                 </li>
               ))}
@@ -115,10 +159,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 <li key={site.id} className="rounded-lg border border-slate-200 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-slate-900">{site.label}</p>
-                    {site.is_primary ? <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">Primary</span> : null}
+                    {site.is_primary ? (
+                      <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
+                        Primary
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
-                    {[site.address_line1, site.address_line2, site.city, site.postcode].filter(Boolean).join(", ") || "No site address saved."}
+                    {[site.address_line1, site.address_line2, site.city, site.postcode]
+                      .filter(Boolean)
+                      .join(", ") || "No site address saved."}
                   </p>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <p className="rounded-lg bg-amber-50 p-3 text-xs text-slate-700">
@@ -147,10 +197,15 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{contact.full_name}</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {contact.site?.label ?? "Site"}{contact.role_label ? ` · ${contact.role_label}` : ""}
+                        {contact.site?.label ?? "Site"}
+                        {contact.role_label ? ` · ${contact.role_label}` : ""}
                       </p>
                     </div>
-                    {contact.is_primary ? <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">Primary</span> : null}
+                    {contact.is_primary ? (
+                      <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
+                        Primary
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
                     {[contact.phone, contact.email].filter(Boolean).join(" · ") || "No phone or email saved."}
@@ -184,10 +239,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
         <SectionCard title={`Attachments (${attachments.length})`}>
           <p className="mb-3 text-xs text-slate-500">
-            Customer attachments are historical files tied to this customer record. Website enquiries do not automatically add files here
-            unless someone uploads them to the customer, lead, or job later.
+            Customer attachments are historical files tied to this customer record. Website enquiries do not
+            automatically add files here unless someone uploads them to the customer, lead, or job later.
           </p>
-          <AttachmentList attachments={attachments} canDelete={userCanManageSettings(session.profile?.role)} />
+          <AttachmentList
+            attachments={attachments}
+            canDelete={userCanManageSettings(session.profile?.role)}
+          />
           <div className="mt-4">
             <AttachmentUploadForm entityType="customer" entityId={customer.id} />
           </div>

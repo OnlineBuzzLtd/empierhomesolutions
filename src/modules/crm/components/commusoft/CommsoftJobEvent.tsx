@@ -36,7 +36,9 @@ export function CommsoftJobEvent({
   aiAccess: EngineerAiAssistState;
   canDeleteAttachments: boolean;
 }) {
-  const siteAddress = [job.site?.address_line1, job.site?.city, job.site?.postcode].filter(Boolean).join(", ");
+  const siteAddress = [job.site?.address_line1, job.site?.city, job.site?.postcode]
+    .filter(Boolean)
+    .join(", ");
   const customerAddress = [job.customer?.address_line1, job.customer?.postcode].filter(Boolean).join(", ");
   const displayAddress = siteAddress || customerAddress || "Address not set";
   const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayAddress)}`;
@@ -86,7 +88,6 @@ export function CommsoftJobEvent({
 
       {/* Info cards */}
       <div className="flex-1 space-y-0 divide-y divide-slate-100 px-4 py-4">
-
         {/* Customer card */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 mb-3 shadow-sm">
           <div className="flex items-start justify-between">
@@ -95,12 +96,14 @@ export function CommsoftJobEvent({
               <InfoRow label="Address" value={displayAddress} />
               {postcodeNeedsVerification ? (
                 <div className="mt-1 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2">
-                  <span aria-hidden className="text-base leading-none text-amber-600">⚠</span>
+                  <span aria-hidden className="text-base leading-none text-amber-600">
+                    ⚠
+                  </span>
                   <div className="text-xs">
                     <p className="font-semibold text-amber-900">Postcode not captured</p>
                     <p className="text-amber-800">
-                      Booking arrived without a postcode (typically voice — UK postcodes are unreliable over ASR).
-                      Phone the customer to confirm the address before dispatch.
+                      Booking arrived without a postcode (typically voice — UK postcodes are unreliable over
+                      ASR). Phone the customer to confirm the address before dispatch.
                     </p>
                   </div>
                 </div>
@@ -132,11 +135,7 @@ export function CommsoftJobEvent({
                 </a>
               ) : null}
               {job.customer?.email ? (
-                <a
-                  href={`mailto:${job.customer.email}`}
-                  className="text-[#4a7fa5]"
-                  title="Email customer"
-                >
+                <a href={`mailto:${job.customer.email}`} className="text-[#4a7fa5]" title="Email customer">
                   <EmailIcon />
                 </a>
               ) : null}
@@ -235,13 +234,9 @@ function CompletedBanner({ job }: { job: JobWithRelations }) {
         <svg width="16" height="16" viewBox="0 0 16 16" fill="white" aria-hidden>
           <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.5 5L7 11 4.5 8.5l1-1L7 9l3.5-4 1 1z" />
         </svg>
-        <p className="text-sm font-semibold text-white">
-          {headerMessages[job.status] ?? "Completed"}
-        </p>
+        <p className="text-sm font-semibold text-white">{headerMessages[job.status] ?? "Completed"}</p>
       </div>
-      <p className="mt-0.5 text-xs text-emerald-100">
-        {statusMessages[job.status] ?? "Job is complete"}
-      </p>
+      <p className="mt-0.5 text-xs text-emerald-100">{statusMessages[job.status] ?? "Job is complete"}</p>
     </div>
   );
 }
@@ -250,9 +245,7 @@ function InfoRow({ label, value, bold }: { label: string; value: string; bold?: 
   return (
     <div>
       <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className={`mt-0.5 text-sm ${bold ? "font-semibold text-slate-900" : "text-slate-700"}`}>
-        {value}
-      </p>
+      <p className={`mt-0.5 text-sm ${bold ? "font-semibold text-slate-900" : "text-slate-700"}`}>{value}</p>
     </div>
   );
 }
@@ -260,7 +253,13 @@ function InfoRow({ label, value, bold }: { label: string; value: string; bold?: 
 function BackArrow() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 4l-6 6 6 6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -280,7 +279,13 @@ function DirectionsIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
       <path d="M11 3l8 8-8 8-8-8 8-8z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M11 8v3h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M11 8v3h3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

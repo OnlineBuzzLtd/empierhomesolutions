@@ -10,7 +10,6 @@ import { CommsoftAccountMenu } from "@/modules/crm/components/commusoft/Commsoft
 import {
   CrmMobileMenu,
   CrmSidebarNav,
-  CrmTopNav,
   type CrmNavGroup,
   type CrmNavItem,
 } from "@/modules/crm/components/layout/CrmNav";
@@ -35,33 +34,33 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const operationsItems: CrmNavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "⊞" },
-  { href: "/leads", label: "Leads", icon: "🧲" },
-  { href: "/customers", label: "Customers", icon: "👤" },
-  { href: "/jobs", label: "Jobs", icon: "🔧" },
-  { href: "/calendar", label: "Calendar", icon: "🗓" },
-  { href: "/quotes", label: "Quotes", icon: "📋" },
-  { href: "/invoices", label: "Invoices", icon: "📄" },
-  { href: "/staff", label: "Staff", icon: "🪪" },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/leads", label: "Leads", icon: "leads" },
+  { href: "/customers", label: "Customers", icon: "customers" },
+  { href: "/jobs", label: "Jobs", icon: "jobs" },
+  { href: "/calendar", label: "Calendar", icon: "calendar" },
+  { href: "/quotes", label: "Quotes", icon: "quotes" },
+  { href: "/invoices", label: "Invoices", icon: "invoices" },
+  { href: "/staff", label: "Staff", icon: "staff" },
 ];
 
 const aiItems: CrmNavItem[] = [
-  { href: "/inbox", label: "Inbox", icon: "📨" },
-  { href: "/calls", label: "Calls", icon: "☎️" },
-  { href: "/automations", label: "Automations", icon: "⚡" },
-  { href: "/ai-settings", label: "AI Settings", icon: "🧠" },
-  { href: "/ai-hub", label: "AI Hub", icon: "🤖" },
+  { href: "/inbox", label: "Inbox", icon: "inbox" },
+  { href: "/calls", label: "Calls", icon: "calls" },
+  { href: "/automations", label: "Automations", icon: "automations" },
+  { href: "/ai-settings", label: "AI Settings", icon: "ai-settings" },
+  { href: "/ai-hub", label: "AI Hub", icon: "ai-hub" },
 ];
 
 const adminItems: CrmNavItem[] = [
-  { href: "/reports", label: "Reports", icon: "📈" },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
+  { href: "/reports", label: "Reports", icon: "reports" },
+  { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
 const engineerItems: CrmNavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "⊞" },
-  { href: "/jobs", label: "Jobs", icon: "🔧" },
-  { href: "/calendar", label: "Calendar", icon: "🗓" },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/jobs", label: "Jobs", icon: "jobs" },
+  { href: "/calendar", label: "Calendar", icon: "calendar" },
 ];
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
@@ -89,7 +88,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   // demo_console_enabled flag, and only for manager/admin roles. See
   // src/modules/crm/demo-console/README.md.
   const adminItemsWithDemo: CrmNavItem[] = session.settings?.demo_console_enabled
-    ? [...adminItems, { href: "/demo", label: "Demo", icon: "🎬" }]
+    ? [...adminItems, { href: "/demo", label: "Demo", icon: "demo" }]
     : adminItems;
 
   const groups: CrmNavGroup[] = isEngineer
@@ -104,8 +103,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           { label: "Operations", items: operationsItems },
           { label: "AI", items: aiItems },
         ];
-  const topNavItems = groups.flatMap((g) => g.items);
-
   const modeBadgeClassName = demoState.active ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
   const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
   const crmDisplayName =
@@ -157,22 +154,32 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     <DemoModeProvider state={demoState}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
         <div className="flex min-h-screen">
-          <aside className="hidden w-64 shrink-0 flex-col bg-slate-900 text-white lg:flex">
-            <div className="border-b border-slate-800 px-5 py-5">
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt={`${businessName} logo`}
-                  className="mb-3 max-h-12 max-w-44 object-contain"
-                />
-              ) : null}
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
-                {businessName}
-              </p>
-              <p className="mt-1 text-lg font-bold">{crmDisplayName}</p>
+          <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-white lg:flex">
+            <div className="border-b border-slate-800/80 px-5 py-5">
+              <div className="flex min-h-16 items-center gap-3">
+                {logoUrl ? (
+                  <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-white p-1.5 shadow-sm">
+                    <img
+                      src={logoUrl}
+                      alt={`${businessName} logo`}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </span>
+                ) : (
+                  <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-cyan-400/15 text-sm font-bold text-cyan-200">
+                    CRM
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase leading-4 tracking-[0.08em] text-slate-400">
+                    {businessName}
+                  </p>
+                  <p className="mt-1 truncate text-lg font-semibold text-white">{crmDisplayName}</p>
+                </div>
+              </div>
             </div>
             <CrmSidebarNav groups={groups} />
-            <div className="border-t border-slate-800 px-5 py-4">
+            <div className="border-t border-slate-800/80 px-5 py-4">
               <p className="text-xs text-slate-500">Logged in as</p>
               <p className="mt-1 text-sm font-semibold text-white">
                 {session.profile?.full_name ?? session.user.email}
@@ -190,21 +197,29 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           </aside>
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="border-b border-slate-200 bg-white">
-              <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-8">
+            <header className="border-b border-slate-200/80 bg-white/95 backdrop-blur">
+              <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-8">
                 <div className="flex min-w-0 items-center gap-3">
                   {logoUrl ? (
-                    <img
-                      src={logoUrl}
-                      alt={`${businessName} logo`}
-                      className="h-9 w-auto max-w-28 object-contain"
-                    />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white p-1 shadow-sm lg:hidden">
+                      <img
+                        src={logoUrl}
+                        alt={`${businessName} logo`}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </span>
                   ) : null}
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900">{crmDisplayName}</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <p className="text-xs text-slate-500">
+                    <p className="truncate text-sm font-semibold text-slate-950 lg:text-base">
+                      {crmDisplayName}
+                    </p>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                      <p className="truncate text-xs text-slate-500">
                         {session.profile?.full_name ?? session.user.email}
+                      </p>
+                      <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+                      <p className="hidden text-xs capitalize text-slate-500 sm:block">
+                        {session.profile?.role ?? "user"}
                       </p>
                       <span
                         className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${modeBadgeClassName}`}
@@ -214,14 +229,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {session.tenant && tenantOptions.length > 1 ? (
                     <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} />
                   ) : null}
-                  <CrmTopNav items={topNavItems} />
-                  {userCanManageSettings(session.profile?.role) ? (
-                    <CrmMobileMenu items={topNavItems} />
-                  ) : null}
+                  {userCanManageSettings(session.profile?.role) ? <CrmMobileMenu groups={groups} /> : null}
                   {isEngineer && !isCommsoftMode ? (
                     <Link
                       href="/preferences"

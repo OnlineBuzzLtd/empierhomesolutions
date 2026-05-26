@@ -57,6 +57,7 @@ function emptyEngineerDashboard(): EngineerDashboardData {
     overdueAssignedJobs: [],
     readyJobs: [],
     upcomingAssignedJobs: [],
+    completedAssignedJobs: [],
     fieldTaskCounts: {
       missingNotes: 0,
       missingPhotos: 0,

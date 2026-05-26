@@ -1004,5 +1004,6 @@ export type EngineerDashboardData = {
   overdueAssignedJobs: EngineerDashboardJob[];
   readyJobs: EngineerDashboardJob[];
   upcomingAssignedJobs: EngineerDashboardJob[];
+  completedAssignedJobs: EngineerDashboardJob[];
   fieldTaskCounts: EngineerFieldTaskCounts;
 };

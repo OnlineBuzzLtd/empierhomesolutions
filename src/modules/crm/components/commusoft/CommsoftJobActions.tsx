@@ -9,10 +9,12 @@ export function CommsoftJobActions({
   jobId,
   jobStatus,
   mandatoryChecklists,
+  hasReceiptAttachment,
 }: {
   jobId: string;
   jobStatus: JobStatus;
   mandatoryChecklists: JobChecklist[];
+  hasReceiptAttachment: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -109,6 +111,7 @@ export function CommsoftJobActions({
         <LeaveQuestionsModal
           jobId={jobId}
           mandatoryChecklists={mandatoryChecklists}
+          hasReceiptAttachment={hasReceiptAttachment}
           onClose={() => setShowLeaveModal(false)}
         />
       ) : null}

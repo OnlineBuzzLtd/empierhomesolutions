@@ -86,6 +86,15 @@ export async function POST(request: Request) {
 
   const turnstile = await verifyTurnstileToken(turnstileToken, ip === "unknown" ? null : ip);
   if (!turnstile.ok) {
+    console.warn(
+      JSON.stringify({
+        event: "lead_turnstile_failed",
+        reason: turnstile.reason,
+        errorCodes: turnstile.errorCodes ?? [],
+        hostname: turnstile.hostname,
+        origin: originCheck.origin,
+      }),
+    );
     return NextResponse.json(
       {
         ok: false,

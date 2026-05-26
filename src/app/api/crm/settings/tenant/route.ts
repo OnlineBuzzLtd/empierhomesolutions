@@ -2,13 +2,19 @@ import { z } from "zod";
 import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
+const logoUrlSchema = z.union([
+  z.string().url(),
+  z.string().regex(/^\/[A-Za-z0-9/_\- .]+$/, "Logo URL must be a valid URL or local asset path."),
+  z.literal(""),
+]);
+
 const tenantSettingsSchema = z.object({
   business_name: z.string().min(2),
   crm_display_name: z.string().optional().nullable(),
   primary_phone: z.string().optional().nullable(),
   support_email: z.string().email().optional().or(z.literal("")).nullable(),
   website_url: z.string().url().optional().or(z.literal("")).nullable(),
-  logo_url: z.string().url().optional().or(z.literal("")).nullable(),
+  logo_url: logoUrlSchema.optional().nullable(),
   accent_color: z.string().optional().nullable(),
   legal_name: z.string().optional().nullable(),
   vat_registration_number: z.string().optional().nullable(),

@@ -25,7 +25,13 @@ function toLocalDateString(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function CommsoftDiary({ jobs }: { jobs: EngineerDashboardJob[] }) {
+export function CommsoftDiary({
+  jobs,
+  completedJobs = [],
+}: {
+  jobs: EngineerDashboardJob[];
+  completedJobs?: EngineerDashboardJob[];
+}) {
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(toLocalDateString(today));
 
@@ -97,6 +103,16 @@ export function CommsoftDiary({ jobs }: { jobs: EngineerDashboardJob[] }) {
             ))}
           </div>
         )}
+        {completedJobs.length > 0 ? (
+          <div className="mt-6 pb-6">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">Recent completed</p>
+            <div className="space-y-3">
+              {completedJobs.slice(0, 6).map((job) => (
+                <DiaryJobRow key={`completed-${job.id}`} job={job} />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <CommsoftBottomNav active="diary" />

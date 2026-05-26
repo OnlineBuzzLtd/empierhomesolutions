@@ -173,7 +173,8 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
         repairRangeMax: 450,
         installRangeMin: 1995,
         installRangeMax: 5000,
-        pricingDisclaimer: "Install pricing varies by property size, flue route, controls, and boiler output.",
+        pricingDisclaimer:
+          "Prices are shown plus VAT with the including-VAT total alongside. Install pricing varies by property size, flue route, controls, and boiler output.",
         financeExample: defaultLpContent.pricing.financeExample,
       },
       faults: [],
@@ -240,7 +241,7 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
         installRangeMin: 120,
         installRangeMax: 245,
         pricingDisclaimer:
-          "Power flushing cost depends on radiator count, sludge level, and required inhibitor/filter top-up.",
+          "Prices are shown plus VAT with the including-VAT total alongside. Power flushing cost depends on radiator count, sludge level, and required inhibitor/filter top-up.",
       },
       faults: powerFlushingFaults,
       proofCards: [
@@ -305,7 +306,7 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       repairRangeMax: 450,
       installRangeMin: 1995,
       installRangeMax: 5000,
-      pricingDisclaimer: "Prices vary by model, parts, and access. Final quote confirmed after diagnosis.",
+      pricingDisclaimer: "Prices are shown plus VAT with the including-VAT total alongside. Final quote confirmed after diagnosis.",
       financeExample: defaultLpContent.pricing.financeExample,
     },
     faults: defaultLpContent.faults,

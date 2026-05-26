@@ -7,7 +7,7 @@ import { DemoPanel } from "@/modules/crm/components/demo/DemoPanel";
 import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider";
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
 import { CommsoftAccountMenu } from "@/modules/crm/components/commusoft/CommsoftAccountMenu";
-import { CrmSidebarNav, CrmTopNav, type CrmNavGroup, type CrmNavItem } from "@/modules/crm/components/layout/CrmNav";
+import { CrmMobileMenu, CrmSidebarNav, CrmTopNav, type CrmNavGroup, type CrmNavItem } from "@/modules/crm/components/layout/CrmNav";
 import { getCrmSession, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { LogoutButton } from "@/modules/crm/components/layout/LogoutButton";
@@ -99,6 +99,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
   const crmDisplayName = session.branding?.crm_display_name ?? (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
   const businessName = session.branding?.business_name ?? session.tenant?.name ?? "CRM";
+  const logoUrl = session.branding?.logo_url ?? null;
   const tenantOptions = session.memberships.map((membership) => ({
     id: membership.tenant_id,
     name: membership.tenant?.name ?? membership.tenant_id,
@@ -149,6 +150,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <div className="flex min-h-screen">
           <aside className="hidden w-64 shrink-0 flex-col bg-slate-900 text-white lg:flex">
             <div className="border-b border-slate-800 px-5 py-5">
+              {logoUrl ? (
+                <img src={logoUrl} alt={`${businessName} logo`} className="mb-3 max-h-12 max-w-44 object-contain" />
+              ) : null}
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">{businessName}</p>
               <p className="mt-1 text-lg font-bold">{crmDisplayName}</p>
             </div>
@@ -167,7 +171,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="border-b border-slate-200 bg-white">
               <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-8">
-                <div>
+                <div className="flex min-w-0 items-center gap-3">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt={`${businessName} logo`} className="h-9 w-auto max-w-28 object-contain" />
+                  ) : null}
+                  <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-900">{crmDisplayName}</p>
                   <div className="mt-1 flex items-center gap-2">
                     <p className="text-xs text-slate-500">{session.profile?.full_name ?? session.user.email}</p>
@@ -175,10 +183,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                       {modeBadgeLabel}
                     </span>
                   </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {session.tenant && tenantOptions.length > 1 ? <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} /> : null}
                   <CrmTopNav items={topNavItems} />
+                  {userCanManageSettings(session.profile?.role) ? <CrmMobileMenu items={topNavItems} /> : null}
                   {isEngineer && !isCommsoftMode ? (
                     <Link
                       href="/preferences"

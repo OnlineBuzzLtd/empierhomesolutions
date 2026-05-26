@@ -38,7 +38,7 @@ export const defaultLpContent: LpContentInput = {
     repairRangeMax: 450,
     installRangeMin: 1995,
     installRangeMax: 5000,
-    pricingDisclaimer: "Final price depends on boiler make, access, and part availability.",
+    pricingDisclaimer: "Prices are shown plus VAT with the including-VAT total alongside. Final price depends on boiler make, access, and part availability.",
     financeExample: {
       monthlyFrom: 0,
       summary:

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CommsoftBottomNav } from "@/modules/crm/components/commusoft/CommsoftHome";
 import { CommsoftJobActions } from "@/modules/crm/components/commusoft/CommsoftJobActions";
 import { formatDate, formatDateTime, formatScheduledTime } from "@/modules/crm/lib/format";
+import { hasReceiptAttachment } from "@/modules/crm/lib/materials";
 import type {
   Attachment,
   EngineerAiAssistState,
@@ -47,6 +48,7 @@ export function CommsoftJobEvent({
   const mandatoryChecklists = (job.checklists ?? []).filter(
     (c) => c.is_mandatory && c.status !== "completed",
   );
+  const jobHasReceiptAttachment = hasReceiptAttachment(attachments);
 
   const isCompleted =
     job.status === "completed" ||
@@ -78,6 +80,7 @@ export function CommsoftJobEvent({
           jobId={job.id}
           jobStatus={job.status}
           mandatoryChecklists={mandatoryChecklists}
+          hasReceiptAttachment={jobHasReceiptAttachment}
         />
       ) : null}
 

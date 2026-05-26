@@ -81,7 +81,8 @@ cross join (values
   (1, 'What work was carried out on site?'),
   (2, 'Were any parts fitted? If yes, please list them.'),
   (3, 'Is any follow-up work required?'),
-  (4, 'Did the customer confirm satisfaction with the work?')
+  (4, 'Did the customer confirm satisfaction with the work?'),
+  (5, 'Materials used?')
 ) as q(position, title)
 on conflict do nothing;
 

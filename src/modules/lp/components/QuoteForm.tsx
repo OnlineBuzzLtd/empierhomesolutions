@@ -40,11 +40,19 @@ export function QuoteForm({
   const [errorMessage, setErrorMessage] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileError, setTurnstileError] = useState("");
   const attribution = useMemo(() => getAttribution(), []);
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const turnstileRequired = Boolean(turnstileSiteKey);
 
   const handleTurnstileToken = useCallback((token: string) => {
+    setTurnstileError(token ? "" : "Spam verification expired. Please complete it again.");
     setTurnstileToken(token);
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileToken("");
+    setTurnstileError("Spam verification failed to load. Please refresh the page and try again.");
   }, []);
 
   useEffect(() => {
@@ -104,6 +112,12 @@ export function QuoteForm({
 
     clearErrors("issue");
 
+    if (turnstileRequired && !turnstileToken) {
+      setSubmitState("error");
+      setErrorMessage(turnstileError || "Please complete the spam verification before booking.");
+      return;
+    }
+
     trackFormEvent("form_submit_attempt");
     trackFormEvent("form_submit");
 
@@ -133,6 +147,10 @@ export function QuoteForm({
         trackFormEvent("form_error", label);
         setSubmitState("error");
         setErrorMessage(payload.error?.message ?? "Submission failed. Please try again.");
+        if (label === "bot_check_failed") {
+          setTurnstileToken("");
+          setTurnstileError("Spam verification did not complete. Please refresh the page and try again.");
+        }
         return;
       }
 
@@ -237,12 +255,15 @@ export function QuoteForm({
         <input type="hidden" name="landing_url" value={attribution.landing_url ?? ""} readOnly />
 
         {turnstileSiteKey ? (
-          <Turnstile siteKey={turnstileSiteKey} onToken={handleTurnstileToken} size="normal" />
+          <div className="space-y-2">
+            <Turnstile siteKey={turnstileSiteKey} onToken={handleTurnstileToken} onError={handleTurnstileError} size="normal" />
+            {turnstileError ? <p className="text-xs text-red-600">{turnstileError}</p> : null}
+          </div>
         ) : null}
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || (turnstileRequired && !turnstileToken)}
           className="w-full rounded-lg bg-[var(--ehs-brand-accent)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
           {isSubmitting ? "Booking..." : "Book Now"}

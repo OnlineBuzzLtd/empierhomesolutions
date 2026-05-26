@@ -36,7 +36,7 @@
     "repairRangeMax": 700,
     "installRangeMin": 120,
     "installRangeMax": 245,
-    "pricingDisclaimer": "Power flushing cost depends on radiator count, sludge level, and required inhibitor/filter top-up."
+    "pricingDisclaimer": "Prices are shown plus VAT with the including-VAT total alongside. Power flushing cost depends on radiator count, sludge level, and required inhibitor/filter top-up."
   },
   "faults": [
     {

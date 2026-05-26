@@ -57,6 +57,13 @@ If you do not have a login, ask the business owner or CRM admin.
 
 If your account belongs to more than one workspace, make sure you are in the right workspace after login.
 
+Empire engineer shortcut login for demos/support:
+
+- Email: `engineer@ehs.local`
+- Password: `password`
+
+This is a normal CRM engineer account. Use admin/management accounts for office workflows and settings.
+
 ## 5. Main Areas of the CRM
 
 After logging in, you will see a menu.
@@ -75,6 +82,10 @@ The main sections are:
 - `Settings`
 
 Engineers will usually see fewer sections than office staff or admins.
+
+If an engineer marks a job complete and needs to see it again, open the job as an admin and change the status back to `Booked` or `In Progress`. That makes it active in the engineer workflow again. Completed jobs also remain visible in the engineer diary under recent completed jobs.
+
+The website `Book Now` form uses Cloudflare Turnstile spam verification. The public webchat does not use Turnstile; it uses rate limits and the chat identity flow instead.
 
 ## 6. Dashboard
 

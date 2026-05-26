@@ -323,6 +323,71 @@ describe("crm dashboard helpers", () => {
     expect(summary.readyJobs).toEqual([]);
     expect(summary.upcomingAssignedJobs.map((job) => job.id)).toEqual(["job-upcoming"]);
   });
+
+  it("keeps completed assigned jobs visible without making them the next active job", () => {
+    const jobs = [
+      {
+        id: "job-active",
+        customer_id: "cust-1",
+        site_id: null,
+        site_contact_id: null,
+        lead_id: null,
+        service_id: null,
+        job_type_id: null,
+        title: "Active service visit",
+        description: null,
+        scheduled_date: "2026-03-25",
+        scheduled_time: "09:00:00",
+        duration_hours: null,
+        status: "booked",
+        assigned_engineer: "Demo Engineer",
+        created_by: null,
+        created_at: "2026-03-25T07:00:00.000Z",
+        updated_at: "2026-03-25T07:00:00.000Z",
+        latestNote: null,
+        attachmentCount: 0,
+        hasQuote: false,
+        hasInvoice: false,
+        missingNote: true,
+        missingPhoto: true,
+        missingRequiredDocument: false,
+        overdue: false,
+      },
+      {
+        id: "job-completed",
+        customer_id: "cust-2",
+        site_id: null,
+        site_contact_id: null,
+        lead_id: null,
+        service_id: null,
+        job_type_id: null,
+        title: "Completed service visit",
+        description: null,
+        scheduled_date: "2026-03-24",
+        scheduled_time: "14:00:00",
+        duration_hours: null,
+        status: "completed",
+        assigned_engineer: "Demo Engineer",
+        created_by: null,
+        created_at: "2026-03-24T07:00:00.000Z",
+        updated_at: "2026-03-24T15:00:00.000Z",
+        latestNote: null,
+        attachmentCount: 0,
+        hasQuote: false,
+        hasInvoice: false,
+        missingNote: true,
+        missingPhoto: true,
+        missingRequiredDocument: false,
+        overdue: false,
+      },
+    ] satisfies EngineerDashboardJob[];
+
+    const summary = summarizeEngineerDashboardJobs(jobs, "2026-03-25");
+
+    expect(summary.nextAssignedJob?.id).toBe("job-active");
+    expect(summary.completedAssignedJobs.map((job) => job.id)).toEqual(["job-completed"]);
+    expect(summary.readyJobs.map((job) => job.id)).toEqual(["job-active"]);
+  });
 });
 
 describe("crm engineer ai helpers", () => {

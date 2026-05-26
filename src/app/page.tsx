@@ -56,7 +56,7 @@ const bannerItems = [
   },
   {
     key: "diagnostic",
-    label: "Fixed diagnostic from £79",
+    label: "Fixed diagnostic from £79 + VAT",
     icon: <PoundSterling size={15} className="text-[var(--ehs-brand-dark)]" />,
   },
   {

@@ -24,12 +24,14 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const TENANT_SLUG = "empire-home-solutions";
+const LEGACY_ENGINEER_EMAIL = "engineer@empirehomesolutions.local";
 const STAFF_PASSWORD = "Empire-Staff-2026!";
+const EHS_ENGINEER_PASSWORD = "password";
 const STORAGE_BUCKET = "crm-uploads";
 
 const STAFF = [
   { email: "admin@empirehomesolutions.local", fullName: "Empire CRM Admin", role: "admin", phone: "0208 555 0101", agreedHours: "Mon-Fri 08:00-18:00", payType: "salary" },
-  { email: "engineer@empirehomesolutions.local", fullName: "Empire Field Engineer", role: "engineer", phone: "07700 300 101", agreedHours: "Mon-Fri 08:00-17:30", payType: "salary" },
+  { email: "engineer@ehs.local", fullName: "Empire Field Engineer", role: "engineer", phone: "07700 300 101", agreedHours: "Mon-Fri 08:00-17:30", payType: "salary", password: EHS_ENGINEER_PASSWORD },
   { email: "shaz@onlinebuzz.co.uk", fullName: "Shaz Iqbal", role: "engineer", phone: "07770 123 456", agreedHours: "Mon-Fri 08:00-17:00", payType: "day-rate" },
   { email: "ops@empirehomesolutions.local", fullName: "Claire Sutton", role: "management", phone: "07700 300 102", agreedHours: "Mon-Fri 07:30-17:30", payType: "salary" },
   { email: "sales@empirehomesolutions.local", fullName: "Ben Carter", role: "sales", phone: "07700 300 103", agreedHours: "Mon-Fri 09:00-18:00", payType: "salary" },
@@ -1205,6 +1207,15 @@ async function ensureUser(email, password, fullName) {
     }
     user = data.user;
     log(`  created auth user ${email}`);
+  } else {
+    const { error } = await admin.auth.admin.updateUserById(user.id, {
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName },
+    });
+    if (error) {
+      throw new Error(`Failed to update auth user ${email}: ${error.message}`);
+    }
   }
   return user;
 }
@@ -1232,14 +1243,43 @@ async function ensureTenant() {
   if (error || !data) {
     throw new Error(error?.message ?? `Could not load tenant ${TENANT_SLUG}`);
   }
+  const { error: brandingError } = await admin.schema("crm").from("tenant_branding").upsert(
+    {
+      tenant_id: data.id,
+      business_name: "Empire Home Solutions",
+      crm_display_name: "Empire CRM",
+      primary_phone: "01895 725 151",
+      support_email: "info@empirehomesolutions.co.uk",
+      logo_url: "/brands/ehs-logo.png",
+      accent_color: "#0f172a",
+    },
+    { onConflict: "tenant_id" },
+  );
+  if (brandingError) {
+    throw brandingError;
+  }
   return data;
 }
 
 async function ensureStaffProfiles(tenantId) {
   const staffMap = new Map();
+  const legacyEngineer = await findUserByEmail(LEGACY_ENGINEER_EMAIL);
+  const shortcutEngineer = await findUserByEmail("engineer@ehs.local");
+  if (legacyEngineer && !shortcutEngineer) {
+    const { error } = await admin.auth.admin.updateUserById(legacyEngineer.id, {
+      email: "engineer@ehs.local",
+      password: EHS_ENGINEER_PASSWORD,
+      email_confirm: true,
+      user_metadata: { full_name: "Empire Field Engineer" },
+    });
+    if (error) {
+      throw new Error(`Failed to rename legacy engineer login: ${error.message}`);
+    }
+    log(`  renamed legacy engineer login to engineer@ehs.local`);
+  }
 
   for (const member of STAFF) {
-    const user = await ensureUser(member.email, STAFF_PASSWORD, member.fullName);
+    const user = await ensureUser(member.email, member.password ?? STAFF_PASSWORD, member.fullName);
 
     const { error: membershipError } = await admin.schema("crm").from("tenant_memberships").upsert(
       {
@@ -2160,7 +2200,8 @@ async function main() {
 
   log(`\nSeed complete. Customers: ${customers}, Leads: ${leads}, Jobs: ${jobs}`);
   log(`Live CRM: https://empire-home-solutions.vercel.app/login`);
-  log(`Shared seeded staff password for newly-added users: ${STAFF_PASSWORD}\n`);
+  log(`Shared seeded staff password for most users: ${STAFF_PASSWORD}`);
+  log(`Engineer shortcut login: engineer@ehs.local / ${EHS_ENGINEER_PASSWORD}\n`);
 }
 
 main().catch((error) => {

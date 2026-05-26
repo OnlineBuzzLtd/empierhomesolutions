@@ -36,7 +36,7 @@
     "repairRangeMax": 450,
     "installRangeMin": 1995,
     "installRangeMax": 5000,
-    "pricingDisclaimer": "Install pricing varies by property size, flue route, controls, and boiler output.",
+    "pricingDisclaimer": "Prices are shown plus VAT with the including-VAT total alongside. Install pricing varies by property size, flue route, controls, and boiler output.",
     "financeExample": {
       "monthlyFrom": 0,
       "summary": "Finance available over 3, 5, 8, and 10 years. Interest rates are discussed at quote appointment."

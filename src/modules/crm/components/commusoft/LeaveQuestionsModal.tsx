@@ -3,28 +3,76 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { JobChecklist } from "@/modules/crm/types";
+import { isMaterialsUsedChecklist } from "@/modules/crm/lib/materials";
 
 export function LeaveQuestionsModal({
   jobId,
   mandatoryChecklists,
+  hasReceiptAttachment,
   onClose,
 }: {
   jobId: string;
   mandatoryChecklists: JobChecklist[];
+  hasReceiptAttachment: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const hasChecklists = mandatoryChecklists.length > 0;
+  const materialsChecklist = mandatoryChecklists.find(isMaterialsUsedChecklist);
+  const materialsUsed = materialsChecklist ? answers[materialsChecklist.id] === "Yes" : false;
+
+  async function uploadReceiptIfNeeded() {
+    if (!materialsUsed || hasReceiptAttachment) {
+      return true;
+    }
+
+    if (!receiptFile) {
+      setError("Upload a receipt photo before completing when materials were used.");
+      return false;
+    }
+
+    const formData = new FormData();
+    formData.set("entity_type", "job");
+    formData.set("entity_id", jobId);
+    formData.set("file_type", "receipt");
+    formData.set("file", receiptFile);
+
+    const response = await fetch("/api/crm/attachments/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({ error: "Receipt upload failed." }));
+      setError(result.error ?? "Receipt upload failed.");
+      return false;
+    }
+
+    return true;
+  }
 
   async function handleSubmit() {
     setBusy(true);
     setError(null);
 
     try {
+      if (materialsChecklist && !answers[materialsChecklist.id]) {
+        setError("Answer whether materials were used before completing.");
+        setBusy(false);
+        return;
+      }
+
+      const receiptUploaded = await uploadReceiptIfNeeded();
+      if (!receiptUploaded) {
+        setBusy(false);
+        return;
+      }
+
       // Mark each mandatory checklist as completed, storing the answer as notes
       if (hasChecklists) {
         const results = await Promise.all(
@@ -106,9 +154,9 @@ export function LeaveQuestionsModal({
         ) : null}
 
         {hasChecklists ? (
-          mandatoryChecklists.map((checklist) => (
+        mandatoryChecklists.map((checklist) => (
             <div key={checklist.id}>
-              <label className="block">
+              <div className="block">
                 <span className="text-sm font-semibold text-slate-900">
                   {checklist.title}
                   <span className="ml-1 text-rose-600">*</span>
@@ -116,19 +164,56 @@ export function LeaveQuestionsModal({
                 {checklist.notes ? (
                   <span className="mt-0.5 block text-xs text-emerald-600">{checklist.notes}</span>
                 ) : null}
-                <div className="mt-2 border-b border-slate-300">
-                  <input
-                    type="text"
-                    value={answers[checklist.id] ?? ""}
-                    onChange={(e) =>
-                      setAnswers((prev) => ({ ...prev, [checklist.id]: e.target.value }))
-                    }
-                    placeholder="Tap To Enter..."
-                    className="w-full bg-transparent py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-                    disabled={busy}
-                  />
-                </div>
-              </label>
+                {isMaterialsUsedChecklist(checklist) ? (
+                  <div className="mt-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      {["No", "Yes"].map((value) => {
+                        const selected = answers[checklist.id] === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setAnswers((prev) => ({ ...prev, [checklist.id]: value }))}
+                            disabled={busy}
+                            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+                              selected
+                                ? "border-[#4a7fa5] bg-[#4a7fa5] text-white"
+                                : "border-slate-300 bg-white text-slate-700"
+                            }`}
+                          >
+                            {value}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {answers[checklist.id] === "Yes" && !hasReceiptAttachment ? (
+                      <label className="block rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <span className="text-xs font-semibold text-amber-900">Receipt photo required</span>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                          disabled={busy}
+                          className="mt-2 w-full text-sm text-slate-700"
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="mt-2 border-b border-slate-300">
+                    <input
+                      type="text"
+                      value={answers[checklist.id] ?? ""}
+                      onChange={(e) =>
+                        setAnswers((prev) => ({ ...prev, [checklist.id]: e.target.value }))
+                      }
+                      placeholder="Tap To Enter..."
+                      className="w-full bg-transparent py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                      disabled={busy}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           ))
         ) : (

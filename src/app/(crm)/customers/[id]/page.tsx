@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
+import { SiteContactCreateForm } from "@/modules/crm/components/forms/SiteContactCreateForm";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
@@ -158,6 +159,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               ))}
             </ul>
           )}
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="mb-3 text-sm font-semibold text-slate-900">Add site contact</p>
+            <SiteContactCreateForm sites={sites} />
+          </div>
         </SectionCard>
       </div>
 

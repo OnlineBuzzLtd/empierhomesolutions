@@ -210,7 +210,14 @@ async function AdminJobView({
               <option value="in_progress">In Progress</option>
               <option value="completed">Completed</option>
               <option value="invoiced">Invoiced</option>
+              <option value="no_access">No Access</option>
+              <option value="aborted">Aborted</option>
             </select>
+            {job.status === "completed" || job.status === "invoiced" || job.status === "no_access" || job.status === "aborted" ? (
+              <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                To make this job active in the engineer view again, change the status to Booked or In Progress and save.
+              </p>
+            ) : null}
             <input name="scheduled_date" type="date" defaultValue={job.scheduled_date ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <input name="scheduled_time" type="time" defaultValue={job.scheduled_time ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">

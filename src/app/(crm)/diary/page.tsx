@@ -19,9 +19,10 @@ export default async function DiaryPage() {
     ...(data.upcomingAssignedJobs ?? []),
     ...(data.overdueAssignedJobs ?? []),
     ...(data.readyJobs ?? []),
+    ...(data.completedAssignedJobs ?? []),
   ];
 
   const uniqueJobs = Array.from(new Map(allJobs.map((j) => [j.id, j])).values());
 
-  return <CommsoftDiary jobs={uniqueJobs} />;
+  return <CommsoftDiary jobs={uniqueJobs} completedJobs={data.completedAssignedJobs ?? []} />;
 }

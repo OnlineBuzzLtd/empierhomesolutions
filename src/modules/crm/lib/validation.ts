@@ -137,6 +137,15 @@ export const customerSchema = z.object({
   }
 });
 
+export const siteContactSchema = z.object({
+  site_id: z.string().uuid(),
+  full_name: z.string().min(2),
+  phone: z.string().optional().nullable(),
+  email: z.string().email().optional().or(z.literal("")).nullable(),
+  role_label: z.string().optional().nullable(),
+  is_primary: z.coerce.boolean().optional().default(false),
+});
+
 export const leadSchema = z.object({
   customer_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),

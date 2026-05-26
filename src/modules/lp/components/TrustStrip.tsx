@@ -51,7 +51,7 @@ export function TrustStrip({
           {
             key: "diagnostic",
             icon: <PoundSterling size={15} className="text-[var(--ehs-brand-dark)]" />,
-            label: `Fixed diagnostic from ${formatGbp(diagnosticFrom)}`,
+            label: `Fixed diagnostic from ${formatGbp(diagnosticFrom)} + VAT`,
             emphasize: false,
           },
         ]

@@ -85,7 +85,6 @@ describe("crm api routes", () => {
       { params: Promise.resolve({ id: "job-1" }) },
     )) as Response;
     const body = await response.json();
-
     expect(response.status).toBe(400);
     expect(body.error).toContain("Engineer checklist");
     expect(body.error).toContain("certificate");
@@ -98,7 +97,9 @@ describe("crm api routes", () => {
 
     const hazardsEq = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ id: "haz-1" }], error: null }) });
     const hazardsSelect = vi.fn().mockReturnValue({ eq: hazardsEq });
-    const checklistsEq = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    const checklistsEq = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    });
     const checklistsSelect = vi.fn().mockReturnValue({ eq: checklistsEq });
     const certificatesEq = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) });
     const certificatesSelect = vi.fn().mockReturnValue({ eq: certificatesEq });
@@ -144,7 +145,227 @@ describe("crm api routes", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.error).toContain("unresolved hazards");
+    expect(body.error).toContain("Resolve outstanding items");
+  });
+
+  it("creates a tenant-scoped site contact", async () => {
+    const siteMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "site-1", tenant_id: "tenant-1" }, error: null });
+    const siteEqTenant = vi.fn().mockReturnValue({ maybeSingle: siteMaybeSingle });
+    const siteEqId = vi.fn().mockReturnValue({ eq: siteEqTenant });
+    const siteSelect = vi.fn().mockReturnValue({ eq: siteEqId });
+
+    const contactSingle = vi.fn().mockResolvedValue({ data: { id: "contact-1", full_name: "Julie Smith" }, error: null });
+    const contactInsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: contactSingle }) });
+
+    const from = vi.fn((table: string) => {
+      if (table === "sites") return { select: siteSelect };
+      if (table === "site_contacts") return { insert: contactInsert };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields: vi.fn((value) => value),
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: { supabase, tenant: { id: "tenant-1" } },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/site-contacts/route");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({
+          site_id: "0f8fad5b-d9cb-469f-a165-70867728950e",
+          full_name: "Julie Smith",
+          phone: "07700 900123",
+          email: "julie@example.com",
+          role_label: "Facilities",
+          is_primary: "on",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(contactInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: "tenant-1",
+        full_name: "Julie Smith",
+        is_primary: true,
+      }),
+    );
+    expect(body.site_contact.id).toBe("contact-1");
+  });
+
+  it("allows completion when materials were not used", async () => {
+    const singleExisting = vi.fn().mockResolvedValue({
+      data: {
+        service_id: "svc-1",
+        job_type_id: "job-type-1",
+        status: "in_progress",
+        scheduled_date: "2026-03-25",
+        scheduled_time: "09:00:00",
+        customer_id: "cust-1",
+        lead_id: null,
+        title: "Boiler service",
+        started_at: "2026-03-25T09:00:00.000Z",
+      },
+      error: null,
+    });
+    const updateSingle = vi.fn().mockResolvedValue({ data: { id: "job-1", status: "completed" }, error: null });
+    const jobUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: updateSingle }) }) });
+    const jobSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: singleExisting }) });
+
+    const hazardsSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const complianceChecklistSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }),
+    });
+    const materialsChecklistSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({
+        data: [{ id: "check-1", title: "Materials used?", notes: "No", status: "completed" }],
+        error: null,
+      }),
+    });
+    const certificatesSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const attachmentsSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    });
+
+    const from = vi.fn((table: string) => {
+      if (table === "jobs") return { select: jobSelect, update: jobUpdate };
+      if (table === "job_hazards") return { select: hazardsSelect };
+      if (table === "job_checklists") {
+        return {
+          select: vi.fn((columns: string) =>
+            columns.includes("notes") ? materialsChecklistSelect(columns) : complianceChecklistSelect(columns),
+          ),
+        };
+      }
+      if (table === "job_certificates") return { select: certificatesSelect };
+      if (table === "attachments") return { select: attachmentsSelect };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      parseIdList: vi.fn().mockReturnValue([]),
+      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
+    }));
+    vi.doMock("@/modules/crm/lib/rules", () => ({
+      validateRequiredProgression: vi.fn().mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
+    }));
+    vi.doMock("@/modules/crm/lib/custom-fields", () => ({
+      extractCustomFieldValues: vi.fn().mockReturnValue([]),
+      upsertCustomFieldValues: vi.fn(),
+    }));
+    vi.doMock("@/modules/platform/lib/outbox", () => ({
+      enqueueCrmPlatformEvent: vi.fn(),
+      publishPendingPlatformOutboxEvents: vi.fn(),
+    }));
+
+    const route = await import("@/app/api/crm/jobs/[id]/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "completed" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "job-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.job.status).toBe("completed");
+  });
+
+  it("blocks completion when materials were used and no receipt is attached", async () => {
+    const singleExisting = vi.fn().mockResolvedValue({
+      data: {
+        service_id: "svc-1",
+        job_type_id: "job-type-1",
+        status: "in_progress",
+        scheduled_date: "2026-03-25",
+        scheduled_time: "09:00:00",
+        customer_id: "cust-1",
+        lead_id: null,
+        title: "Boiler service",
+        started_at: "2026-03-25T09:00:00.000Z",
+      },
+      error: null,
+    });
+    const jobUpdate = vi.fn();
+    const jobSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: singleExisting }) });
+
+    const hazardsSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const complianceChecklistSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }),
+    });
+    const materialsChecklistSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({
+        data: [{ id: "check-1", title: "Materials used?", notes: "Yes", status: "completed" }],
+        error: null,
+      }),
+    });
+    const certificatesSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    const attachmentsSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    });
+
+    const from = vi.fn((table: string) => {
+      if (table === "jobs") return { select: jobSelect, update: jobUpdate };
+      if (table === "job_hazards") return { select: hazardsSelect };
+      if (table === "job_checklists") {
+        return {
+          select: vi.fn((columns: string) =>
+            columns.includes("notes") ? materialsChecklistSelect(columns) : complianceChecklistSelect(columns),
+          ),
+        };
+      }
+      if (table === "job_certificates") return { select: certificatesSelect };
+      if (table === "attachments") return { select: attachmentsSelect };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      normalizeBlankFields,
+      parseIdList: vi.fn().mockReturnValue([]),
+      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
+    }));
+    vi.doMock("@/modules/crm/lib/rules", () => ({
+      validateRequiredProgression: vi.fn().mockResolvedValue({ valid: true, missingFields: [], missingDocuments: [] }),
+    }));
+    vi.doMock("@/modules/crm/lib/custom-fields", () => ({
+      extractCustomFieldValues: vi.fn().mockReturnValue([]),
+      upsertCustomFieldValues: vi.fn(),
+    }));
+
+    const route = await import("@/app/api/crm/jobs/[id]/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "completed" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "job-1" }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("Upload a receipt photo");
+    expect(jobUpdate).not.toHaveBeenCalled();
   });
 
   it("normalizes blank optional job fields before insert", async () => {
@@ -187,6 +408,7 @@ describe("crm api routes", () => {
         assigned_engineer: null,
       })),
       parseIdList: vi.fn().mockReturnValue([]),
+      resolveCreatedByUserId: vi.fn().mockReturnValue("user-1"),
       requireCrmApiUser: vi.fn().mockResolvedValue({
         session: {
           supabase,
@@ -201,6 +423,10 @@ describe("crm api routes", () => {
     vi.doMock("@/modules/crm/lib/custom-fields", () => ({
       extractCustomFieldValues: vi.fn().mockReturnValue([]),
       upsertCustomFieldValues: vi.fn(),
+    }));
+    vi.doMock("@/modules/platform/lib/outbox", () => ({
+      enqueueCrmPlatformEvent: vi.fn(),
+      publishPendingPlatformOutboxEvents: vi.fn(),
     }));
 
     const route = await import("@/app/api/crm/jobs/route");
@@ -263,6 +489,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
+      resolveCreatedByUserId: vi.fn().mockReturnValue("user-1"),
       requireCrmApiUser: vi.fn().mockResolvedValue({
         session: {
           supabase,
@@ -301,6 +528,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
+      resolveCreatedByUserId: vi.fn().mockReturnValue("user-1"),
       requireCrmApiUser: vi.fn().mockResolvedValue({
         session: {
           supabase: {},
@@ -546,6 +774,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
+      resolveCreatedByUserId: vi.fn().mockReturnValue("user-1"),
       requireCrmApiUser: vi.fn().mockResolvedValue({
         session: {
           supabase,
@@ -719,6 +948,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
+      resolveCreatedByUserId: vi.fn().mockReturnValue("user-1"),
       requireCrmApiUser: vi.fn().mockResolvedValue({
         session: {
           supabase,
@@ -729,6 +959,10 @@ describe("crm api routes", () => {
     }));
     const snapshotQuoteVersion = vi.fn().mockResolvedValue(undefined);
     vi.doMock("@/modules/crm/lib/quotes", () => ({ snapshotQuoteVersion }));
+    vi.doMock("@/modules/platform/lib/outbox", () => ({
+      enqueueCrmPlatformEvent: vi.fn(),
+      publishPendingPlatformOutboxEvents: vi.fn(),
+    }));
 
     const route = await import("@/app/api/crm/quotes/[id]/accept/route");
     const response = (await route.POST!(

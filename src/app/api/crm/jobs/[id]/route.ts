@@ -9,6 +9,7 @@ import {
   requireCrmApiUser,
 } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
+import { hasReceiptAttachment, materialsAnswerRequiresReceipt } from "@/modules/crm/lib/materials";
 
 async function syncJobAssignees(
   supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>,
@@ -90,6 +91,37 @@ async function getComplianceBlockers(
   return blockers;
 }
 
+async function getMaterialsReceiptBlocker(
+  supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>,
+  jobId: string,
+) {
+  const [{ data: checklists, error: checklistsError }, { data: attachments, error: attachmentsError }] = await Promise.all([
+    supabase
+      .schema("crm")
+      .from("job_checklists")
+      .select("id, title, notes, status")
+      .eq("job_id", jobId),
+    supabase
+      .schema("crm")
+      .from("attachments")
+      .select("file_type, file_name")
+      .eq("entity_type", "job")
+      .eq("entity_id", jobId),
+  ]);
+
+  if (checklistsError || attachmentsError) {
+    throw new Error(checklistsError?.message ?? attachmentsError?.message ?? "Failed to check materials receipts.");
+  }
+
+  if (materialsAnswerRequiresReceipt((checklists ?? []) as Array<{ title: string; notes: string | null; status: string }>)) {
+    if (!hasReceiptAttachment((attachments ?? []) as Array<{ file_type: string; file_name: string }>)) {
+      return { type: "receipt" as const, label: "Receipt photo required when materials were used" };
+    }
+  }
+
+  return null;
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -155,6 +187,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (blockers.length > 0) {
         return Response.json(
           { error: "Cannot complete job. Resolve outstanding items first.", blockers },
+          { status: 400 },
+        );
+      }
+
+      const receiptBlocker = await getMaterialsReceiptBlocker(supabase, id);
+      if (receiptBlocker) {
+        return Response.json(
+          { error: "Cannot complete job. Upload a receipt photo before completing.", blockers: [receiptBlocker] },
           { status: 400 },
         );
       }

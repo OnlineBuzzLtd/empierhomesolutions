@@ -3,18 +3,20 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Blocker = { type: "hazard" | "checklist" | "certificate"; label: string };
+type Blocker = { type: "hazard" | "checklist" | "certificate" | "receipt"; label: string };
 
 const blockerTypeLabels: Record<Blocker["type"], string> = {
   hazard: "Hazard",
   checklist: "Checklist",
   certificate: "Certificate",
+  receipt: "Receipt",
 };
 
 const blockerTypeDescriptions: Record<Blocker["type"], string> = {
   hazard: "unresolved",
   checklist: "incomplete",
   certificate: "draft — not completed",
+  receipt: "missing",
 };
 
 export function CompleteJobButton({

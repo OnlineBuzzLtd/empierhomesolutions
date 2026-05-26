@@ -69,6 +69,7 @@ insert into crm.tenant_branding (
   crm_display_name,
   primary_phone,
   support_email,
+  logo_url,
   accent_color
 )
 values (
@@ -77,6 +78,7 @@ values (
   'Empire CRM',
   '01895 725 151',
   'info@empirehomesolutions.co.uk',
+  '/brands/ehs-logo.png',
   '#0f172a'
 )
 on conflict (tenant_id) do update
@@ -84,6 +86,7 @@ set business_name = excluded.business_name,
     crm_display_name = excluded.crm_display_name,
     primary_phone = excluded.primary_phone,
     support_email = excluded.support_email,
+    logo_url = excluded.logo_url,
     accent_color = excluded.accent_color;
 
 insert into crm.tenant_settings (

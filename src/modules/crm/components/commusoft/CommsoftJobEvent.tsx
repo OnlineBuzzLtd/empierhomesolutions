@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { CommsoftBottomNav } from "@/modules/crm/components/commusoft/CommsoftHome";
 import { CommsoftJobActions } from "@/modules/crm/components/commusoft/CommsoftJobActions";
 import { formatDate, formatDateTime, formatScheduledTime } from "@/modules/crm/lib/format";
 import { hasReceiptAttachment } from "@/modules/crm/lib/materials";
@@ -207,8 +206,6 @@ export function CommsoftJobEvent({
           </div>
         ) : null}
       </div>
-
-      <CommsoftBottomNav active="home" />
     </div>
   );
 }

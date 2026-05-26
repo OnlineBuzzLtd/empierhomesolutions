@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getUiPreference } from "@/app/actions/ui-preference";
+import { CommsoftJobSearch } from "@/modules/crm/components/commusoft/CommsoftJobSearch";
 import { JobCreateForm } from "@/modules/crm/components/forms/JobCreateForm";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
@@ -6,11 +8,35 @@ import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
 import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
-import { listCustomers, listCustomFieldDefinitions, listJobs, listJobTypes, listServices, listSiteContacts, listSites, listStaffDirectory } from "@/modules/crm/lib/data";
+import {
+  getEngineerDashboardData,
+  listCustomers,
+  listCustomFieldDefinitions,
+  listJobs,
+  listJobTypes,
+  listServices,
+  listSiteContacts,
+  listSites,
+  listStaffDirectory,
+} from "@/modules/crm/lib/data";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
 import { getAssignableEngineerOptions } from "@/modules/crm/lib/staff";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
+import type { EngineerDashboardData, EngineerDashboardJob } from "@/modules/crm/types";
+
+function buildCommsoftSearchJobs(data: EngineerDashboardData): EngineerDashboardJob[] {
+  const jobs = [
+    data.nextAssignedJob,
+    ...data.readyJobs,
+    ...data.todaysAssignedJobs,
+    ...data.overdueAssignedJobs,
+    ...data.upcomingAssignedJobs,
+    ...data.completedAssignedJobs,
+  ].filter(Boolean) as EngineerDashboardJob[];
+
+  return Array.from(new Map(jobs.map((job) => [job.id, job])).values());
+}
 
 export default async function JobsPage() {
   const setup = getCrmSetupState();
@@ -18,8 +44,17 @@ export default async function JobsPage() {
     return <SetupNotice message={setup.message} />;
   }
 
-  await requireCrmUser();
+  const session = await requireCrmUser();
   const demoState = await getCrmDemoState();
+
+  if (session.profile?.role === "engineer") {
+    const uiMode = await getUiPreference();
+    if (uiMode === "commusoft") {
+      const data = await getEngineerDashboardData(session.profile.full_name, demoState.mode);
+      return <CommsoftJobSearch jobs={buildCommsoftSearchJobs(data)} />;
+    }
+  }
+
   const [jobs, customers, services, jobTypes, customFields, staff, sites, siteContacts] = await Promise.all([
     listJobs(demoState.mode),
     listCustomers(demoState.mode),
@@ -42,15 +77,26 @@ export default async function JobsPage() {
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
         <SectionCard title="Job List" demoAnchor="job-record">
           {jobs.length === 0 ? (
-            <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("jobs") : "No jobs yet. Create the first job from the form."} />
+            <EmptyState
+              message={
+                demoState.active
+                  ? getCrmDemoEmptyMessage("jobs")
+                  : "No jobs yet. Create the first job from the form."
+              }
+            />
           ) : (
             <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
               {jobs.map((job) => (
-                <Link key={job.id} href={`/jobs/${job.id}`} className="flex items-start justify-between gap-4 px-4 py-4 hover:bg-slate-50">
+                <Link
+                  key={job.id}
+                  href={`/jobs/${job.id}`}
+                  className="flex items-start justify-between gap-4 px-4 py-4 hover:bg-slate-50"
+                >
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{job.title}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {job.customer?.full_name ?? "Customer"} · {job.site?.label ?? job.service?.name ?? "Service"} · {job.scheduled_date ?? "TBC"}
+                      {job.customer?.full_name ?? "Customer"} ·{" "}
+                      {job.site?.label ?? job.service?.name ?? "Service"} · {job.scheduled_date ?? "TBC"}
                     </p>
                   </div>
                   <StatusBadge config={jobStatusConfig[job.status]} />
@@ -61,7 +107,15 @@ export default async function JobsPage() {
         </SectionCard>
 
         <SectionCard title="Add Job">
-          <JobCreateForm customers={customers} services={services} jobTypes={jobTypes} sites={sites} siteContacts={siteContacts} engineers={engineers} customFields={customFields} />
+          <JobCreateForm
+            customers={customers}
+            services={services}
+            jobTypes={jobTypes}
+            sites={sites}
+            siteContacts={siteContacts}
+            engineers={engineers}
+            customFields={customFields}
+          />
         </SectionCard>
       </div>
     </div>

@@ -8,6 +8,10 @@ import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
 import { CommsoftAccountMenu } from "@/modules/crm/components/commusoft/CommsoftAccountMenu";
 import {
+  CommsoftBottomNav,
+  type CommsoftBottomNavActive,
+} from "@/modules/crm/components/commusoft/CommsoftHome";
+import {
   CrmMobileMenu,
   CrmSidebarNav,
   type CrmNavGroup,
@@ -62,6 +66,19 @@ const engineerItems: CrmNavItem[] = [
   { href: "/jobs", label: "Jobs", icon: "jobs" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
 ];
+
+function getCommsoftBottomNavActive(pathname: string): CommsoftBottomNavActive {
+  if (pathname.startsWith("/diary")) {
+    return "diary";
+  }
+  if (pathname.startsWith("/jobs")) {
+    return "search";
+  }
+  if (pathname.startsWith("/preferences")) {
+    return "view";
+  }
+  return "home";
+}
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
@@ -136,15 +153,18 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   }
 
   if (isCommsoftMode && session.user) {
+    const activeTab = getCommsoftBottomNavActive(pathname);
+
     return (
       <DemoModeProvider state={demoState}>
         <div className="min-h-screen bg-white text-slate-900">
-          {children}
+          <main className="min-h-screen pb-[calc(76px+env(safe-area-inset-bottom))]">{children}</main>
           <CommsoftAccountMenu
             fullName={session.profile?.full_name ?? session.user.email ?? "Engineer"}
             email={session.user.email ?? ""}
             role={session.profile?.role ?? null}
           />
+          <CommsoftBottomNav active={activeTab} />
         </div>
       </DemoModeProvider>
     );

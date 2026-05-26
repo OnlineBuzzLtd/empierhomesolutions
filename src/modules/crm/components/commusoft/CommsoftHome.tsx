@@ -2,13 +2,7 @@ import Link from "next/link";
 import { formatDate } from "@/modules/crm/lib/format";
 import type { EngineerDashboardData, EngineerDashboardJob } from "@/modules/crm/types";
 
-export function CommsoftHome({
-  data,
-  engineerName,
-}: {
-  data: EngineerDashboardData;
-  engineerName: string;
-}) {
+export function CommsoftHome({ data, engineerName }: { data: EngineerDashboardData; engineerName: string }) {
   const job = data.nextAssignedJob;
   const initials = engineerName
     .split(" ")
@@ -50,9 +44,6 @@ export function CommsoftHome({
           </div>
         )}
       </div>
-
-      {/* Bottom nav */}
-      <CommsoftBottomNav active="home" />
     </div>
   );
 }
@@ -61,12 +52,13 @@ function CurrentEventCard({ job }: { job: EngineerDashboardJob }) {
   const address = [job.customer?.address_line1, job.customer?.postcode].filter(Boolean).join(", ");
 
   return (
-    <Link href={`/jobs/${job.id}`} className="block rounded-2xl border border-slate-200 p-4 hover:bg-slate-50">
+    <Link
+      href={`/jobs/${job.id}`}
+      className="block rounded-2xl border border-slate-200 p-4 hover:bg-slate-50"
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium leading-snug text-slate-800">{job.title}</p>
-        <span className="flex-shrink-0 text-xs text-slate-400">
-          #{job.id.slice(0, 6).toUpperCase()}
-        </span>
+        <span className="flex-shrink-0 text-xs text-slate-400">#{job.id.slice(0, 6).toUpperCase()}</span>
       </div>
       <p className="mt-2 text-sm font-semibold text-slate-900">{job.customer?.full_name}</p>
       {address ? <p className="mt-0.5 text-sm text-slate-500">{address}</p> : null}
@@ -80,10 +72,12 @@ function CurrentEventCard({ job }: { job: EngineerDashboardJob }) {
   );
 }
 
-export function CommsoftBottomNav({ active }: { active: "home" | "diary" | "search" }) {
+export type CommsoftBottomNavActive = "home" | "diary" | "search" | "view";
+
+export function CommsoftBottomNav({ active }: { active: CommsoftBottomNavActive }) {
   return (
-    <nav className="sticky bottom-0 border-t border-slate-200 bg-white">
-      <div className="grid grid-cols-3">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur">
+      <div className="grid grid-cols-4">
         <BottomNavItem href="/dashboard" label="Home" active={active === "home"}>
           <HomeIcon />
         </BottomNavItem>
@@ -92,6 +86,9 @@ export function CommsoftBottomNav({ active }: { active: "home" | "diary" | "sear
         </BottomNavItem>
         <BottomNavItem href="/jobs" label="Search" active={active === "search"}>
           <SearchIcon />
+        </BottomNavItem>
+        <BottomNavItem href="/preferences" label="View" active={active === "view"}>
+          <ViewIcon />
         </BottomNavItem>
       </div>
     </nav>
@@ -150,6 +147,16 @@ function SearchIcon() {
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
       <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.5" />
       <path d="M15 15l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ViewIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
+      <rect x="3" y="4" width="16" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7 20h8M11 17v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M7 8h8M7 11h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

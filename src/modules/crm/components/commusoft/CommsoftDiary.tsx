@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
-import { CommsoftBottomNav } from "@/modules/crm/components/commusoft/CommsoftHome";
 import type { EngineerDashboardJob } from "@/modules/crm/types";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -114,8 +113,6 @@ export function CommsoftDiary({
           </div>
         ) : null}
       </div>
-
-      <CommsoftBottomNav active="diary" />
     </div>
   );
 }

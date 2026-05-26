@@ -3,13 +3,19 @@ import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
-function deriveFullName(input: { full_name?: string | null; first_name?: string | null; last_name?: string | null }) {
+function deriveFullName(input: {
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+}) {
   const explicit = String(input.full_name ?? "").trim();
   if (explicit.length > 0) {
     return explicit;
   }
 
-  return [String(input.first_name ?? "").trim(), String(input.last_name ?? "").trim()].filter(Boolean).join(" ");
+  return [String(input.first_name ?? "").trim(), String(input.last_name ?? "").trim()]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function parseCheckboxFlag(value: unknown) {
@@ -33,7 +39,12 @@ export async function POST(request: Request) {
     ...parsed.data,
     full_name: deriveFullName(parsed.data),
   };
-  const { data, error } = await supabase.schema("crm").from("customers").insert(customerPayload).select("*").single();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("customers")
+    .insert(customerPayload)
+    .select("*")
+    .single();
   if (error) {
     return jsonError(error.message, 500);
   }
@@ -50,6 +61,8 @@ export async function POST(request: Request) {
   const siteContactPhone = String(body.site_contact_phone ?? "").trim();
   const siteContactEmail = String(body.site_contact_email ?? "").trim();
   const siteContactRole = String(body.site_contact_role ?? "").trim();
+  let createdSite = null;
+  let createdSiteContact = null;
 
   if (siteLabel || siteAddressLine1 || sitePostcode || siteContactFullName) {
     const { data: site, error: siteError } = await supabase
@@ -74,21 +87,28 @@ export async function POST(request: Request) {
     if (siteError) {
       return jsonError(siteError.message, 500);
     }
+    createdSite = site;
 
     if (site && siteContactFullName) {
-      const { error: siteContactError } = await supabase.schema("crm").from("site_contacts").insert({
-        tenant_id: tenant.id,
-        site_id: site.id,
-        full_name: siteContactFullName,
-        phone: siteContactPhone || parsed.data.phone || null,
-        email: siteContactEmail || parsed.data.email || null,
-        role_label: siteContactRole || "Site contact",
-        is_primary: true,
-      });
+      const { data: siteContact, error: siteContactError } = await supabase
+        .schema("crm")
+        .from("site_contacts")
+        .insert({
+          tenant_id: tenant.id,
+          site_id: site.id,
+          full_name: siteContactFullName,
+          phone: siteContactPhone || parsed.data.phone || null,
+          email: siteContactEmail || parsed.data.email || null,
+          role_label: siteContactRole || "Site contact",
+          is_primary: true,
+        })
+        .select("*")
+        .single();
 
       if (siteContactError) {
         return jsonError(siteContactError.message, 500);
       }
+      createdSiteContact = siteContact;
     }
   }
 
@@ -124,5 +144,5 @@ export async function POST(request: Request) {
   });
   await publishPendingPlatformOutboxEvents(supabase);
 
-  return jsonSuccess({ customer: data });
+  return jsonSuccess({ customer: data, site: createdSite, site_contact: createdSiteContact });
 }

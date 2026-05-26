@@ -3,6 +3,8 @@ import {
   buildCreatedUserProfilePayload,
   createUserSchema,
   generateUserPassword,
+  getManagedUserPasswordError,
+  isShortcutEngineerPassword,
   normalizeEmail,
   updateUserStatusSchema,
 } from "@/modules/crm/lib/user-admin";
@@ -69,6 +71,36 @@ describe("createUserSchema", () => {
     if (!parsed.success) {
       expect(parsed.error.issues[0]?.message).toMatch(/12 characters/);
     }
+  });
+
+  it("accepts the local engineer shortcut password for @ehs.local accounts", () => {
+    const parsed = createUserSchema.safeParse({
+      email: "shane@ehs.local",
+      full_name: "Shane",
+      role: "engineer",
+      password: "password",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.password).toBe("password");
+  });
+
+  it("rejects the shortcut password outside local engineer shortcut accounts", () => {
+    expect(
+      createUserSchema.safeParse({
+        email: "shane@example.com",
+        full_name: "Shane",
+        role: "engineer",
+        password: "password",
+      }).success,
+    ).toBe(false);
+    expect(
+      createUserSchema.safeParse({
+        email: "manager@ehs.local",
+        full_name: "Manager",
+        role: "management",
+        password: "password",
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts an explicit password >= 12 characters", () => {
@@ -177,16 +209,48 @@ describe("resetUserPasswordSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects invalid user ids and short typed passwords", () => {
+  it("rejects invalid user ids but leaves password strength to contextual route validation", () => {
     expect(resetUserPasswordSchema.safeParse({ user_id: "not-a-uuid", password: "" }).success).toBe(false);
     const parsed = resetUserPasswordSchema.safeParse({
       user_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
       password: "short",
     });
-    expect(parsed.success).toBe(false);
-    if (!parsed.success) {
-      expect(parsed.error.issues[0]?.message).toMatch(/12 characters/);
-    }
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.password).toBe("short");
+  });
+});
+
+describe("managed user password shortcut policy", () => {
+  it("recognizes only the exact local engineer shortcut", () => {
+    expect(
+      isShortcutEngineerPassword({ email: "SHANE@EHS.LOCAL", role: "engineer", password: "password" }),
+    ).toBe(true);
+    expect(
+      isShortcutEngineerPassword({ email: "shane@ehs.local", role: "engineer", password: "Password" }),
+    ).toBe(false);
+    expect(
+      isShortcutEngineerPassword({ email: "shane@example.com", role: "engineer", password: "password" }),
+    ).toBe(false);
+    expect(
+      isShortcutEngineerPassword({ email: "admin@ehs.local", role: "admin", password: "password" }),
+    ).toBe(false);
+  });
+
+  it("keeps the 12-character rule for normal managed users", () => {
+    expect(
+      getManagedUserPasswordError({
+        email: "admin@ehs.local",
+        role: "admin",
+        password: "password",
+      }),
+    ).toMatch(/12 characters/);
+    expect(
+      getManagedUserPasswordError({
+        email: "admin@ehs.local",
+        role: "admin",
+        password: "longenough-12!",
+      }),
+    ).toBeNull();
   });
 });
 

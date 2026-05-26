@@ -1,4 +1,11 @@
-import type { CustomFieldDefinition, Customer, JobType, Service, Site, SiteContact } from "@/modules/crm/types";
+import type {
+  CustomFieldDefinition,
+  Customer,
+  JobType,
+  Service,
+  Site,
+  SiteContact,
+} from "@/modules/crm/types";
 import { jobStatuses } from "@/modules/crm/types";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { DynamicCustomFields } from "@/modules/crm/components/forms/DynamicCustomFields";
@@ -11,6 +18,9 @@ export function JobCreateForm({
   siteContacts = [],
   engineers = [],
   customFields,
+  defaultCustomerId = "",
+  defaultSiteId = "",
+  defaultSiteContactId = "",
 }: {
   customers: Customer[];
   services: Service[];
@@ -19,11 +29,28 @@ export function JobCreateForm({
   siteContacts: Array<SiteContact & { site?: Pick<Site, "id" | "label" | "customer_id"> | null }>;
   engineers: Array<{ id: string; full_name: string }>;
   customFields: CustomFieldDefinition[];
+  defaultCustomerId?: string;
+  defaultSiteId?: string;
+  defaultSiteContactId?: string;
 }) {
+  const selectedCustomer = defaultCustomerId
+    ? (customers.find((customer) => customer.id === defaultCustomerId) ?? null)
+    : null;
+
   return (
     <ApiForm endpoint="/api/crm/jobs" submitLabel="Create Job" className="space-y-3">
+      {selectedCustomer ? (
+        <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
+          Creating job for {selectedCustomer.full_name}
+        </p>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-2">
-        <select name="customer_id" required className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select
+          name="customer_id"
+          required
+          defaultValue={defaultCustomerId}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
           <option value="">Select customer…</option>
           {customers.map((customer) => (
             <option key={customer.id} value={customer.id}>
@@ -31,8 +58,17 @@ export function JobCreateForm({
             </option>
           ))}
         </select>
-        <input name="title" required placeholder="Job title" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <select name="site_id" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <input
+          name="title"
+          required
+          placeholder="Job title"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <select
+          name="site_id"
+          defaultValue={defaultSiteId}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
           <option value="">Primary / default customer site</option>
           {sites.map((site) => (
             <option key={site.id} value={site.id}>
@@ -40,7 +76,11 @@ export function JobCreateForm({
             </option>
           ))}
         </select>
-        <select name="site_contact_id" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select
+          name="site_contact_id"
+          defaultValue={defaultSiteContactId}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
           <option value="">No specific site contact</option>
           {siteContacts.map((contact) => (
             <option key={contact.id} value={contact.id}>
@@ -64,40 +104,73 @@ export function JobCreateForm({
             </option>
           ))}
         </select>
-        <select name="status" defaultValue="enquiry" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select
+          name="status"
+          defaultValue="enquiry"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
           {jobStatuses.map((status) => (
             <option key={status} value={status}>
               {status}
             </option>
           ))}
         </select>
-        <input name="scheduled_date" type="date" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <input name="scheduled_time" type="time" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <input name="affected_area" placeholder="Affected area / room" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <input
+          name="scheduled_date"
+          type="date"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <input
+          name="scheduled_time"
+          type="time"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <input
+          name="affected_area"
+          placeholder="Affected area / room"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
         <select name="urgency_level" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
           <option value="">Select urgency…</option>
           <option value="emergency">Emergency</option>
           <option value="same_day">Same day</option>
           <option value="flexible">Flexible</option>
         </select>
-        <input name="preferred_date_text" placeholder="Preferred date" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <input name="preferred_time_window" placeholder="Preferred time window" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <input
+          name="preferred_date_text"
+          placeholder="Preferred date"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <input
+          name="preferred_time_window"
+          placeholder="Preferred time window"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
       </div>
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
         <input type="hidden" name="assigned_engineer_ids" value="" />
         <p className="text-sm font-semibold text-slate-900">Assigned engineers</p>
         <p className="mt-1 text-xs text-slate-500">Select one or more operatives for this job.</p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
-          {engineers.length === 0 ? <p className="text-sm text-slate-500">No active engineers available.</p> : null}
+          {engineers.length === 0 ? (
+            <p className="text-sm text-slate-500">No active engineers available.</p>
+          ) : null}
           {engineers.map((engineer) => (
-            <label key={engineer.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+            <label
+              key={engineer.id}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            >
               <input type="checkbox" name="assigned_engineer_ids" value={engineer.id} className="h-4 w-4" />
               <span>{engineer.full_name}</span>
             </label>
           ))}
         </div>
       </div>
-      <textarea name="description" placeholder="Internal description" className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <textarea
+        name="description"
+        placeholder="Internal description"
+        className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+      />
       <textarea
         name="problem_description"
         placeholder="Problem description in the customer's words"

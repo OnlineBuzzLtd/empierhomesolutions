@@ -57,10 +57,10 @@ If you do not have a login, ask the business owner or CRM admin.
 
 If your account belongs to more than one workspace, make sure you are in the right workspace after login.
 
-Empire engineer shortcut login for demos/support:
+Empire engineer shortcut logins for demos/support:
 
-- Email: `engineer@ehs.local`
-- Password: `password`
+- `engineer@ehs.local` / `password`
+- `shane@ehs.local` / `password`
 
 This is a normal CRM engineer account. Use admin/management accounts for office workflows and settings.
 
@@ -394,6 +394,7 @@ Managers and admins can reset staff passwords from `Settings` → `User Roles`.
 
 - Type a new password and click `Reset Password`, or leave the field blank to generate a one-time password.
 - Generated passwords are shown once only and are not stored by the CRM.
+- The shortcut password `password` is only allowed for `@ehs.local` engineer shortcut accounts.
 - Demo mode is read-only, so password resets are blocked there.
 
 ## 18. Workspaces and Multi-Tenant Use

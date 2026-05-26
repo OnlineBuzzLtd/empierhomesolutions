@@ -6,12 +6,16 @@ export const passwordValueSchema = z
   .string()
   .min(crmPasswordMinLength, `Password must be at least ${crmPasswordMinLength} characters.`);
 
-export const optionalPasswordSchema = z
+export const optionalRawPasswordSchema = z
   .union([z.string(), z.null(), z.undefined()])
-  .transform((value) => (value == null || value.trim() === "" ? undefined : value))
-  .refine((value) => value === undefined || value.length >= crmPasswordMinLength, {
+  .transform((value) => (value == null || value.trim() === "" ? undefined : value));
+
+export const optionalPasswordSchema = optionalRawPasswordSchema.refine(
+  (value) => value === undefined || value.length >= crmPasswordMinLength,
+  {
     message: `Password must be at least ${crmPasswordMinLength} characters.`,
-  });
+  },
+);
 
 export const changeOwnPasswordSchema = z
   .object({
@@ -26,5 +30,5 @@ export const changeOwnPasswordSchema = z
 
 export const resetUserPasswordSchema = z.object({
   user_id: z.string().uuid("A valid user id is required."),
-  password: optionalPasswordSchema,
+  password: optionalRawPasswordSchema,
 });

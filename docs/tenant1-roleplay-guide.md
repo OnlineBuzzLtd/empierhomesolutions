@@ -11,7 +11,8 @@ Use this guide when showing buyers how the live CRM feels in a realistic heating
 Core production users:
 
 - Admin: `admin@empirehomesolutions.local` / `Empire-Admin-2026!`
-- Engineer: `engineer@empirehomesolutions.local` / `Empire-Engineer-2026!`
+- Engineer shortcut: `engineer@ehs.local` / `password`
+- Shane engineer: `shane@ehs.local` / `password`
 
 Additional seeded staff:
 

@@ -1,7 +1,8 @@
 import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
 import { resetUserPasswordSchema } from "@/modules/crm/lib/password-validation";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
-import { generateUserPassword } from "@/modules/crm/lib/user-admin";
+import { generateUserPassword, getManagedUserPasswordError } from "@/modules/crm/lib/user-admin";
+import type { CrmRole } from "@/modules/crm/types";
 
 export const runtime = "nodejs";
 
@@ -43,7 +44,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ user_
   const { data: targetProfile, error: profileError } = await supabase
     .schema("crm")
     .from("user_profiles")
-    .select("user_id,email,full_name")
+    .select("user_id,email,full_name,role")
     .eq("tenant_id", tenant.id)
     .eq("user_id", parsed.data.user_id)
     .maybeSingle();
@@ -54,6 +55,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ user_
 
   if (!targetProfile) {
     return jsonError("User not found for this tenant.", 404);
+  }
+
+  const passwordError = getManagedUserPasswordError({
+    email: targetProfile.email,
+    role: targetProfile.role as CrmRole,
+    password: parsed.data.password,
+  });
+  if (passwordError) {
+    return jsonError(passwordError);
   }
 
   const generated = !parsed.data.password;

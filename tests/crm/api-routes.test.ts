@@ -47,6 +47,112 @@ describe("crm api routes", () => {
     expect(update).toHaveBeenCalledWith({ archived: true });
   });
 
+  it("returns the created primary site and site contact when creating a customer", async () => {
+    const customer = {
+      id: "cust-1",
+      tenant_id: "tenant-1",
+      full_name: "Hannah Mercer",
+      first_name: "Hannah",
+      last_name: "Mercer",
+      phone: "07700 900111",
+      email: "hannah@example.com",
+      address_line1: "1 High Street",
+      address_line2: null,
+      city: "Uxbridge",
+      postcode: "UB8 1AA",
+      archived: false,
+      source: null,
+      created_at: "2026-05-26T00:00:00.000Z",
+      updated_at: "2026-05-26T00:00:00.000Z",
+    };
+    const site = {
+      id: "site-1",
+      tenant_id: "tenant-1",
+      customer_id: "cust-1",
+      label: "Home",
+      is_primary: true,
+    };
+    const siteContact = {
+      id: "contact-1",
+      tenant_id: "tenant-1",
+      site_id: "site-1",
+      full_name: "Hannah Mercer",
+      is_primary: true,
+    };
+
+    const customerSingle = vi.fn().mockResolvedValue({ data: customer, error: null });
+    const customerSelect = vi.fn().mockReturnValue({ single: customerSingle });
+    const customerInsert = vi.fn().mockReturnValue({ select: customerSelect });
+
+    const siteSingle = vi.fn().mockResolvedValue({ data: site, error: null });
+    const siteSelect = vi.fn().mockReturnValue({ single: siteSingle });
+    const siteInsert = vi.fn().mockReturnValue({ select: siteSelect });
+
+    const siteContactSingle = vi.fn().mockResolvedValue({ data: siteContact, error: null });
+    const siteContactSelect = vi.fn().mockReturnValue({ single: siteContactSingle });
+    const siteContactInsert = vi.fn().mockReturnValue({ select: siteContactSelect });
+
+    const from = vi.fn((table: string) => {
+      if (table === "customers") return { insert: customerInsert };
+      if (table === "sites") return { insert: siteInsert };
+      if (table === "site_contacts") return { insert: siteContactInsert };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+    const enqueueCrmPlatformEvent = vi.fn();
+    const publishPendingPlatformOutboxEvents = vi.fn();
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: { supabase, tenant: { id: "tenant-1" } },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/custom-fields", () => ({
+      extractCustomFieldValues: vi.fn().mockReturnValue([]),
+      upsertCustomFieldValues: vi.fn(),
+    }));
+    vi.doMock("@/modules/platform/lib/outbox", () => ({
+      enqueueCrmPlatformEvent,
+      publishPendingPlatformOutboxEvents,
+    }));
+
+    const route = await import("@/app/api/crm/customers/route");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({
+          first_name: "Hannah",
+          last_name: "Mercer",
+          phone: "07700 900111",
+          email: "hannah@example.com",
+          address_line1: "1 High Street",
+          city: "Uxbridge",
+          postcode: "UB8 1AA",
+          site_label: "Home",
+          site_contact_full_name: "Hannah Mercer",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.customer.id).toBe("cust-1");
+    expect(body.site.id).toBe("site-1");
+    expect(body.site_contact.id).toBe("contact-1");
+    expect(siteInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ tenant_id: "tenant-1", customer_id: "cust-1" }),
+    );
+    expect(siteContactInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ tenant_id: "tenant-1", site_id: "site-1" }),
+    );
+    expect(enqueueCrmPlatformEvent).toHaveBeenCalled();
+    expect(publishPendingPlatformOutboxEvents).toHaveBeenCalled();
+  });
+
   it("blocks job stage progression when required fields or documents are missing", async () => {
     const single = vi.fn().mockResolvedValue({
       data: { service_id: "svc-1", job_type_id: "job-1", status: "booked" },
@@ -1327,14 +1433,34 @@ describe("crm api routes", () => {
     expect(updateUserById).not.toHaveBeenCalled();
   });
 
-  it("rejects short typed passwords before calling Supabase admin reset", async () => {
+  it("rejects short typed passwords for non-shortcut users before calling Supabase admin reset", async () => {
     const userId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { user_id: userId, email: "admin@ehs.local", full_name: "Admin", role: "admin" },
+      error: null,
+    });
+    const eqUser = vi.fn().mockReturnValue({ maybeSingle });
+    const eqTenant = vi.fn().mockReturnValue({ eq: eqUser });
+    const select = vi.fn().mockReturnValue({ eq: eqTenant });
+    const from = vi.fn((table: string) => {
+      if (table === "user_profiles") return { select };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
     const updateUserById = vi.fn();
 
     vi.doMock("@/modules/crm/lib/api", () => ({
       jsonError,
       jsonSuccess,
-      requireManagerCrmApiUser: vi.fn(),
+      requireManagerCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+          membership: { is_demo: false },
+          profile: { is_demo: false },
+        },
+      }),
     }));
     vi.doMock("@/modules/crm/lib/supabase-server", () => ({
       createCrmServiceRoleClient: vi.fn().mockReturnValue({
@@ -1356,6 +1482,57 @@ describe("crm api routes", () => {
     expect(response.status).toBe(400);
     expect(body.error).toMatch(/12 characters/);
     expect(updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("allows the exact shortcut password for local engineer password resets", async () => {
+    const userId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { user_id: userId, email: "shane@ehs.local", full_name: "Shane", role: "engineer" },
+      error: null,
+    });
+    const eqUser = vi.fn().mockReturnValue({ maybeSingle });
+    const eqTenant = vi.fn().mockReturnValue({ eq: eqUser });
+    const select = vi.fn().mockReturnValue({ eq: eqTenant });
+    const from = vi.fn((table: string) => {
+      if (table === "user_profiles") return { select };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+    const updateUserById = vi.fn().mockResolvedValue({ error: null });
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireManagerCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+          membership: { is_demo: false },
+          profile: { is_demo: false },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({
+        auth: { admin: { updateUserById } },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/settings/users/[user_id]/password/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ user_id: userId, password: "password" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ user_id: userId }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.generated_password).toBeNull();
+    expect(updateUserById).toHaveBeenCalledWith(userId, { password: "password" });
   });
 
   it("rejects password resets when manager/admin access is denied", async () => {

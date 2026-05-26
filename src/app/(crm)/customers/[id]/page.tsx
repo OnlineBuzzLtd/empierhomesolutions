@@ -11,6 +11,21 @@ import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { formatDate, formatDateTime } from "@/modules/crm/lib/format";
 import { getCustomerDetail } from "@/modules/crm/lib/data";
 
+function buildCreateJobHref(input: {
+  customerId: string;
+  siteId?: string | null;
+  siteContactId?: string | null;
+}) {
+  const params = new URLSearchParams({ customer: input.customerId });
+  if (input.siteId) {
+    params.set("site", input.siteId);
+  }
+  if (input.siteContactId) {
+    params.set("siteContact", input.siteContactId);
+  }
+  return `/jobs?${params.toString()}`;
+}
+
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireCrmUser();
   const { id } = await params;
@@ -22,6 +37,18 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const { customer, jobs, notes, assets, attachments } = detail;
   const sites = detail.sites ?? [];
   const siteContacts = detail.siteContacts ?? [];
+  const primarySite = sites.find((site) => site.is_primary) ?? sites[0] ?? null;
+  const primarySiteContact =
+    siteContacts.find(
+      (contact) => contact.is_primary && (!primarySite || contact.site_id === primarySite.id),
+    ) ??
+    siteContacts.find((contact) => !primarySite || contact.site_id === primarySite.id) ??
+    null;
+  const createJobHref = buildCreateJobHref({
+    customerId: customer.id,
+    siteId: primarySite?.id,
+    siteContactId: primarySiteContact?.id,
+  });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -97,7 +124,17 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <SectionCard title={`Jobs (${jobs.length})`}>
+        <SectionCard
+          title={`Jobs (${jobs.length})`}
+          action={
+            <Link
+              href={createJobHref}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+            >
+              Create Job
+            </Link>
+          }
+        >
           {jobs.length === 0 ? (
             <EmptyState message="No jobs linked to this customer yet." />
           ) : (

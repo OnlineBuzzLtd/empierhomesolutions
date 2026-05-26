@@ -11,24 +11,22 @@
  *          (Required because Shaz is the owner-operator — full
  *          deactivation would lock them out of the CRM.)
  *
- *   2. Creates a new auth user + crm.user_profiles + tenant_membership for:
- *        Shane <shane@empirehomesolutions.local> / phone 07740 017130
- *      with role=engineer and a fresh auto-generated password. The
- *      password is printed to stdout ONCE and never persisted.
+ *   2. Ensures Shane exists as an active engineer using the short login:
+ *        Shane <shane@ehs.local> / password
+ *      If the old shane@empirehomesolutions.local profile exists, it is
+ *      migrated to the short login instead of creating a duplicate user.
  *
  * Safety:
  *   - Dry-run by default. Pass --apply to write.
  *   - Re-running with --apply is safe: already-deactivated rows skip the
- *     update, already-demoted rows skip the demotion, and if Shane already
- *     exists his profile is upserted (no second auth user is created and
- *     no new password is printed).
+ *     update, already-demoted rows skip the demotion, and Shane is updated
+ *     in place whether he already exists under the short or old email.
  *
  * Run:
  *   node scripts/empire-engineer-changes.mjs          # dry-run preview
  *   node scripts/empire-engineer-changes.mjs --apply  # actually write
  */
 
-import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { requireCrmScriptConfig } from "./crm-env.mjs";
 
@@ -44,19 +42,17 @@ const REMOVALS = [
 
 const NEW_ENGINEER = {
   fullName: "Shane",
-  email: "shane@empirehomesolutions.local",
+  email: "shane@ehs.local",
+  legacyEmail: "shane@empirehomesolutions.local",
   phone: "07740 017130",
   role: "engineer",
+  password: "password",
 };
 
 const apply = process.argv.includes("--apply");
 
 function log(...args) {
   console.log(...args);
-}
-
-function generatePassword() {
-  return randomBytes(18).toString("base64url");
 }
 
 async function findProfileByName(admin, fullName) {
@@ -146,29 +142,45 @@ async function ensureNewEngineer(admin) {
   const existingByEmail = await findProfileByEmail(admin, NEW_ENGINEER.email);
   if (existingByEmail) {
     log(`  Shane already exists (user_id=${existingByEmail.user_id}, active=${existingByEmail.active})`);
-    if (!existingByEmail.active && apply) {
-      const { error } = await admin
-        .schema("crm")
-        .from("user_profiles")
-        .update({ active: true, role: NEW_ENGINEER.role, full_name: NEW_ENGINEER.fullName, phone: NEW_ENGINEER.phone })
-        .eq("tenant_id", TENANT_ID)
-        .eq("user_id", existingByEmail.user_id);
-      if (error) throw error;
-      log(`  re-activated existing Shane profile.`);
+    if (!apply) {
+      log(`  [dry-run] would ensure role=engineer, active=true, phone=${NEW_ENGINEER.phone}`);
+      log(`  [dry-run] would reset auth password to the short engineer password`);
+      return;
     }
+    await updateEngineerAuthLogin(admin, existingByEmail.user_id, NEW_ENGINEER.email);
+    await upsertEngineerRows(admin, existingByEmail.user_id);
+    log(`  updated existing Shane profile, membership, and shortcut password.`);
+    return;
+  }
+
+  const existingByLegacyEmail = await findProfileByEmail(admin, NEW_ENGINEER.legacyEmail);
+  if (existingByLegacyEmail) {
+    log(
+      `  Shane exists under old email ${NEW_ENGINEER.legacyEmail} (user_id=${existingByLegacyEmail.user_id})`,
+    );
+    if (!apply) {
+      log(`  [dry-run] would migrate auth + profile email to ${NEW_ENGINEER.email}`);
+      log(`  [dry-run] would ensure role=engineer, active=true, phone=${NEW_ENGINEER.phone}`);
+      log(`  [dry-run] would reset auth password to the short engineer password`);
+      return;
+    }
+    await updateEngineerAuthLogin(admin, existingByLegacyEmail.user_id, NEW_ENGINEER.email);
+    await upsertEngineerRows(admin, existingByLegacyEmail.user_id);
+    log(`  migrated Shane to ${NEW_ENGINEER.email} and reset shortcut password.`);
     return;
   }
 
   if (!apply) {
-    log(`  [dry-run] would create auth.users + crm.user_profiles + tenant_memberships for ${NEW_ENGINEER.email}`);
-    log(`  [dry-run] would generate a password and print it once`);
+    log(
+      `  [dry-run] would create auth.users + crm.user_profiles + tenant_memberships for ${NEW_ENGINEER.email}`,
+    );
+    log(`  [dry-run] would set the short engineer password`);
     return;
   }
 
-  const password = generatePassword();
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email: NEW_ENGINEER.email,
-    password,
+    password: NEW_ENGINEER.password,
     email_confirm: true,
     user_metadata: {
       full_name: NEW_ENGINEER.fullName,
@@ -180,50 +192,65 @@ async function ensureNewEngineer(admin) {
   }
   const userId = created.user.id;
 
-  const { error: profileError } = await admin
-    .schema("crm")
-    .from("user_profiles")
-    .upsert(
-      {
-        tenant_id: TENANT_ID,
-        user_id: userId,
-        role: NEW_ENGINEER.role,
-        full_name: NEW_ENGINEER.fullName,
-        phone: NEW_ENGINEER.phone,
-        email: NEW_ENGINEER.email.toLowerCase(),
-        active: true,
-      },
-      { onConflict: "tenant_id,user_id" },
-    );
-  if (profileError) {
+  try {
+    await upsertEngineerRows(admin, userId);
+  } catch (error) {
     await admin.auth.admin.deleteUser(userId);
-    throw profileError;
+    throw error;
   }
-
-  const { error: membershipError } = await admin
-    .schema("crm")
-    .from("tenant_memberships")
-    .upsert(
-      {
-        tenant_id: TENANT_ID,
-        user_id: userId,
-        role: NEW_ENGINEER.role,
-        active: true,
-        is_owner: false,
-      },
-      { onConflict: "tenant_id,user_id" },
-    );
-  if (membershipError) throw membershipError;
 
   log("");
   log("  =================================================================");
-  log("  NEW ENGINEER CREATED — COPY THE PASSWORD NOW, IT IS NOT STORED");
+  log("  NEW ENGINEER CREATED");
   log("  -----------------------------------------------------------------");
   log(`  Email:    ${NEW_ENGINEER.email}`);
-  log(`  Password: ${password}`);
+  log(`  Password: ${NEW_ENGINEER.password}`);
   log(`  user_id:  ${userId}`);
   log("  =================================================================");
   log("");
+}
+
+async function updateEngineerAuthLogin(admin, userId, email) {
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    email,
+    password: NEW_ENGINEER.password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: NEW_ENGINEER.fullName,
+      created_by_tenant_id: TENANT_ID,
+    },
+  });
+  if (error) {
+    throw new Error(`updateUserById failed: ${error.message}`);
+  }
+}
+
+async function upsertEngineerRows(admin, userId) {
+  const { error: profileError } = await admin.schema("crm").from("user_profiles").upsert(
+    {
+      tenant_id: TENANT_ID,
+      user_id: userId,
+      role: NEW_ENGINEER.role,
+      full_name: NEW_ENGINEER.fullName,
+      phone: NEW_ENGINEER.phone,
+      email: NEW_ENGINEER.email.toLowerCase(),
+      active: true,
+    },
+    { onConflict: "tenant_id,user_id" },
+  );
+  if (profileError) throw profileError;
+
+  const { error: membershipError } = await admin.schema("crm").from("tenant_memberships").upsert(
+    {
+      tenant_id: TENANT_ID,
+      user_id: userId,
+      role: NEW_ENGINEER.role,
+      active: true,
+      is_owner: false,
+    },
+    { onConflict: "tenant_id,user_id" },
+  );
+  if (membershipError) throw membershipError;
 }
 
 async function main() {
@@ -259,7 +286,9 @@ async function main() {
 
   log("");
   log("New engineer:");
-  log(`  ${NEW_ENGINEER.fullName} <${NEW_ENGINEER.email}> phone=${NEW_ENGINEER.phone} role=${NEW_ENGINEER.role}`);
+  log(
+    `  ${NEW_ENGINEER.fullName} <${NEW_ENGINEER.email}> phone=${NEW_ENGINEER.phone} role=${NEW_ENGINEER.role}`,
+  );
   await ensureNewEngineer(admin);
 
   if (!apply) {

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
-import { optionalPasswordSchema } from "@/modules/crm/lib/password-validation";
+import { crmPasswordMinLength, optionalRawPasswordSchema } from "@/modules/crm/lib/password-validation";
 import { crmRoles, type CrmRole } from "@/modules/crm/types";
 
 const optionalText = (max: number) =>
@@ -16,15 +16,30 @@ const optionalText = (max: number) =>
       message: `Must be at most ${max} characters.`,
     });
 
-export const createUserSchema = z.object({
-  email: z.string().email("A valid email address is required."),
-  full_name: z.string().min(1, "Full name is required.").max(120),
-  role: z.enum(crmRoles).default("engineer"),
-  phone: optionalText(60),
-  password: optionalPasswordSchema,
-  agreed_hours: optionalText(120),
-  pay_type: optionalText(60),
-});
+export const createUserSchema = z
+  .object({
+    email: z.string().email("A valid email address is required."),
+    full_name: z.string().min(1, "Full name is required.").max(120),
+    role: z.enum(crmRoles).default("engineer"),
+    phone: optionalText(60),
+    password: optionalRawPasswordSchema,
+    agreed_hours: optionalText(120),
+    pay_type: optionalText(60),
+  })
+  .superRefine((value, ctx) => {
+    const error = getManagedUserPasswordError({
+      email: value.email,
+      role: value.role,
+      password: value.password,
+    });
+    if (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["password"],
+        message: error,
+      });
+    }
+  });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 
@@ -42,6 +57,38 @@ export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;
 // only ever returns this once in the create response; we never persist it.
 export function generateUserPassword() {
   return randomBytes(18).toString("base64url");
+}
+
+export const shortcutEngineerPassword = "password";
+export const shortcutEngineerEmailDomain = "@ehs.local";
+
+export function isShortcutEngineerPassword(input: {
+  email: string | null | undefined;
+  role: CrmRole;
+  password: string | undefined;
+}) {
+  return (
+    input.role === "engineer" &&
+    input.password === shortcutEngineerPassword &&
+    normalizeEmail(input.email ?? "").endsWith(shortcutEngineerEmailDomain)
+  );
+}
+
+export function getManagedUserPasswordError(input: {
+  email: string | null | undefined;
+  role: CrmRole;
+  password: string | undefined;
+}) {
+  if (input.password === undefined) {
+    return null;
+  }
+  if (input.password.length >= crmPasswordMinLength) {
+    return null;
+  }
+  if (isShortcutEngineerPassword(input)) {
+    return null;
+  }
+  return `Password must be at least ${crmPasswordMinLength} characters.`;
 }
 
 export type CreatedUserProfilePayload = {

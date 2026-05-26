@@ -38,7 +38,15 @@ function buildCommsoftSearchJobs(data: EngineerDashboardData): EngineerDashboard
   return Array.from(new Map(jobs.map((job) => [job.id, job])).values());
 }
 
-export default async function JobsPage() {
+function getSingleParam(value: string | string[] | undefined) {
+  return typeof value === "string" ? value : null;
+}
+
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const setup = getCrmSetupState();
   if (!setup.configured && setup.message) {
     return <SetupNotice message={setup.message} />;
@@ -55,6 +63,10 @@ export default async function JobsPage() {
     }
   }
 
+  const params = await searchParams;
+  const requestedCustomerId = getSingleParam(params.customer);
+  const requestedSiteId = getSingleParam(params.site);
+  const requestedSiteContactId = getSingleParam(params.siteContact);
   const [jobs, customers, services, jobTypes, customFields, staff, sites, siteContacts] = await Promise.all([
     listJobs(demoState.mode),
     listCustomers(demoState.mode),
@@ -66,6 +78,27 @@ export default async function JobsPage() {
     listSiteContacts(demoState.mode),
   ]);
   const engineers = getAssignableEngineerOptions(staff);
+  const defaultCustomerId =
+    requestedCustomerId && customers.some((customer) => customer.id === requestedCustomerId)
+      ? requestedCustomerId
+      : "";
+  const defaultSiteId =
+    requestedSiteId &&
+    sites.some(
+      (site) => site.id === requestedSiteId && (!defaultCustomerId || site.customer_id === defaultCustomerId),
+    )
+      ? requestedSiteId
+      : "";
+  const defaultSiteContactId =
+    requestedSiteContactId &&
+    siteContacts.some(
+      (contact) =>
+        contact.id === requestedSiteContactId &&
+        (!defaultSiteId || contact.site_id === defaultSiteId) &&
+        (!defaultCustomerId || contact.site?.customer_id === defaultCustomerId),
+    )
+      ? requestedSiteContactId
+      : "";
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -115,6 +148,9 @@ export default async function JobsPage() {
             siteContacts={siteContacts}
             engineers={engineers}
             customFields={customFields}
+            defaultCustomerId={defaultCustomerId}
+            defaultSiteId={defaultSiteId}
+            defaultSiteContactId={defaultSiteContactId}
           />
         </SectionCard>
       </div>

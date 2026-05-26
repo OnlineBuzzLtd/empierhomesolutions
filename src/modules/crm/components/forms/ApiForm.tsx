@@ -10,7 +10,8 @@ type ApiFormProps = {
   method?: "POST" | "PATCH" | "DELETE";
   submitLabel: string;
   className?: string;
-  onSuccess?: () => void;
+  onSuccess?: (result: Record<string, unknown>) => void;
+  refreshOnSuccess?: boolean;
   successMessage?: string;
   children: ReactNode;
 };
@@ -21,6 +22,7 @@ export function ApiForm({
   submitLabel,
   className,
   onSuccess,
+  refreshOnSuccess = true,
   successMessage = "Saved.",
   children,
 }: ApiFormProps) {
@@ -62,8 +64,10 @@ export function ApiForm({
 
     setSuccess(successMessage);
     setIsSubmitting(false);
-    onSuccess?.();
-    router.refresh();
+    onSuccess?.(result);
+    if (refreshOnSuccess) {
+      router.refresh();
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

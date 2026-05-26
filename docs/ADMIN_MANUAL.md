@@ -64,6 +64,10 @@ Empire engineer shortcut login for demos/support:
 
 This is a normal CRM engineer account. Use admin/management accounts for office workflows and settings.
 
+### Changing Your Password
+
+Users can update their own password from `Preferences` after logging in. The form asks for the current password first, then the new password.
+
 ## 5. Main Areas of the CRM
 
 After logging in, you will see a menu.
@@ -384,6 +388,14 @@ This may include:
 
 Only authorised users should change settings.
 
+### Resetting Staff Passwords
+
+Managers and admins can reset staff passwords from `Settings` → `User Roles`.
+
+- Type a new password and click `Reset Password`, or leave the field blank to generate a one-time password.
+- Generated passwords are shown once only and are not stored by the CRM.
+- Demo mode is read-only, so password resets are blocked there.
+
 ## 18. Workspaces and Multi-Tenant Use
 
 This CRM can run more than one business workspace.
@@ -457,6 +469,8 @@ Check:
 - you are using the live login URL
 
 If needed, ask the admin to reset your password.
+
+Users who can still log in can change their own password from `Preferences`.
 
 ### I can log in but cannot see the right data
 

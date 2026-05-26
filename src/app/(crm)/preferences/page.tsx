@@ -2,10 +2,12 @@ import Link from "next/link";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
 import { getUiPreference } from "@/app/actions/ui-preference";
 import { ViewToggle } from "@/modules/crm/components/commusoft/ViewToggle";
+import { ChangePasswordForm } from "@/modules/crm/components/settings/ChangePasswordForm";
 
 export default async function PreferencesPage() {
-  await requireCrmUser();
+  const session = await requireCrmUser();
   const current = await getUiPreference();
+  const email = session.user?.email ?? session.profile?.email ?? null;
 
   return (
     <div className="mx-auto max-w-xl space-y-6 px-4 py-8">
@@ -27,6 +29,14 @@ export default async function PreferencesPage() {
       </div>
 
       <ViewToggle current={current} />
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">Change Password</h2>
+          <p className="mt-1 text-sm text-slate-500">Update the password for {email ?? "your account"}.</p>
+        </div>
+        <ChangePasswordForm email={email} />
+      </section>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
+import { optionalPasswordSchema } from "@/modules/crm/lib/password-validation";
 import { crmRoles, type CrmRole } from "@/modules/crm/types";
 
 const optionalText = (max: number) =>
@@ -20,12 +21,7 @@ export const createUserSchema = z.object({
   full_name: z.string().min(1, "Full name is required.").max(120),
   role: z.enum(crmRoles).default("engineer"),
   phone: optionalText(60),
-  password: z
-    .union([z.string(), z.null(), z.undefined()])
-    .transform((value) => (value == null || value === "" ? undefined : value))
-    .refine((value) => value === undefined || value.length >= 12, {
-      message: "Password must be at least 12 characters.",
-    }),
+  password: optionalPasswordSchema,
   agreed_hours: optionalText(120),
   pay_type: optionalText(60),
 });

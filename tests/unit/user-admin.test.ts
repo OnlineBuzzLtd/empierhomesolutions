@@ -6,6 +6,7 @@ import {
   normalizeEmail,
   updateUserStatusSchema,
 } from "@/modules/crm/lib/user-admin";
+import { changeOwnPasswordSchema, resetUserPasswordSchema } from "@/modules/crm/lib/password-validation";
 
 // Contract tests for the user-admin Zod schemas + helpers.
 //
@@ -55,9 +56,7 @@ describe("createUserSchema", () => {
   });
 
   it("rejects an unknown role", () => {
-    expect(
-      createUserSchema.safeParse({ email: "x@y.com", full_name: "X", role: "ceo" }).success,
-    ).toBe(false);
+    expect(createUserSchema.safeParse({ email: "x@y.com", full_name: "X", role: "ceo" }).success).toBe(false);
   });
 
   it("rejects a password shorter than 12 characters", () => {
@@ -122,6 +121,72 @@ describe("updateUserStatusSchema", () => {
     expect(updateUserStatusSchema.safeParse({}).success).toBe(false);
     expect(updateUserStatusSchema.safeParse({ active: 1 }).success).toBe(false);
     expect(updateUserStatusSchema.safeParse({ active: null }).success).toBe(false);
+  });
+});
+
+describe("changeOwnPasswordSchema", () => {
+  it("accepts a valid current/new password payload", () => {
+    const parsed = changeOwnPasswordSchema.safeParse({
+      current_password: "current-pass",
+      new_password: "new-password-123",
+      confirm_password: "new-password-123",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("requires the current password", () => {
+    const parsed = changeOwnPasswordSchema.safeParse({
+      current_password: "",
+      new_password: "new-password-123",
+      confirm_password: "new-password-123",
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues[0]?.message).toMatch(/Current password/);
+    }
+  });
+
+  it("rejects mismatched confirmation", () => {
+    const parsed = changeOwnPasswordSchema.safeParse({
+      current_password: "current-pass",
+      new_password: "new-password-123",
+      confirm_password: "different-pass-123",
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues[0]?.message).toMatch(/match/);
+    }
+  });
+});
+
+describe("resetUserPasswordSchema", () => {
+  it("treats a blank password as generate-one-time-password", () => {
+    const parsed = resetUserPasswordSchema.safeParse({
+      user_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      password: "   ",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.password).toBeUndefined();
+  });
+
+  it("accepts a typed password >= 12 characters", () => {
+    const parsed = resetUserPasswordSchema.safeParse({
+      user_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      password: "new-password-123",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects invalid user ids and short typed passwords", () => {
+    expect(resetUserPasswordSchema.safeParse({ user_id: "not-a-uuid", password: "" }).success).toBe(false);
+    const parsed = resetUserPasswordSchema.safeParse({
+      user_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      password: "short",
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues[0]?.message).toMatch(/12 characters/);
+    }
   });
 });
 

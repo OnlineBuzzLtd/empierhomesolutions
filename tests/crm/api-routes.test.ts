@@ -1228,6 +1228,205 @@ describe("crm api routes", () => {
     expect(body.profile.role).toBe("engineer");
   });
 
+  it("resets a tenant user's password with a generated one-time password", async () => {
+    const userId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { user_id: userId, email: "engineer@ehs.local", full_name: "Engineer" },
+      error: null,
+    });
+    const eqUser = vi.fn().mockReturnValue({ maybeSingle });
+    const eqTenant = vi.fn().mockReturnValue({ eq: eqUser });
+    const select = vi.fn().mockReturnValue({ eq: eqTenant });
+    const from = vi.fn((table: string) => {
+      if (table === "user_profiles") return { select };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+    const updateUserById = vi.fn().mockResolvedValue({ error: null });
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireManagerCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+          membership: { is_demo: false },
+          profile: { is_demo: false },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({
+        auth: { admin: { updateUserById } },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/settings/users/[user_id]/password/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ user_id: userId, password: "" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ user_id: userId }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.generated_password).toMatch(/^[A-Za-z0-9_-]{16,}$/);
+    expect(updateUserById).toHaveBeenCalledWith(userId, { password: body.generated_password });
+  });
+
+  it("rejects password resets for users outside the current tenant", async () => {
+    const userId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const eqUser = vi.fn().mockReturnValue({ maybeSingle });
+    const eqTenant = vi.fn().mockReturnValue({ eq: eqUser });
+    const select = vi.fn().mockReturnValue({ eq: eqTenant });
+    const from = vi.fn((table: string) => {
+      if (table === "user_profiles") return { select };
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const schema = vi.fn().mockReturnValue({ from });
+    const supabase = { schema };
+    const updateUserById = vi.fn().mockResolvedValue({ error: null });
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireManagerCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase,
+          tenant: { id: "tenant-1" },
+          membership: { is_demo: false },
+          profile: { is_demo: false },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({
+        auth: { admin: { updateUserById } },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/settings/users/[user_id]/password/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ user_id: userId, password: "new-password-123" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ user_id: userId }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toContain("User not found");
+    expect(updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("rejects short typed passwords before calling Supabase admin reset", async () => {
+    const userId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const updateUserById = vi.fn();
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireManagerCrmApiUser: vi.fn(),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({
+        auth: { admin: { updateUserById } },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/settings/users/[user_id]/password/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ user_id: userId, password: "short" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ user_id: userId }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toMatch(/12 characters/);
+    expect(updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("rejects password resets when manager/admin access is denied", async () => {
+    const userId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const updateUserById = vi.fn();
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireManagerCrmApiUser: vi
+        .fn()
+        .mockResolvedValue({ error: jsonError("You do not have access to this CRM action.", 403) }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({
+        auth: { admin: { updateUserById } },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/settings/users/[user_id]/password/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ user_id: userId, password: "new-password-123" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ user_id: userId }) },
+    )) as Response;
+
+    expect(response.status).toBe(403);
+    expect(updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("blocks password resets in demo mode", async () => {
+    const userId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const updateUserById = vi.fn();
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireManagerCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase: {},
+          tenant: { id: "tenant-1" },
+          membership: { is_demo: true },
+          profile: { is_demo: false },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({
+        auth: { admin: { updateUserById } },
+      }),
+    }));
+
+    const route = await import("@/app/api/crm/settings/users/[user_id]/password/route");
+    const response = (await route.PATCH!(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ user_id: userId, password: "new-password-123" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ user_id: userId }) },
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toContain("read-only");
+    expect(updateUserById).not.toHaveBeenCalled();
+  });
+
   it("creates a new tenant through the invite-mode signup route", async () => {
     const setCookie = vi.fn();
     const createUser = vi.fn().mockResolvedValue({

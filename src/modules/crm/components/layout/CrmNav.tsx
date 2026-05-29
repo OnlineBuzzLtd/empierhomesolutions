@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CrmInstantLink } from "@/modules/crm/components/client/CrmClientRuntime";
 import {
   BarChart3,
   Bot,
@@ -57,6 +57,9 @@ function isActive(pathname: string, href: string) {
   if (href === "/dashboard") {
     return pathname === "/dashboard";
   }
+  if (href === "/calendar" && pathname.startsWith("/calendar/today")) {
+    return false;
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -96,7 +99,7 @@ export function CrmSidebarNav({ groups }: { groups: CrmNavGroup[] }) {
           {group.items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
-              <Link
+              <CrmInstantLink
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
@@ -115,7 +118,7 @@ export function CrmSidebarNav({ groups }: { groups: CrmNavGroup[] }) {
                   <NavIcon icon={item.icon} active={active} />
                 </span>
                 <span className="truncate">{item.label}</span>
-              </Link>
+              </CrmInstantLink>
             );
           })}
         </div>
@@ -172,7 +175,7 @@ export function CrmMobileMenu({ groups }: { groups: CrmNavGroup[] }) {
                 {group.items.map((item) => {
                   const active = isActive(pathname, item.href);
                   return (
-                    <Link
+                    <CrmInstantLink
                       key={item.href}
                       href={item.href}
                       aria-current={active ? "page" : undefined}
@@ -190,7 +193,7 @@ export function CrmMobileMenu({ groups }: { groups: CrmNavGroup[] }) {
                         <NavIcon icon={item.icon} active={active} />
                       </span>
                       <span className="truncate">{item.label}</span>
-                    </Link>
+                    </CrmInstantLink>
                   );
                 })}
               </div>

@@ -19,6 +19,10 @@ The CRM is no longer a single-business Empire-only workspace. It now supports:
 - staged invoice schedules, invoice generation, and payment tracking
 - hazards, checklists, certificates, purchase orders, and supplier reconciliation
 - demo bootstrap and live smoke coverage against the linked backend
+- customer self-service links for quote review, booking management, invoice payment, and feedback collection
+- scheduled notification automations for reminders, quote chase, lead chase, invoice chase, review requests, and lost-lead re-engagement
+- FSM, payment, review, and message-template settings for tenant-managed operations
+- tenantized performance guardrails: bounded list APIs, tenant-first indexes, dashboard/report fast-path RPCs, and private production proof tooling
 
 Current Empire tenant state:
 
@@ -127,6 +131,12 @@ Live CRM:
 - `https://empire-home-solutions.vercel.app/signup`
 - `https://empire-home-solutions.vercel.app/dashboard`
 
+Current production deployment note:
+
+- The 2026-05-29 performance release is deployed at `https://empire-home-solutions.vercel.app`.
+- The CRM now has faster screen-shell navigation, bounded list fetches, tenant-scoped client caching, and database/query performance indexes.
+- Production proof against a synthetic enterprise tenant showed `/calendar` passing budget, `/customers` close to budget, and several hot screens still failing p95 route budgets. Do not claim the CRM is fully “super fast” until `npm run crm:perf:proof` passes.
+
 Live front-desk test surface:
 
 - `http://localhost:3000/ai-hub/live`
@@ -171,6 +181,8 @@ CRM:
 - per-line and per-quote Cost / Profit / Margin / Mark-up driven by the single source of truth `computeQuoteRollup` and persisted on `crm.quotes`
 - platform-bridge calendar event routes accept the CRM's own appointment id (`providerReference`) as well as the platform's `bookingId` — the CRM calendar is now the canonical scheduler for the multi-tenant booking platform
 - **[2026-05-18] `/calendar` is a week-grid timeline** ([WeekTimeline.tsx](src/modules/crm/components/calendar/WeekTimeline.tsx)). Day columns × hour rows, type-coloured appointment blocks with side-by-side stacking for overlaps, a "now" line on today, and prev/today/next week navigation via `?week=YYYY-MM-DD`. Replaces the previous stacked list. Pure layout logic in [calendar-layout.ts](src/modules/crm/lib/calendar-layout.ts) with 39 unit tests covering DST boundaries, multi-day spans, and overlap colouring.
+- **[2026-05-29] tenantized CRM performance acceleration**. Hot list screens now use bounded API fetches and client-loaded panels, dashboard/reports/calendar/diary use faster screen shells, navigation shows immediate progress feedback, and a tenant-scoped client cache is cleared on tenant switch/logout. Database support includes tenant-first indexes and summary fast-path migrations for dashboard, reports, and engineer diary.
+- **[2026-05-29] production performance proof harness**. `scripts/perf/*` can seed a disposable synthetic tenant, benchmark authenticated production routes, run Supabase `EXPLAIN`, benchmark screen transitions, write private reports under `docs/private/performance-proof/`, and clean up the synthetic tenant. Proof artifacts are private and excluded from Vercel uploads.
 
 ## Supabase Notes
 
@@ -205,9 +217,22 @@ For Empire tenant 1 specifically:
 - `npm run crm:smoke:features`
 - `npm run crm:demo:bootstrap`
 - `npm run crm:smoke:demo`
+- `npm run crm:perf:seed` — create a disposable synthetic tenant for performance proof
+- `npm run crm:perf:benchmark` — measure authenticated production CRM route timings
+- `npm run crm:perf:transitions` — measure screen-shell and data-ready transition timings
+- `npm run crm:perf:explain` — run Supabase query-plan proof for hot CRM queries
+- `npm run crm:perf:proof` — run the benchmark + transition + database proof suite and write a private report
+- `npm run crm:perf:cleanup` — delete the latest synthetic performance tenant and auth users
 - `node scripts/tenant1-production-scenarios-seed.mjs`
 - `node scripts/e2e-engineer-channel-test.mjs`
 - `scripts/local/follow-agent-to-crm.sh` — Agent → CRM live tail. Streams Cloud Run platform-api activity (tool calls, `PUBLISH BookingConfirmed`, errors) alongside Supabase polls of `crm.platform_event_log` / `leads` / `customers` / `appointments` into a single colour-coded terminal. Make a real or test call and watch every step land row by row. Stops with Ctrl+C. Requires `gcloud` auth + `psql` + `.env.local` with `SUPABASE_DB_PASSWORD`.
+
+Performance proof safety:
+
+- Performance proof uses fake contacts in a dedicated `perf-proof-*` tenant.
+- Proof runs must not send live Twilio, email, or payment traffic.
+- Always run `npm run crm:perf:cleanup` after proof runs; the cleanup command is idempotent.
+- Reports under `docs/private/performance-proof/` are intentionally not committed or deployed.
 
 ## Demo Mode
 

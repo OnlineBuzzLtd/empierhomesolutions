@@ -1,4 +1,5 @@
 import { addDays, endOfDay, isAfter, parseISO, startOfDay } from "date-fns";
+import { cache } from "react";
 import type {
   Appointment,
   Attachment,
@@ -56,6 +57,11 @@ import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import type { CrmMode } from "@/modules/crm/lib/demo";
+import {
+  applyCrmPagination,
+  measureCrmQuery,
+  type CrmPaginationInput,
+} from "@/modules/crm/lib/performance";
 
 /**
  * Decides which CRM route the Calendar "Open" button should open for an
@@ -86,6 +92,8 @@ export function deriveAppointmentEntityLink(appointment: {
   return "/calendar";
 }
 
+const getCachedCrmDemoState = cache(getCrmDemoState);
+
 function emptyDashboard(): DashboardData {
   return {
     openJobsCount: 0,
@@ -94,6 +102,22 @@ function emptyDashboard(): DashboardData {
     newLeadCount: 0,
     recentCustomers: [],
     activeJobs: [],
+  };
+}
+
+function emptyReportsSummary(): ReportsSummary {
+  return {
+    totalRevenue: 0,
+    unpaidRevenue: 0,
+    invoiceCount: 0,
+    paidInvoiceCount: 0,
+    leadCount: 0,
+    convertedLeadCount: 0,
+    jobCount: 0,
+    completedJobCount: 0,
+    totalExpenses: 0,
+    profitEstimate: 0,
+    engineerWorkload: [],
   };
 }
 
@@ -114,12 +138,65 @@ function emptyEngineerDashboard(): EngineerDashboardData {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numberField(record: Record<string, unknown>, key: string) {
+  const value = Number(record[key] ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function parseDashboardSummary(value: unknown): Pick<
+  DashboardData,
+  "openJobsCount" | "unpaidInvoicesTotal" | "newLeadCount"
+> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    openJobsCount: numberField(value, "openJobsCount"),
+    unpaidInvoicesTotal: numberField(value, "unpaidInvoicesTotal"),
+    newLeadCount: numberField(value, "newLeadCount"),
+  };
+}
+
+function parseReportsSummary(value: unknown): ReportsSummary | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const engineerWorkload = Array.isArray(value.engineerWorkload)
+    ? value.engineerWorkload.filter(isRecord).map((entry) => ({
+        engineer: String(entry.engineer ?? "Unassigned"),
+        totalJobs: numberField(entry, "totalJobs"),
+        completedJobs: numberField(entry, "completedJobs"),
+        openJobs: numberField(entry, "openJobs"),
+      }))
+    : [];
+
+  return {
+    totalRevenue: numberField(value, "totalRevenue"),
+    unpaidRevenue: numberField(value, "unpaidRevenue"),
+    invoiceCount: numberField(value, "invoiceCount"),
+    paidInvoiceCount: numberField(value, "paidInvoiceCount"),
+    leadCount: numberField(value, "leadCount"),
+    convertedLeadCount: numberField(value, "convertedLeadCount"),
+    jobCount: numberField(value, "jobCount"),
+    completedJobCount: numberField(value, "completedJobCount"),
+    totalExpenses: numberField(value, "totalExpenses"),
+    profitEstimate: numberField(value, "profitEstimate"),
+    engineerWorkload,
+  };
+}
+
 async function getCrmModeContext(mode?: CrmMode) {
   if (mode) {
     return { mode, scenarioKey: crmDemoScenarioKey };
   }
 
-  const demoState = await getCrmDemoState();
+  const demoState = await getCachedCrmDemoState();
   return {
     mode: demoState.mode,
     scenarioKey: demoState.scenarioKey ?? crmDemoScenarioKey,
@@ -411,7 +488,7 @@ export async function listUserProfiles(mode?: CrmMode) {
   return (data ?? []) as UserProfile[];
 }
 
-export async function listServices() {
+export const listServices = cache(async function listServices() {
   if (!getCrmEnv().enabled) {
     return [] as Service[];
   }
@@ -419,9 +496,9 @@ export async function listServices() {
   const supabase = await createCrmServerClient();
   const { data } = await supabase.schema("crm").from("services").select("*").order("name");
   return (data ?? []) as Service[];
-}
+});
 
-export async function listJobTypes() {
+export const listJobTypes = cache(async function listJobTypes() {
   if (!getCrmEnv().enabled) {
     return [] as JobType[];
   }
@@ -429,9 +506,9 @@ export async function listJobTypes() {
   const supabase = await createCrmServerClient();
   const { data } = await supabase.schema("crm").from("job_types").select("*").order("name");
   return (data ?? []) as JobType[];
-}
+});
 
-export async function listCustomFieldDefinitions() {
+export const listCustomFieldDefinitions = cache(async function listCustomFieldDefinitions() {
   if (!getCrmEnv().enabled) {
     return [] as CustomFieldDefinition[];
   }
@@ -445,9 +522,9 @@ export async function listCustomFieldDefinitions() {
     .order("sort_order", { ascending: true })
     .order("label", { ascending: true });
   return (data ?? []) as CustomFieldDefinition[];
-}
+});
 
-export async function listRequiredDocumentRules() {
+export const listRequiredDocumentRules = cache(async function listRequiredDocumentRules() {
   if (!getCrmEnv().enabled) {
     return [] as RequiredDocumentRule[];
   }
@@ -461,7 +538,7 @@ export async function listRequiredDocumentRules() {
     .order("entity_type")
     .order("document_type");
   return (data ?? []) as RequiredDocumentRule[];
-}
+});
 
 export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   if (!getCrmEnv().enabled) {
@@ -470,6 +547,14 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
 
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
+  const { data: summaryData, error: summaryError } = await measureCrmQuery(
+    "getDashboardData.summary",
+    supabase.schema("crm").rpc("dashboard_summary", {
+      p_mode: context.mode,
+      p_demo_scenario_key: context.scenarioKey,
+    }),
+  );
+  const summary = summaryError ? null : parseDashboardSummary(summaryData);
   const today = new Date();
   const todayDate = today.toISOString().slice(0, 10);
   const todaysJobsQuery = supabase
@@ -486,35 +571,53 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
       "*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(activeJobsQuery, context.mode, context.scenarioKey);
-  const invoicesQuery = supabase.schema("crm").from("invoices").select("total, status");
-  filterByMode(invoicesQuery, context.mode, context.scenarioKey);
   const recentCustomersQuery = supabase.schema("crm").from("customers").select("*");
   filterByMode(recentCustomersQuery, context.mode, context.scenarioKey);
-  const leadsQuery = supabase.schema("crm").from("leads").select("id, status");
-  filterByMode(leadsQuery, context.mode, context.scenarioKey);
 
-  const [todaysJobs, activeJobs, invoiceRows, recentCustomers, leads] = await Promise.all([
+  const [todaysJobs, activeJobs, recentCustomers] = await Promise.all([
     runCrmList<JobWithRelations>(
       "getDashboardData.todaysJobs",
-      todaysJobsQuery.eq("scheduled_date", todayDate).order("scheduled_time"),
+      todaysJobsQuery.eq("scheduled_date", todayDate).order("scheduled_time").limit(20),
     ),
     runCrmList<JobWithRelations>(
       "getDashboardData.activeJobs",
-      activeJobsQuery.in("status", ["enquiry", "booked", "in_progress"]).order("scheduled_date"),
+      activeJobsQuery.in("status", ["enquiry", "booked", "in_progress"]).order("scheduled_date").limit(20),
     ),
-    runCrmList<{ total: number | string | null; status: string }>("getDashboardData.invoices", invoicesQuery),
     runCrmList<Customer>(
       "getDashboardData.recentCustomers",
       recentCustomersQuery.eq("archived", false).order("created_at", { ascending: false }).limit(5),
     ),
+  ]);
+
+  if (summary) {
+    return {
+      ...summary,
+      todaysJobs,
+      recentCustomers,
+      activeJobs,
+    };
+  }
+
+  const invoicesQuery = supabase.schema("crm").from("invoices").select("total, status");
+  filterByMode(invoicesQuery, context.mode, context.scenarioKey);
+  const leadsQuery = supabase.schema("crm").from("leads").select("id, status");
+  filterByMode(leadsQuery, context.mode, context.scenarioKey);
+  const activeJobCountQuery = supabase.schema("crm").from("jobs").select("id", { count: "exact", head: true });
+  filterByMode(activeJobCountQuery, context.mode, context.scenarioKey);
+  const [invoiceRows, leads, activeJobCountResponse] = await Promise.all([
+    runCrmList<{ total: number | string | null; status: string }>("getDashboardData.invoicesFallback", invoicesQuery),
     runCrmList<{ id: string; status: string }>(
-      "getDashboardData.leads",
+      "getDashboardData.leadsFallback",
       leadsQuery.in("status", ["new", "contacted", "follow_up"]),
+    ),
+    measureCrmQuery(
+      "getDashboardData.activeJobCountFallback",
+      activeJobCountQuery.in("status", ["enquiry", "booked", "in_progress"]),
     ),
   ]);
 
   return {
-    openJobsCount: activeJobs.length,
+    openJobsCount: activeJobCountResponse.count ?? activeJobs.length,
     todaysJobs,
     unpaidInvoicesTotal: invoiceRows
       .filter((invoice) => invoice.status === "unpaid")
@@ -535,21 +638,27 @@ export async function getEngineerDashboardData(
 
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const todayDate = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const todayDate = today.toISOString().slice(0, 10);
+  const windowStartDate = addDays(today, -30).toISOString().slice(0, 10);
+  const windowEndDate = addDays(today, 60).toISOString().slice(0, 10);
   const jobsQuery = supabase
     .schema("crm")
     .from("jobs")
     .select(
-      "*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
+      "id, tenant_id, customer_id, site_id, site_contact_id, service_id, job_type_id, lead_id, title, description, scheduled_date, scheduled_time, duration_hours, status, assigned_engineer, created_by, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name, phone, email, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   const { data: jobs } = await jobsQuery
-    .ilike("assigned_engineer", engineerName.trim())
+    .eq("assigned_engineer", engineerName.trim())
+    .gte("scheduled_date", windowStartDate)
+    .lte("scheduled_date", windowEndDate)
     .order("scheduled_date", { ascending: true, nullsFirst: false })
     .order("scheduled_time", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(200);
 
-  const assignedJobs = (jobs ?? []) as JobWithRelations[];
+  const assignedJobs = (jobs ?? []) as unknown as JobWithRelations[];
   if (assignedJobs.length === 0) {
     return emptyEngineerDashboard();
   }
@@ -630,7 +739,7 @@ export async function getEngineerDashboardData(
   return summarizeEngineerDashboardJobs(enrichedJobs, todayDate);
 }
 
-export async function listLeads(mode?: CrmMode) {
+export async function listLeads(mode?: CrmMode, pagination?: CrmPaginationInput) {
   if (!getCrmEnv().enabled) {
     return [] as LeadWithRelations[];
   }
@@ -641,30 +750,41 @@ export async function listLeads(mode?: CrmMode) {
     .schema("crm")
     .from("leads")
     .select(
-      "*, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
+      "id, tenant_id, customer_id, possible_duplicate_customer_id, service_id, job_type_id, owner_user_id, status, source, source_enum, next_action_at, intake_source, dedupe_result, submission_count, customer_match_result, is_demo, demo_scenario_key, created_at, updated_at, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
-  return runCrmList<LeadWithRelations>("listLeads", leadsQuery.order("created_at", { ascending: false }));
+  return runCrmList<LeadWithRelations>(
+    "listLeads",
+    applyCrmPagination(leadsQuery.order("created_at", { ascending: false }), pagination),
+  );
 }
 
-export async function listCustomers(mode?: CrmMode) {
+export async function listCustomers(mode?: CrmMode, pagination?: CrmPaginationInput) {
   if (!getCrmEnv().enabled) {
     return [] as CustomerWithCounts[];
   }
 
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const customersQuery = supabase.schema("crm").from("customers").select("*");
+  const customersQuery = supabase
+    .schema("crm")
+    .from("customers")
+    .select("id, tenant_id, full_name, phone, email, address_line1, postcode, archived, is_demo, demo_scenario_key, created_at, updated_at");
   filterByMode(customersQuery, context.mode, context.scenarioKey);
-  const jobsQuery = supabase.schema("crm").from("jobs").select("customer_id, status");
-  filterByMode(jobsQuery, context.mode, context.scenarioKey);
-  const [customers, jobs] = await Promise.all([
-    runCrmList<Customer>(
-      "listCustomers.customers",
-      customersQuery.eq("archived", false).order("created_at", { ascending: false }),
-    ),
-    runCrmList<{ customer_id: string; status: string }>("listCustomers.jobs", jobsQuery),
-  ]);
+  const customers = await runCrmList<Customer>(
+    "listCustomers.customers",
+    applyCrmPagination(customersQuery.eq("archived", false).order("created_at", { ascending: false }), pagination),
+  );
+  const customerIds = customers.map((customer) => customer.id);
+  let jobs: Array<{ customer_id: string; status: string }> = [];
+  if (customerIds.length > 0) {
+    const jobsQuery = supabase.schema("crm").from("jobs").select("customer_id, status");
+    filterByMode(jobsQuery, context.mode, context.scenarioKey);
+    jobs = await runCrmList<{ customer_id: string; status: string }>(
+      "listCustomers.jobs",
+      jobsQuery.in("customer_id", customerIds),
+    );
+  }
 
   const counts = new Map<string, { total: number; active: number }>();
   jobs.forEach((job) => {
@@ -805,7 +925,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   };
 }
 
-export async function listJobs(mode?: CrmMode) {
+export async function listJobs(mode?: CrmMode, pagination?: CrmPaginationInput) {
   if (!getCrmEnv().enabled) {
     return [] as JobWithRelations[];
   }
@@ -816,7 +936,7 @@ export async function listJobs(mode?: CrmMode) {
     .schema("crm")
     .from("jobs")
     .select(
-      "*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
+      "id, tenant_id, customer_id, site_id, site_contact_id, service_id, job_type_id, lead_id, title, scheduled_date, scheduled_time, status, assigned_engineer, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   // Jobs behave like an inbox: the top of the list should be the most recently
@@ -825,21 +945,18 @@ export async function listJobs(mode?: CrmMode) {
   // instant still sort deterministically.
   const jobs = await runCrmList<JobWithRelations>(
     "listJobs",
-    jobsQuery
-      .order("created_at", { ascending: false })
-      .order("scheduled_date", { ascending: false, nullsFirst: false }),
+    applyCrmPagination(
+      jobsQuery
+        .order("created_at", { ascending: false })
+        .order("scheduled_date", { ascending: false, nullsFirst: false }),
+      pagination,
+    ),
   );
-  const jobIds = jobs.map((job) => job.id);
-  const [assigneesByJobId, phasesByJobId, variationsByJobId] = await Promise.all([
-    listJobAssigneesByJobIds(jobIds, context.mode),
-    listJobPhasesByJobIds(jobIds, context.mode),
-    listJobVariationsByJobIds(jobIds, context.mode),
-  ]);
   return jobs.map((job) => ({
     ...job,
-    assignees: assigneesByJobId.get(job.id) ?? [],
-    phases: phasesByJobId.get(job.id) ?? [],
-    variations: variationsByJobId.get(job.id) ?? [],
+    assignees: [],
+    phases: [],
+    variations: [],
   }));
 }
 
@@ -934,7 +1051,7 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   };
 }
 
-export async function listQuotes(mode?: CrmMode) {
+export async function listQuotes(mode?: CrmMode, pagination?: CrmPaginationInput) {
   if (!getCrmEnv().enabled) {
     return [] as QuoteWithRelations[];
   }
@@ -944,24 +1061,12 @@ export async function listQuotes(mode?: CrmMode) {
   const quotesQuery = supabase
     .schema("crm")
     .from("quotes")
-    .select("*, customer:customers(id, full_name, address_line1, postcode, phone), job:jobs(id, title)");
+    .select("id, tenant_id, job_id, customer_id, quote_number, document_type, current_version_number, status, total, valid_until, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name), job:jobs(id, title)");
   filterByMode(quotesQuery, context.mode, context.scenarioKey);
-  const quotes = await runCrmList<QuoteWithRelations>(
+  return runCrmList<QuoteWithRelations>(
     "listQuotes",
-    quotesQuery.order("created_at", { ascending: false }),
+    applyCrmPagination(quotesQuery.order("created_at", { ascending: false }), pagination),
   );
-  const quoteIds = quotes.map((quote) => quote.id);
-  const [versionsByQuoteId, acceptancesByQuoteId, schedulesByQuoteId] = await Promise.all([
-    listQuoteVersionsByQuoteIds(quoteIds, context.mode),
-    listQuoteAcceptancesByQuoteIds(quoteIds, context.mode),
-    listInvoiceSchedulesByQuoteIds(quoteIds, context.mode),
-  ]);
-  return quotes.map((quote) => ({
-    ...quote,
-    versions: versionsByQuoteId.get(quote.id) ?? [],
-    acceptance: acceptancesByQuoteId.get(quote.id) ?? null,
-    invoiceSchedules: schedulesByQuoteId.get(quote.id) ?? [],
-  }));
 }
 
 export async function getQuoteDetail(id: string, mode?: CrmMode) {
@@ -993,7 +1098,7 @@ export async function getQuoteDetail(id: string, mode?: CrmMode) {
   } satisfies QuoteWithRelations;
 }
 
-export async function listInvoices(mode?: CrmMode) {
+export async function listInvoices(mode?: CrmMode, pagination?: CrmPaginationInput) {
   if (!getCrmEnv().enabled) {
     return [] as InvoiceWithRelations[];
   }
@@ -1003,11 +1108,11 @@ export async function listInvoices(mode?: CrmMode) {
   const invoicesQuery = supabase
     .schema("crm")
     .from("invoices")
-    .select("*, customer:customers(id, full_name, address_line1, postcode, phone), job:jobs(id, title)");
+    .select("id, tenant_id, quote_id, job_id, customer_id, invoice_number, status, total, due_date, paid_at, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name), job:jobs(id, title)");
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
   return runCrmList<InvoiceWithRelations>(
     "listInvoices",
-    invoicesQuery.order("created_at", { ascending: false }),
+    applyCrmPagination(invoicesQuery.order("created_at", { ascending: false }), pagination),
   );
 }
 
@@ -1064,6 +1169,8 @@ export async function listAppointmentsForCalendar(filters?: {
   const anchor = filters?.from ? new Date(filters.from) : new Date();
   const start = startOfDay(anchor);
   const end = endOfDay(addDays(start, days));
+  const startDate = start.toISOString().slice(0, 10);
+  const endDate = end.toISOString().slice(0, 10);
   const appointmentsQuery = supabase
     .schema("crm")
     .from("appointments")
@@ -1091,7 +1198,11 @@ export async function listAppointmentsForCalendar(filters?: {
       .not("next_action_at", "is", null)
       .gte("next_action_at", start.toISOString())
       .lte("next_action_at", end.toISOString()),
-    assetsQuery.order("service_due_date"),
+    assetsQuery
+      .or(
+        `and(service_due_date.gte.${startDate},service_due_date.lte.${endDate}),and(warranty_end_date.gte.${startDate},warranty_end_date.lte.${endDate})`,
+      )
+      .order("service_due_date", { ascending: true, nullsFirst: false }),
     usersQuery,
   ]);
 
@@ -1189,7 +1300,7 @@ export async function createSignedAttachmentUrl(path: string) {
   return data?.signedUrl ?? null;
 }
 
-export async function listStaffDirectory(mode?: CrmMode) {
+export const listStaffDirectory = cache(async function listStaffDirectory(mode?: CrmMode) {
   if (!getCrmEnv().enabled) {
     return [] as StaffDirectoryEntry[];
   }
@@ -1216,27 +1327,27 @@ export async function listStaffDirectory(mode?: CrmMode) {
     ...profile,
     certifications: certificationsByProfile.get(profile.id) ?? [],
   }));
-}
+});
 
 export async function getReportsSummary(mode?: CrmMode) {
   if (!getCrmEnv().enabled) {
-    return {
-      totalRevenue: 0,
-      unpaidRevenue: 0,
-      invoiceCount: 0,
-      paidInvoiceCount: 0,
-      leadCount: 0,
-      convertedLeadCount: 0,
-      jobCount: 0,
-      completedJobCount: 0,
-      totalExpenses: 0,
-      profitEstimate: 0,
-      engineerWorkload: [],
-    } satisfies ReportsSummary;
+    return emptyReportsSummary();
   }
 
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
+  const { data: summaryData, error: summaryError } = await measureCrmQuery(
+    "getReportsSummary.summary",
+    supabase.schema("crm").rpc("reports_summary", {
+      p_mode: context.mode,
+      p_demo_scenario_key: context.scenarioKey,
+    }),
+  );
+  const summary = summaryError ? null : parseReportsSummary(summaryData);
+  if (summary) {
+    return summary;
+  }
+
   const invoicesQuery = supabase.schema("crm").from("invoices").select("total, status");
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
   const leadsQuery = supabase.schema("crm").from("leads").select("status");
@@ -1260,7 +1371,7 @@ export async function getReportsSummary(mode?: CrmMode) {
   });
 }
 
-export async function listSuppliers(mode?: CrmMode) {
+export const listSuppliers = cache(async function listSuppliers(mode?: CrmMode) {
   if (!getCrmEnv().enabled) {
     return [] as Supplier[];
   }
@@ -1271,9 +1382,9 @@ export async function listSuppliers(mode?: CrmMode) {
   filterByMode(suppliersQuery, context.mode, context.scenarioKey);
   const { data } = await suppliersQuery.order("name");
   return (data ?? []) as Supplier[];
-}
+});
 
-export async function listProducts(mode?: CrmMode) {
+export const listProducts = cache(async function listProducts(mode?: CrmMode) {
   if (!getCrmEnv().enabled) {
     return [] as Product[];
   }
@@ -1284,9 +1395,9 @@ export async function listProducts(mode?: CrmMode) {
   filterByMode(productsQuery, context.mode, context.scenarioKey);
   const { data } = await productsQuery.order("name");
   return (data ?? []) as Product[];
-}
+});
 
-export async function listQuoteTemplates(mode?: CrmMode) {
+export const listQuoteTemplates = cache(async function listQuoteTemplates(mode?: CrmMode) {
   if (!getCrmEnv().enabled) {
     return [] as QuoteTemplate[];
   }
@@ -1297,4 +1408,4 @@ export async function listQuoteTemplates(mode?: CrmMode) {
   filterByMode(templatesQuery, context.mode, context.scenarioKey);
   const { data } = await templatesQuery.order("name");
   return (data ?? []) as QuoteTemplate[];
-}
+});

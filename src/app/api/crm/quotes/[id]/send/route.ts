@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
+import { scheduleQuoteChaseSequence } from "@/modules/crm/notifications/quote-chase";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -43,7 +44,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       createdBy: resolveCreatedByUserId(user),
     });
 
-    return jsonSuccess({ quote: data });
+    const chase = await scheduleQuoteChaseSequence(supabase, {
+      tenantId: tenant.id,
+      quoteId: id,
+    });
+
+    return jsonSuccess({ quote: data, chase });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Failed to send quote.", 400);
   }

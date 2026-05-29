@@ -1,15 +1,33 @@
-import Link from "next/link";
+import { Suspense } from "react";
+import { CustomersClientPanel } from "@/modules/crm/components/client/CrmHotListPanels";
 import { CustomerCreateForm } from "@/modules/crm/components/forms/CustomerCreateForm";
-import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
-import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
-import { listCustomers, listCustomFieldDefinitions } from "@/modules/crm/lib/data";
+import { listCustomFieldDefinitions } from "@/modules/crm/lib/data";
+import { crmPaginationFromSearchParams } from "@/modules/crm/lib/performance";
 
-export default async function CustomersPage() {
+async function CustomerCreatePanel() {
+  const customFields = await listCustomFieldDefinitions();
+
+  return (
+    <SectionCard title="Add Customer">
+      <CustomerCreateForm customFields={customFields} />
+    </SectionCard>
+  );
+}
+
+function wantsCreatePanel(params: Record<string, string | string[] | undefined>) {
+  return params.new === "1";
+}
+
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const setup = getCrmSetupState();
   if (!setup.configured && setup.message) {
     return <SetupNotice message={setup.message} />;
@@ -17,42 +35,32 @@ export default async function CustomersPage() {
 
   await requireCrmUser();
   const demoState = await getCrmDemoState();
-  const [customers, customFields] = await Promise.all([listCustomers(demoState.mode), listCustomFieldDefinitions()]);
+  const params = await searchParams;
+  const showCreatePanel = wantsCreatePanel(params);
+  const pagination = crmPaginationFromSearchParams(params);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
-        <p className="mt-1 text-sm text-slate-500">{customers.length} customers in CRM.</p>
+        <p className="mt-1 text-sm text-slate-500">Customers in CRM.</p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <SectionCard title="Customer List" demoAnchor="customer-record">
-          {customers.length === 0 ? (
-            <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("customers") : "No customers yet. Create the first customer using the form."} />
-          ) : (
-            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-              {customers.map((customer) => (
-                <Link key={customer.id} href={`/customers/${customer.id}`} className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-slate-50">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{customer.full_name}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {customer.phone || "No phone"} · {customer.postcode || "No postcode"}
-                    </p>
-                  </div>
-                  <div className="text-right text-xs text-slate-500">
-                    <p>{customer.job_count} total jobs</p>
-                    <p>{customer.active_job_count} active</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </SectionCard>
+      <div className={showCreatePanel ? "grid gap-6 xl:grid-cols-[1.4fr_0.9fr]" : "space-y-6"}>
+        <Suspense fallback={<SectionCard title="Customer List"><p className="text-sm text-slate-500">Loading customers...</p></SectionCard>}>
+          <CustomersClientPanel
+            pagination={pagination}
+            params={params}
+            showCreatePanel={showCreatePanel}
+            demoActive={demoState.active}
+          />
+        </Suspense>
 
-        <SectionCard title="Add Customer">
-          <CustomerCreateForm customFields={customFields} />
-        </SectionCard>
+        {showCreatePanel ? (
+          <Suspense fallback={<SectionCard title="Add Customer"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+            <CustomerCreatePanel />
+          </Suspense>
+        ) : null}
       </div>
     </div>
   );

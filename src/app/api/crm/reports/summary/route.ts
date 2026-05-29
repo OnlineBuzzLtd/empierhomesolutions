@@ -1,5 +1,6 @@
 import { jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
 import { getReportsSummary } from "@/modules/crm/lib/data";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 
 export async function GET() {
   const auth = await requireManagerCrmApiUser();
@@ -7,6 +8,7 @@ export async function GET() {
     return auth.error;
   }
 
-  const summary = await getReportsSummary();
+  const demoState = await getCrmDemoState();
+  const summary = await getReportsSummary(demoState.mode);
   return jsonSuccess({ summary });
 }

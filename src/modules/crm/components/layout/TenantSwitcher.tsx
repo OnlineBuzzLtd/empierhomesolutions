@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { clearCrmClientCache } from "@/modules/crm/components/client/CrmClientRuntime";
 
 export function TenantSwitcher({
   activeTenantId,
@@ -35,6 +36,7 @@ export function TenantSwitcher({
         return;
       }
 
+      clearCrmClientCache();
       router.refresh();
     });
   }

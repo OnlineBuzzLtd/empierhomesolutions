@@ -94,8 +94,8 @@ describe("crm platform helpers", () => {
     const commands = derivePlatformCommandsFromEvent(event);
 
     expect(commands.map((command) => command.command_type)).toEqual([
-      "CreateOrUpdateAppointment",
       "LinkConversationToCustomerOrJob",
+      "CreateOrUpdateAppointment",
     ]);
     expect(commands[0]?.causation_id).toBe(event.event_id);
   });

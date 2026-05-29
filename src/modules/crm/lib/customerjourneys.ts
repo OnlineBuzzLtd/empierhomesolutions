@@ -1181,6 +1181,44 @@ export async function appendCustomerJourneysWebchatMessage(
   );
 }
 
+export async function postCustomerJourneysInboundTurn(
+  link: CustomerJourneysRuntimeLink | null,
+  input: {
+    channel: "sms" | "whatsapp" | "email";
+    conversationId?: string | null;
+    body: string;
+    from: string;
+    to?: string | null;
+    crmCustomerId?: string | null;
+    crmLeadId?: string | null;
+    providerMessageId?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  requireRuntimeLink(link);
+  const baseUrl = getRuntimeBaseUrl(link)!;
+
+  return postJson<{ accepted: boolean; conversationId?: string; leadId?: string; replyMessage?: unknown }>(
+    `${baseUrl}/v1/internal/inbound/text`,
+    {
+      tenantId: link.customerjourneys_tenant_id,
+      channel: input.channel,
+      conversationId: input.conversationId ?? undefined,
+      body: input.body,
+      from: input.from,
+      to: input.to ?? undefined,
+      crmCustomerId: input.crmCustomerId ?? undefined,
+      crmLeadId: input.crmLeadId ?? undefined,
+      providerMessageId: input.providerMessageId ?? undefined,
+      metadata: input.metadata ?? {},
+    },
+    {
+      ...buildRuntimeHeaders(link),
+      ...(input.providerMessageId ? { "x-correlation-id": input.providerMessageId } : {}),
+    },
+  );
+}
+
 export async function closeCustomerJourneysWebchatSession(
   link: CustomerJourneysRuntimeLink | null,
   input: {

@@ -1,7 +1,22 @@
 import { customerSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
-import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, paginationFromRequestUrl, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
+import { listCustomers } from "@/modules/crm/lib/data";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
+import { normalizeCrmPagination } from "@/modules/crm/lib/performance";
+
+export async function GET(request: Request) {
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const pagination = paginationFromRequestUrl(request);
+  const demoState = await getCrmDemoState();
+  const items = await listCustomers(demoState.mode, pagination);
+  return jsonSuccess({ items, pagination: normalizeCrmPagination(pagination) });
+}
 
 function deriveFullName(input: {
   full_name?: string | null;

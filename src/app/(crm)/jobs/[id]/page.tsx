@@ -38,6 +38,8 @@ import {
 } from "@/modules/crm/lib/status";
 import { getAssignableEngineerOptions } from "@/modules/crm/lib/staff";
 
+const SHOW_OFF_LOOP_JOB_SURFACES = false;
+
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [session, { id }, demoState] = await Promise.all([requireCrmUser(), params, getCrmDemoState()]);
   const isEngineer = session.profile?.role === "engineer";
@@ -378,7 +380,7 @@ async function AdminJobView({
         </SectionCard>
       </div>
 
-      {/* Job Phases + Variations */}
+      {SHOW_OFF_LOOP_JOB_SURFACES ? (
       <div className="grid gap-6 xl:grid-cols-2">
         <CollapsibleSectionCard title={`Job Phases (${job.phases?.length ?? 0})`} defaultOpen={true}>
           {job.phases && job.phases.length > 0 ? (
@@ -564,9 +566,10 @@ async function AdminJobView({
           </div>
         </CollapsibleSectionCard>
       </div>
+      ) : null}
 
-      {/* Hazards + Checklists */}
       <div className="grid gap-6 xl:grid-cols-2">
+        {SHOW_OFF_LOOP_JOB_SURFACES ? (
         <CollapsibleSectionCard title={`Hazards (${job.hazards?.length ?? 0})`} defaultOpen={true}>
           {job.hazards && job.hazards.length > 0 ? (
             <ul className="space-y-3">
@@ -625,6 +628,7 @@ async function AdminJobView({
             </ApiForm>
           </div>
         </CollapsibleSectionCard>
+        ) : null}
 
         <CollapsibleSectionCard title={`Checklists (${job.checklists?.length ?? 0})`} defaultOpen={true}>
           {job.checklists && job.checklists.length > 0 ? (
@@ -707,7 +711,7 @@ async function AdminJobView({
         </CollapsibleSectionCard>
       </div>
 
-      {/* Certificates + Supplier Control */}
+      {SHOW_OFF_LOOP_JOB_SURFACES ? (
       <div className="grid gap-6 xl:grid-cols-2">
         <CollapsibleSectionCard title={`Certificates (${job.certificates?.length ?? 0})`} defaultOpen={true}>
           {job.certificates && job.certificates.length > 0 ? (
@@ -910,6 +914,7 @@ async function AdminJobView({
           </div>
         </SectionCard>
       </div>
+      ) : null}
 
       {/* Expenses + Payments */}
       <div className="grid gap-6 xl:grid-cols-2">

@@ -1,5 +1,80 @@
 # Changelog
 
+## 2026-05-29 — CRM automation, tenant performance, and proof harness
+
+This release packages the recent tenantized CRM expansion, deployment hardening, and the first production-grade performance proof work. It is deployed, but the performance proof is intentionally honest: the database/query layer is much improved and some screens are faster, yet the CRM is **not proven super-fast across every screen**.
+
+### Added — customer self-service and operational automation
+
+- Public quote, booking, and feedback token surfaces for customer-facing follow-up flows.
+- Appointment self-service links and invoice payment-link routes.
+- Scheduled notification dispatch foundation, notification templates, contact opt-outs, quote chase, lead chase, invoice chase, lost-lead re-engagement, and review request/feedback support.
+- Settings areas for FSM integrations, payments, reviews, and message templates.
+- Payment integration registry and webhook handling for Stripe and GoCardless.
+- FSM integration settings and webhook handling for ServiceM8 / Joblogic style providers.
+- Lead-source taxonomy and engineer assignment helpers.
+- En-route engineer notification flow and `JobCompleted` platform event support.
+- Vercel cron configuration for CRM scheduled dispatch work.
+
+### Added — tenantized CRM performance infrastructure
+
+- Tenant-first performance migrations and summary RPC fast paths for hot CRM tables and dashboards.
+- Bounded pagination guardrails and shared pagination controls for hot list pages.
+- Slimmer list API endpoints for jobs, leads, customers, quotes, invoices, dashboard summary, calendar week, reports summary, and engineer diary data.
+- Tenant-scoped client runtime cache and instant navigation feedback for CRM shell transitions.
+- Client-loaded panels for dashboard, jobs, leads, customers, quotes, invoices, calendar, reports, and diary so screen shells can render before expensive data is fully ready.
+- Private performance-proof tooling:
+  - `scripts/perf/crm-seed-synthetic-tenant.mjs`
+  - `scripts/perf/crm-production-benchmark.mjs`
+  - `scripts/perf/crm-db-explain.mjs`
+  - `scripts/perf/crm-transition-benchmark.mjs`
+  - `scripts/perf/crm-performance-proof.mjs`
+- `.vercelignore` now excludes private docs and performance proof artifacts from deployment uploads.
+
+### Changed
+
+- CRM navigation links now use the shared instant-navigation wrapper where the CRM shell controls the route.
+- Tenant switch and logout clear the tenant-scoped client cache.
+- Dashboard, reports, calendar, and diary no longer block their full screen body on all heavy data before first render.
+- Hot list pages now use bounded API fetches rather than broad server-side list hydration.
+- `docs/private/` remains gitignored for private proof reports and internal recovery material.
+
+### Verified
+
+- Production deploy: `dpl_FLeZ4ui3viRSXeMU6q5UWDa2osHU`, aliased at `https://empire-home-solutions.vercel.app`.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- `npm run test -- tests/unit/crm-performance.test.ts` passed.
+- Focused ESLint on touched performance/client files passed.
+- Synthetic enterprise tenant proof was run at:
+  - 5,000 customers
+  - 10,000 leads
+  - 15,000 jobs
+  - 5,000 appointments
+  - 7,500 quotes
+  - 7,500 invoices
+- Synthetic proof tenant cleanup was run twice; first deleted the tenant and two auth users, second confirmed cleanup idempotency.
+
+### Known performance status
+
+- `/calendar` passed the production route budget: p95 `1880ms` under `2000ms`.
+- `/customers` was close but failed: p95 `1592ms` over `1500ms`.
+- `/leads` failed: p95 `1786ms` over `1500ms`.
+- `/invoices` failed: p95 `2008ms` over `1500ms`.
+- `/jobs` failed: p95 `3322ms` over `1500ms`.
+- `/dashboard` failed: p95 `3412ms` over `2000ms`.
+- `/reports` failed: p95 `4696ms` over `2500ms`.
+- `/quotes` failed: p95 `6608ms` over `1500ms`.
+- `/diary` failed: p95 `6922ms` over `2000ms`.
+- Transition proof showed `/dashboard` shell switching at roughly `40-101ms`, but `/jobs` still had slow transitions. The current deployment is faster architecturally, but not yet a full “super fast” pass.
+
+### Remaining work
+
+- Remove remaining server work from hot screen transitions, especially jobs, quotes, reports, and diary.
+- Reduce first-load RSC/server response variability on Vercel.
+- Add a stable transition benchmark path that does not stall after severe failures.
+- Fix full-repo lint configuration so generated `.vercel/output` is ignored by `npm run lint`.
+
 ## 2026-05-18 — calendar week-grid + bug-fix workflow
 
 Calendar timeline view replaces the stacked "Upcoming Schedule" list with a Google-Calendar-style week grid. Demo Console live pane fixed for webchat bookings. Engineering workflow tightened with a formal bug-fix system reference in CLAUDE.md.

@@ -1,17 +1,58 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { QuotesClientPanel } from "@/modules/crm/components/client/CrmHotListPanels";
 import { QuoteCreateForm } from "@/modules/crm/components/forms/QuoteCreateForm";
-import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
-import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
-import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
-import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
 import { buildQuoteDraftFromTemplate, summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
-import { quoteStatusConfig } from "@/modules/crm/lib/status";
-import { listCustomers, listJobs, listProducts, listQuoteTemplates, listQuotes } from "@/modules/crm/lib/data";
+import { listCustomers, listJobs, listProducts, listQuoteTemplates } from "@/modules/crm/lib/data";
+import { crmPaginationFromSearchParams } from "@/modules/crm/lib/performance";
+import type { CrmMode } from "@/modules/crm/lib/demo";
+
+async function QuoteCreatePanel({ mode, templateId }: { mode: CrmMode; templateId: string | null }) {
+  const [customers, jobs, templates, products] = await Promise.all([
+    listCustomers(mode, { pageSize: 100 }),
+    listJobs(mode, { pageSize: 100 }),
+    listQuoteTemplates(mode),
+    listProducts(mode),
+  ]);
+  const selectedTemplate = templateId ? templates.find((template) => template.id === templateId) ?? null : null;
+
+  return (
+    <SectionCard title="Create Quote">
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Link href="/quotes" className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate ? "border border-slate-200 text-slate-600 hover:bg-slate-50" : "bg-slate-900 text-white"}`}>
+          Blank quote
+        </Link>
+        {templates.map((template) => (
+          <Link
+            key={template.id}
+            href={`/quotes?template=${template.id}`}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate?.id === template.id ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+          >
+            {template.name}
+          </Link>
+        ))}
+      </div>
+      <QuoteCreateForm
+        customers={customers}
+        jobs={jobs}
+        products={products}
+        initialQuote={buildQuoteDraftFromTemplate(selectedTemplate)}
+        optionalExtras={selectedTemplate?.optional_extras ?? []}
+        paymentTermsSummary={summarizePaymentTerms(selectedTemplate?.payment_terms)}
+        templateLabel={selectedTemplate?.name ?? null}
+      />
+    </SectionCard>
+  );
+}
+
+function wantsCreatePanel(params: Record<string, string | string[] | undefined>) {
+  return params.new === "1" || typeof params.template === "string";
+}
 
 export default async function QuotesPage({
   searchParams,
@@ -26,72 +67,32 @@ export default async function QuotesPage({
   await requireCrmUser();
   const demoState = await getCrmDemoState();
   const params = await searchParams;
+  const pagination = crmPaginationFromSearchParams(params);
   const templateId = typeof params.template === "string" ? params.template : null;
-  const [quotes, customers, jobs, templates, products] = await Promise.all([
-    listQuotes(demoState.mode),
-    listCustomers(demoState.mode),
-    listJobs(demoState.mode),
-    listQuoteTemplates(demoState.mode),
-    listProducts(demoState.mode),
-  ]);
-  const selectedTemplate = templateId ? templates.find((template) => template.id === templateId) ?? null : null;
+  const showCreatePanel = wantsCreatePanel(params);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Quotes</h1>
-        <p className="mt-1 text-sm text-slate-500">{quotes.length} quotes in CRM.</p>
+        <p className="mt-1 text-sm text-slate-500">Quotes in CRM.</p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <SectionCard title="Quote List" demoAnchor="quote-record">
-          {quotes.length === 0 ? (
-            <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("quotes") : "No quotes yet."} />
-          ) : (
-            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-              {quotes.map((quote) => (
-                <Link key={quote.id} href={`/quotes/${quote.id}`} className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-slate-50">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{quote.quote_number}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {(quote.document_type === "estimate" ? "Estimate" : "Quote")} · {quote.customer?.full_name ?? "Customer"} · {quote.job?.title ?? "Job"} · v{quote.current_version_number} · Valid until {formatDate(quote.valid_until)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge config={quoteStatusConfig[quote.status]} />
-                    <span className="text-sm font-semibold text-slate-900">{formatCurrency(quote.total)}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard title="Create Quote">
-          <div className="mb-4 flex flex-wrap gap-2">
-            <Link href="/quotes" className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate ? "border border-slate-200 text-slate-600 hover:bg-slate-50" : "bg-slate-900 text-white"}`}>
-              Blank quote
-            </Link>
-            {templates.map((template) => (
-              <Link
-                key={template.id}
-                href={`/quotes?template=${template.id}`}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate?.id === template.id ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-              >
-                {template.name}
-              </Link>
-            ))}
-          </div>
-          <QuoteCreateForm
-            customers={customers}
-            jobs={jobs}
-            products={products}
-            initialQuote={buildQuoteDraftFromTemplate(selectedTemplate)}
-            optionalExtras={selectedTemplate?.optional_extras ?? []}
-            paymentTermsSummary={summarizePaymentTerms(selectedTemplate?.payment_terms)}
-            templateLabel={selectedTemplate?.name ?? null}
+      <div className={showCreatePanel ? "grid gap-6 xl:grid-cols-[1.4fr_0.9fr]" : "space-y-6"}>
+        <Suspense fallback={<SectionCard title="Quote List"><p className="text-sm text-slate-500">Loading quotes...</p></SectionCard>}>
+          <QuotesClientPanel
+            pagination={pagination}
+            params={params}
+            showCreatePanel={showCreatePanel}
+            demoActive={demoState.active}
           />
-        </SectionCard>
+        </Suspense>
+
+        {showCreatePanel ? (
+          <Suspense fallback={<SectionCard title="Create Quote"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+            <QuoteCreatePanel mode={demoState.mode} templateId={templateId} />
+          </Suspense>
+        ) : null}
       </div>
     </div>
   );

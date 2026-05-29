@@ -7,6 +7,7 @@ import { getCrmEnv } from "@/modules/crm/lib/env";
 import { buildInvoiceNumber, buildQuoteNumber } from "@/modules/crm/lib/numbers";
 import { computeQuoteRollup } from "@/modules/crm/lib/quote-rollup";
 import type { CrmRole, LineItem, Tenant, TenantBranding, TenantMembership, TenantSettings, UserProfile } from "@/modules/crm/types";
+import type { CrmPaginationInput } from "@/modules/crm/lib/performance";
 
 export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -14,6 +15,14 @@ export function jsonError(message: string, status = 400) {
 
 export function jsonSuccess(data: Record<string, unknown> = {}) {
   return NextResponse.json({ ok: true, ...data });
+}
+
+export function paginationFromRequestUrl(request: Request): CrmPaginationInput {
+  const searchParams = new URL(request.url).searchParams;
+  return {
+    page: searchParams.get("page"),
+    pageSize: searchParams.get("pageSize"),
+  };
 }
 
 export type CrmApiSession = {

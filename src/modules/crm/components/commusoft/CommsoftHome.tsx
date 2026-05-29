@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CrmInstantLink } from "@/modules/crm/components/client/CrmClientRuntime";
 import { formatDate } from "@/modules/crm/lib/format";
 import type { EngineerDashboardData, EngineerDashboardJob } from "@/modules/crm/types";
 
@@ -107,7 +108,7 @@ function BottomNavItem({
   children: React.ReactNode;
 }) {
   return (
-    <Link
+    <CrmInstantLink
       href={href}
       className={`flex flex-col items-center gap-1 px-4 py-3 text-xs font-medium transition-colors ${
         active ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
@@ -115,7 +116,7 @@ function BottomNavItem({
     >
       {children}
       {label}
-    </Link>
+    </CrmInstantLink>
   );
 }
 

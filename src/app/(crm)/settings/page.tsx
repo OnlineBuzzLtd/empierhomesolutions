@@ -224,6 +224,55 @@ export default async function SettingsPage() {
             </p>
           </SectionCard>
 
+          <SectionCard title="Notification Templates">
+            <p className="text-sm text-slate-600">
+              Review the SMS and email copy inherited by this workspace before enabling reminders, chase
+              sequences, invoices, and reviews.
+            </p>
+            <Link
+              href="/settings/templates"
+              className="mt-4 inline-flex rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              View templates
+            </Link>
+          </SectionCard>
+
+          <SectionCard title="Review Requests">
+            <p className="text-sm text-slate-600">
+              Configure the tenant review destination used by post-job feedback requests.
+            </p>
+            <Link
+              href="/settings/reviews"
+              className="mt-4 inline-flex rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Configure reviews
+            </Link>
+          </SectionCard>
+
+          <SectionCard title="FSM Integration">
+            <p className="text-sm text-slate-600">
+              Select the tenant field-service system for future booking handoff.
+            </p>
+            <Link
+              href="/settings/fsm"
+              className="mt-4 inline-flex rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Configure FSM
+            </Link>
+          </SectionCard>
+
+          <SectionCard title="Payment Providers">
+            <p className="text-sm text-slate-600">
+              Store tenant payment-provider identifiers for invoice payment links.
+            </p>
+            <Link
+              href="/settings/payments"
+              className="mt-4 inline-flex rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Configure payments
+            </Link>
+          </SectionCard>
+
           <SectionCard title="Demo Console">
             <ApiForm endpoint="/api/crm/settings/demo-console" submitLabel="Save" className="grid gap-3">
               <label className="flex items-start gap-2 text-sm">

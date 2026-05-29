@@ -36,6 +36,25 @@ describe("evaluatePhoneNumber", () => {
     }
   });
 
+  it("blocks the May 12 +44755912 synthetic batch", () => {
+    const result = evaluatePhoneNumber("+447559120001", emptyAllowlist);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.pattern).toMatch(/known_synthetic_prefix:\+44755912/);
+    }
+  });
+
+  it("normalises local UK fake fixtures before matching", () => {
+    expect(evaluatePhoneNumber("07700 100011", emptyAllowlist).ok).toBe(false);
+    expect(evaluatePhoneNumber("07700 900111", emptyAllowlist).ok).toBe(false);
+    expect(evaluatePhoneNumber("whatsapp:07700 900111", emptyAllowlist).ok).toBe(false);
+  });
+
+  it("blocks the legacy live-lp-tests webchat phone fixture", () => {
+    const result = evaluatePhoneNumber("07712345678", emptyAllowlist);
+    expect(result).toEqual({ ok: false, pattern: "known_synthetic_number" });
+  });
+
   it("blocks the historical sender number +447401248976 as a destination", () => {
     const result = evaluatePhoneNumber("+447401248976", emptyAllowlist);
     expect(result.ok).toBe(false);
@@ -53,7 +72,7 @@ describe("evaluatePhoneNumber", () => {
     // Numbers not matching any banned prefix are permitted — the guard is a
     // known-bad list, not a known-good list. The wider safety net is the
     // dedicated Twilio subaccount + the allowlist + Magic Numbers for dev.
-    expect(evaluatePhoneNumber("+447700900123", emptyAllowlist)).toEqual({ ok: true });
+    expect(evaluatePhoneNumber("+447712345679", emptyAllowlist)).toEqual({ ok: true });
   });
 
   it("trims whitespace before matching", () => {
@@ -64,8 +83,8 @@ describe("evaluatePhoneNumber", () => {
   it("treats a missing allowlist field as empty (defensive for mocked envs)", () => {
     // Some test doubles for getCrmEnv() don't include the new
     // demoConsoleAllowlist field. The guard must not throw on that path.
-    expect(evaluatePhoneNumber("+447700900123", {})).toEqual({ ok: true });
-    expect(evaluatePhoneNumber("+447700900123", { allowlist: null })).toEqual({
+    expect(evaluatePhoneNumber("+447712345679", {})).toEqual({ ok: true });
+    expect(evaluatePhoneNumber("+447712345679", { allowlist: null })).toEqual({
       ok: true,
     });
   });

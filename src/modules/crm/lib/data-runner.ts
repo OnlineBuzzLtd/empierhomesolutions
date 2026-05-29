@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { measureCrmQuery } from "@/modules/crm/lib/performance";
 
 type SupabaseError = {
   message?: string;
@@ -46,9 +47,9 @@ function reportError(fnName: string, error: SupabaseError) {
  */
 export async function runCrmList<T>(
   fnName: string,
-  query: PromiseLike<SupabaseListResponse<T>>,
+  query: PromiseLike<unknown>,
 ): Promise<T[]> {
-  const { data, error } = await query;
+  const { data, error } = await measureCrmQuery(fnName, query as PromiseLike<SupabaseListResponse<T>>);
   if (error) {
     reportError(fnName, error);
     return [];
@@ -64,7 +65,7 @@ export async function runCrmSingle<T>(
   fnName: string,
   query: PromiseLike<SupabaseSingleResponse<T>>,
 ): Promise<T | null> {
-  const { data, error } = await query;
+  const { data, error } = await measureCrmQuery(fnName, query);
   if (error) {
     reportError(fnName, error);
     return null;

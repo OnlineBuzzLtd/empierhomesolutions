@@ -28,7 +28,7 @@ test.describe("LP critical path", () => {
     await page.goto("/lp/boiler-repair/uxbridge?utm_source=google&utm_campaign=repair-test");
     await waitForLeadForm(page);
 
-    await page.getByRole("textbox", { name: "Name" }).fill("Jane Smith");
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("Jane Smith");
     await page.getByRole("textbox", { name: "Email (optional)" }).fill("jane@example.com");
     await page.getByRole("textbox", { name: "House name / number" }).fill("12");
     await page.getByRole("textbox", { name: "Street" }).fill("High Street");
@@ -46,7 +46,7 @@ test.describe("LP critical path", () => {
     await page.goto("/lp/boiler-repair/uxbridge");
     await waitForLeadForm(page);
 
-    await page.getByRole("textbox", { name: "Name" }).fill("John Smith");
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("John Smith");
     await page.getByRole("textbox", { name: "House name / number" }).fill("12");
     await page.getByRole("textbox", { name: "Street" }).fill("High Street");
     await page.getByRole("textbox", { name: "Postcode" }).fill("UB8 1AA");

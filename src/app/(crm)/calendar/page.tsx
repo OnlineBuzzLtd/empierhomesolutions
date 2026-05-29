@@ -1,14 +1,16 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { AppointmentCreateForm } from "@/modules/crm/components/forms/AppointmentCreateForm";
-import { WeekTimeline } from "@/modules/crm/components/calendar/WeekTimeline";
-import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
+import {
+  buildCalendarApiUrl,
+  CalendarTypeFilters,
+  CalendarWeekClientPanel,
+} from "@/modules/crm/components/client/CrmFastScreenPanels";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
-import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
-import { appointmentStatuses, appointmentTypes } from "@/modules/crm/types";
 import {
   DEFAULT_TIMEZONE,
   getWeekRange,
@@ -16,7 +18,6 @@ import {
   shiftWeek,
 } from "@/modules/crm/lib/calendar-layout";
 import {
-  listAppointmentsForCalendar,
   listCustomers,
   listLeads,
   listUserProfiles,
@@ -45,20 +46,6 @@ export default async function CalendarPage({
   const weekReference = parseWeekAnchor(weekParam) ?? new Date();
   const week = getWeekRange(weekReference, DEFAULT_TIMEZONE);
   const weekStartDate = new Date(week.startIso);
-
-  const [appointments, customers, leads, users] = await Promise.all([
-    listAppointmentsForCalendar({
-      type,
-      status,
-      assignedTo,
-      mode: demoState.mode,
-      from: weekStartDate,
-      days: 7,
-    }),
-    listCustomers(demoState.mode),
-    listLeads(demoState.mode),
-    listUserProfiles(demoState.mode),
-  ]);
 
   // Prev / next / today week links — preserve other filters.
   const prevHref = buildWeekHref({
@@ -93,17 +80,7 @@ export default async function CalendarPage({
             Week timeline for calls, surveys, bookings, recurring reminders, service due dates, and warranty expiries.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <FilterLink href="/calendar" active={!type && !status && !assignedTo} label="All items" />
-          {appointmentTypes.map((value) => (
-            <FilterLink
-              key={value}
-              href={`/calendar?type=${value}`}
-              active={type === value}
-              label={value.replaceAll("_", " ")}
-            />
-          ))}
-        </div>
+        <CalendarTypeFilters type={type} status={status} assignedTo={assignedTo} weekParam={weekParam} />
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs">
@@ -125,90 +102,43 @@ export default async function CalendarPage({
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-        <SectionCard
-          title="Week timeline"
-          demoAnchor="calendar-schedule"
-          action={
-            <div className="flex items-center gap-2 text-xs">
-              <Link
-                href={prevHref}
-                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50"
-                aria-label="Previous week"
-              >
-                ←
-              </Link>
-              <Link
-                href={todayHref}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Today
-              </Link>
-              <Link
-                href={nextHref}
-                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50"
-                aria-label="Next week"
-              >
-                →
-              </Link>
-              <span className="ml-2 text-slate-600">{weekLabel}</span>
-            </div>
-          }
-        >
-          <div className="mb-4 flex flex-wrap gap-2 text-xs">
-            {appointmentStatuses.map((value) => (
-              <FilterLink
-                key={value}
-                href={`/calendar${buildFilterQuery({ type, assignedTo, status: value, week: weekParam })}`}
-                active={status === value}
-                label={value}
-              />
-            ))}
-            {users.map((user) => (
-              <FilterLink
-                key={user.user_id}
-                href={`/calendar${buildFilterQuery({ type, status, assignedTo: user.user_id, week: weekParam })}`}
-                active={assignedTo === user.user_id}
-                label={user.full_name}
-              />
-            ))}
-          </div>
+        <CalendarWeekClientPanel
+          apiUrl={buildCalendarApiUrl({ type, status, assignedTo, week: weekParam })}
+          type={type}
+          status={status}
+          assignedTo={assignedTo}
+          weekParam={weekParam}
+          weekReferenceIso={weekReference.toISOString()}
+          weekLabel={weekLabel}
+          prevHref={prevHref}
+          nextHref={nextHref}
+          todayHref={todayHref}
+          demoActive={demoState.active}
+        />
 
-          <WeekTimeline
-            appointments={appointments}
-            weekReferenceIso={weekReference.toISOString()}
-          />
-
-          {appointments.length === 0 ? (
-            <div className="mt-4">
-              <EmptyState
-                message={
-                  demoState.active
-                    ? getCrmDemoEmptyMessage("calendar items")
-                    : "No items in this week — use the prev / next arrows to browse other weeks or add one on the right."
-                }
-              />
-            </div>
-          ) : null}
-        </SectionCard>
-
-        <SectionCard title="Add Calendar Item">
-          <AppointmentCreateForm customers={customers} leads={leads} users={users} />
-        </SectionCard>
+        <Suspense fallback={<SectionCard title="Add Calendar Item"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+          <CalendarCreatePanel mode={demoState.mode} />
+        </Suspense>
       </div>
     </div>
   );
 }
 
-function FilterLink({ href, active, label }: { href: string; active: boolean; label: string }) {
+async function CalendarCreatePanel({
+  mode,
+}: {
+  mode: Awaited<ReturnType<typeof getCrmDemoState>>["mode"];
+}) {
+  const [customers, leads, users] = await Promise.all([
+    listCustomers(mode, { pageSize: 100 }),
+    listLeads(mode, { pageSize: 100 }),
+    listUserProfiles(mode),
+  ]);
+
   return (
-    <Link
-      href={href}
-      className={`rounded-full px-3 py-1.5 font-medium capitalize ${
-        active ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {label}
-    </Link>
+    <SectionCard title="Add Calendar Item">
+      <AppointmentCreateForm customers={customers} leads={leads} users={users} />
+    </SectionCard>
   );
 }
 

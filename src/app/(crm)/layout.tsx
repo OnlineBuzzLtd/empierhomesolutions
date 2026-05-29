@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "../globals.css";
 import { DemoPanel } from "@/modules/crm/components/demo/DemoPanel";
 import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider";
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
+import { CrmClientRuntimeProvider, CrmInstantLink } from "@/modules/crm/components/client/CrmClientRuntime";
 import { CommsoftAccountMenu } from "@/modules/crm/components/commusoft/CommsoftAccountMenu";
 import {
   CommsoftBottomNav,
@@ -24,18 +24,10 @@ import { TenantSwitcher } from "@/modules/crm/components/layout/TenantSwitcher";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { getUiPreference } from "@/app/actions/ui-preference";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const session = await getCrmSession();
-  const displayName =
-    session.branding?.crm_display_name ??
-    (session.tenant ? `${session.tenant.name} CRM` : "Field Service CRM");
-  const businessName = session.branding?.business_name ?? session.tenant?.name ?? "your business";
-
-  return {
-    title: displayName,
-    description: `Internal CRM for ${businessName}`,
-  };
-}
+export const metadata: Metadata = {
+  title: "Field Service CRM",
+  description: "Internal CRM workspace",
+};
 
 const operationsItems: CrmNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
@@ -63,6 +55,7 @@ const adminItems: CrmNavItem[] = [
 
 const engineerItems: CrmNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/calendar/today", label: "Today", icon: "calendar" },
   { href: "/jobs", label: "Jobs", icon: "jobs" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
 ];
@@ -147,7 +140,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   if (isDemoRunMode && session.user) {
     return (
       <DemoModeProvider state={demoState}>
+        <CrmClientRuntimeProvider tenantId={session.tenant?.id ?? null}>
         <div className="min-h-screen bg-slate-50 text-slate-900">{children}</div>
+        </CrmClientRuntimeProvider>
       </DemoModeProvider>
     );
   }
@@ -156,7 +151,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     const activeTab = getCommsoftBottomNavActive(pathname);
 
     return (
-      <DemoModeProvider state={demoState}>
+    <DemoModeProvider state={demoState}>
+      <CrmClientRuntimeProvider tenantId={session.tenant?.id ?? null}>
         <div className="min-h-screen bg-white text-slate-900">
           <main className="min-h-screen pb-[calc(76px+env(safe-area-inset-bottom))]">{children}</main>
           <CommsoftAccountMenu
@@ -166,12 +162,14 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           />
           <CommsoftBottomNav active={activeTab} />
         </div>
+      </CrmClientRuntimeProvider>
       </DemoModeProvider>
     );
   }
 
   return (
     <DemoModeProvider state={demoState}>
+      <CrmClientRuntimeProvider tenantId={session.tenant?.id ?? null}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
         <div className="flex min-h-screen">
           <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-white lg:flex">
@@ -255,12 +253,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                   ) : null}
                   {userCanManageSettings(session.profile?.role) ? <CrmMobileMenu groups={groups} /> : null}
                   {isEngineer && !isCommsoftMode ? (
-                    <Link
+                    <CrmInstantLink
                       href="/preferences"
                       className="hidden rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:inline-flex"
                     >
                       Switch view
-                    </Link>
+                    </CrmInstantLink>
                   ) : null}
                   <DemoModeToggle canManage={canManageDemo} />
                   <LogoutButton />
@@ -287,36 +285,36 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             {isEngineer && !isCommsoftMode ? (
               <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
                 <div className="grid grid-cols-5 gap-2 text-center text-xs font-semibold">
-                  <Link
+                  <CrmInstantLink
                     href="/dashboard"
                     className={`rounded-full px-3 py-2 ${pathname === "/dashboard" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
                     Dashboard
-                  </Link>
-                  <Link
-                    href="/dashboard#today-route"
-                    className="rounded-full border border-slate-200 px-3 py-2 text-slate-700"
+                  </CrmInstantLink>
+                  <CrmInstantLink
+                    href="/calendar/today"
+                    className={`rounded-full px-3 py-2 ${pathname === "/calendar/today" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
                     Today
-                  </Link>
-                  <Link
+                  </CrmInstantLink>
+                  <CrmInstantLink
                     href="/jobs"
                     className={`rounded-full px-3 py-2 ${pathname.startsWith("/jobs") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
                     Jobs
-                  </Link>
-                  <Link
+                  </CrmInstantLink>
+                  <CrmInstantLink
                     href="/calendar"
                     className={`rounded-full px-3 py-2 ${pathname.startsWith("/calendar") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
                     Calendar
-                  </Link>
-                  <Link
+                  </CrmInstantLink>
+                  <CrmInstantLink
                     href="/preferences"
                     className={`rounded-full px-3 py-2 ${pathname.startsWith("/preferences") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
                     View
-                  </Link>
+                  </CrmInstantLink>
                 </div>
               </nav>
             ) : null}
@@ -324,6 +322,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </div>
+      </CrmClientRuntimeProvider>
     </DemoModeProvider>
   );
 }

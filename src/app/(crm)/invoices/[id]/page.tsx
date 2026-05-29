@@ -49,6 +49,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               label="Mark Paid"
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             />
+            <ApiActionButton
+              endpoint={`/api/crm/invoices/${invoice.id}/payment-link`}
+              label="Create Payment Link"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+            />
           </div>
         </div>
 
@@ -104,6 +109,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <p className="mt-1 text-xs text-slate-500">
                   {payment.status} · {payment.reference || "No reference"}
                 </p>
+                {payment.provider_checkout_url ? (
+                  <a
+                    href={payment.provider_checkout_url}
+                    className="mt-2 inline-flex text-xs font-semibold text-blue-700 hover:text-blue-900"
+                  >
+                    Open payment link
+                  </a>
+                ) : null}
               </li>
             ))}
           </ul>

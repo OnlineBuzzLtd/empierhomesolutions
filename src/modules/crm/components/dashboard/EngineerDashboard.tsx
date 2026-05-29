@@ -8,6 +8,7 @@ import { jobStatusConfig } from "@/modules/crm/lib/status";
 import type { EngineerDashboardData, EngineerDashboardJob } from "@/modules/crm/types";
 import { JobStatusActionButton } from "@/modules/crm/components/dashboard/JobStatusActionButton";
 import { CompleteJobButton } from "@/modules/crm/components/jobs/CompleteJobButton";
+import { EnRouteButton } from "@/modules/crm/components/jobs/EnRouteButton";
 
 export function EngineerDashboard({ data, engineerName }: { data: EngineerDashboardData; engineerName: string }) {
   const nextJob = data.nextAssignedJob;
@@ -107,6 +108,12 @@ export function EngineerDashboard({ data, engineerName }: { data: EngineerDashbo
                 ) : null}
                 {nextJob ? (
                   <>
+                    {canSendEnRoute(nextJob) ? (
+                      <EnRouteButton
+                        endpoint={`/api/crm/jobs/${nextJob.id}/en-route`}
+                        className="rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      />
+                    ) : null}
                     <JobStatusActionButton
                       endpoint={`/api/crm/jobs/${nextJob.id}`}
                       status="in_progress"
@@ -312,6 +319,13 @@ function buildCommercialLabel(job: EngineerDashboardJob) {
     return "Invoice linked";
   }
   return "No quote or invoice yet";
+}
+
+function canSendEnRoute(job: EngineerDashboardJob) {
+  return Boolean(
+    (job.customer?.phone || job.site_contact?.phone) &&
+      !["completed", "invoiced", "aborted"].includes(job.status),
+  );
 }
 
 function buildDirectionsUrl(job: EngineerDashboardJob) {

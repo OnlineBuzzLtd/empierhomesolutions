@@ -5,11 +5,20 @@ import {
   jsonError,
   jsonSuccess,
   normalizeBlankFields,
+  nextInvoiceNumber,
   parseIdList,
   requireCrmApiUser,
 } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 import { hasReceiptAttachment, materialsAnswerRequiresReceipt } from "@/modules/crm/lib/materials";
+import { scheduleReviewRequestsForCompletedJob } from "@/modules/crm/notifications/review-requests";
+import { scheduleInvoiceChaseSequence } from "@/modules/crm/notifications/invoice-chase";
+
+function dueDateFromNow(days = 14) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
 async function syncJobAssignees(
   supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>,
@@ -125,6 +134,63 @@ async function getMaterialsReceiptBlocker(
   return null;
 }
 
+async function autoInvoiceCompletedJob(
+  supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>,
+  input: { tenantId: string; jobId: string },
+) {
+  const { data: existingInvoice, error: existingError } = await supabase
+    .schema("crm")
+    .from("invoices")
+    .select("id")
+    .eq("tenant_id", input.tenantId)
+    .eq("job_id", input.jobId)
+    .limit(1);
+  if (existingError) throw existingError;
+  if ((existingInvoice ?? []).length > 0) {
+    return { created: false, skipped: "invoice_exists" };
+  }
+
+  const { data: quote, error: quoteError } = await supabase
+    .schema("crm")
+    .from("quotes")
+    .select("*")
+    .eq("tenant_id", input.tenantId)
+    .eq("job_id", input.jobId)
+    .eq("status", "accepted")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (quoteError) throw quoteError;
+  if (!quote) {
+    return { created: false, skipped: "accepted_quote_not_found" };
+  }
+
+  const invoicePayload = {
+    tenant_id: input.tenantId,
+    quote_id: quote.id,
+    job_id: quote.job_id,
+    customer_id: quote.customer_id,
+    invoice_number: await nextInvoiceNumber(),
+    line_items: quote.line_items,
+    subtotal: quote.subtotal,
+    vat_rate: quote.vat_rate,
+    vat_category: quote.vat_category,
+    total: quote.total,
+    status: "unpaid",
+    due_date: dueDateFromNow(14),
+  };
+  const { data: invoice, error } = await supabase
+    .schema("crm")
+    .from("invoices")
+    .insert(invoicePayload)
+    .select("id")
+    .single();
+  if (error) throw error;
+
+  await scheduleInvoiceChaseSequence(supabase, { tenantId: input.tenantId, invoiceId: invoice.id });
+  return { created: true, invoiceId: invoice.id };
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -208,6 +274,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const transitioningToInProgress =
       parsed.data.status === "in_progress" && existing?.status !== "in_progress";
+    const transitioningToCompleted =
+      parsed.data.status === "completed" && existing?.status !== "completed";
     const updatePayload = {
       ...parsed.data,
       assigned_engineer_ids: undefined,
@@ -282,6 +350,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           duration_hours: updatedJob.duration_hours,
           assigned_engineer: updatedJob.assigned_engineer,
           status: updatedJob.status,
+        },
+      });
+      await publishPendingPlatformOutboxEvents(supabase);
+    }
+
+    if (transitioningToCompleted) {
+      await scheduleReviewRequestsForCompletedJob(supabase, {
+        tenantId: tenant.id,
+        jobId: id,
+        completedAt: new Date(String(updatedJob.updated_at ?? new Date().toISOString())),
+      });
+      const autoInvoice = await autoInvoiceCompletedJob(supabase, { tenantId: tenant.id, jobId: id }).catch((error) => ({
+        created: false,
+        skipped: "auto_invoice_failed",
+        warning: error instanceof Error ? error.message : "Auto-invoice failed.",
+      }));
+      const occurredAt = String(updatedJob.updated_at ?? new Date().toISOString());
+      await enqueueCrmPlatformEvent(supabase, {
+        tenantId: String(tenant.id ?? updatedJob.tenant_id ?? ""),
+        eventType: "JobCompleted",
+        aggregateType: "job",
+        aggregateId: updatedJob.id,
+        idempotencyKey: `job:${updatedJob.id}:completed:${occurredAt}`,
+        occurredAt,
+        payload: {
+          job_id: updatedJob.id,
+          customer_id: updatedJob.customer_id,
+          lead_id: updatedJob.lead_id,
+          title: updatedJob.title,
+          status: updatedJob.status,
+          completed_at: occurredAt,
+          auto_invoice: autoInvoice,
         },
       });
       await publishPendingPlatformOutboxEvents(supabase);

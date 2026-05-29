@@ -1,4 +1,5 @@
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { cancelInvoiceChaseSequence } from "@/modules/crm/notifications/invoice-chase";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -7,7 +8,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return auth.error;
   }
 
-  const { supabase } = auth.session;
+  const { supabase, tenant } = auth.session;
   const { data, error } = await supabase
     .schema("crm")
     .from("invoices")
@@ -21,6 +22,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
 
   await supabase.schema("crm").from("invoice_schedules").update({ status: "paid" }).eq("invoice_id", id);
+  const tenantId = tenant?.id ?? (typeof data?.tenant_id === "string" ? data.tenant_id : null);
+  if (tenantId) {
+    await cancelInvoiceChaseSequence(supabase, { tenantId, invoiceId: id });
+  }
 
   return jsonSuccess({ invoice: data });
 }

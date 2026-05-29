@@ -1,29 +1,27 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { getUiPreference } from "@/app/actions/ui-preference";
+import { JobsClientPanel } from "@/modules/crm/components/client/CrmHotListPanels";
 import { CommsoftJobSearch } from "@/modules/crm/components/commusoft/CommsoftJobSearch";
 import { JobCreateForm } from "@/modules/crm/components/forms/JobCreateForm";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
-import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
-import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import {
   getEngineerDashboardData,
   listCustomers,
   listCustomFieldDefinitions,
-  listJobs,
   listJobTypes,
   listServices,
   listSiteContacts,
   listSites,
   listStaffDirectory,
 } from "@/modules/crm/lib/data";
+import { crmPaginationFromSearchParams } from "@/modules/crm/lib/performance";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
-import { jobStatusConfig } from "@/modules/crm/lib/status";
 import { getAssignableEngineerOptions } from "@/modules/crm/lib/staff";
-import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import type { EngineerDashboardData, EngineerDashboardJob } from "@/modules/crm/types";
+import type { CrmMode } from "@/modules/crm/lib/demo";
 
 function buildCommsoftSearchJobs(data: EngineerDashboardData): EngineerDashboardJob[] {
   const jobs = [
@@ -40,6 +38,71 @@ function buildCommsoftSearchJobs(data: EngineerDashboardData): EngineerDashboard
 
 function getSingleParam(value: string | string[] | undefined) {
   return typeof value === "string" ? value : null;
+}
+
+function wantsCreatePanel(params: Record<string, string | string[] | undefined>) {
+  return getSingleParam(params.new) === "1";
+}
+
+async function JobCreatePanel({
+  mode,
+  requestedCustomerId,
+  requestedSiteId,
+  requestedSiteContactId,
+}: {
+  mode: CrmMode;
+  requestedCustomerId: string | null;
+  requestedSiteId: string | null;
+  requestedSiteContactId: string | null;
+}) {
+  const [customers, services, jobTypes, customFields, staff, sites, siteContacts] = await Promise.all([
+    listCustomers(mode, { pageSize: 100 }),
+    listServices(),
+    listJobTypes(),
+    listCustomFieldDefinitions(),
+    listStaffDirectory(mode),
+    listSites(mode),
+    listSiteContacts(mode),
+  ]);
+  const engineers = getAssignableEngineerOptions(staff);
+  const defaultCustomerId =
+    requestedCustomerId && customers.some((customer) => customer.id === requestedCustomerId)
+      ? requestedCustomerId
+      : "";
+  const defaultSiteId =
+    requestedSiteId &&
+    sites.some(
+      (site) => site.id === requestedSiteId && (!defaultCustomerId || site.customer_id === defaultCustomerId),
+    )
+      ? requestedSiteId
+      : "";
+  const defaultSiteContactId =
+    requestedSiteContactId &&
+    siteContacts.some(
+      (contact) =>
+        contact.id === requestedSiteContactId &&
+        (!defaultSiteId || contact.site_id === defaultSiteId) &&
+        (!defaultCustomerId || contact.site?.customer_id === defaultCustomerId),
+    )
+      ? requestedSiteContactId
+      : "";
+
+  return (
+    <SectionCard title="Add Job">
+      <JobCreateForm
+        customers={customers}
+        services={services}
+        jobTypes={jobTypes}
+        sites={sites}
+        siteContacts={siteContacts}
+        engineers={engineers}
+        customFields={customFields}
+        defaultCustomerId={defaultCustomerId}
+        defaultSiteId={defaultSiteId}
+        defaultSiteContactId={defaultSiteContactId}
+      />
+    </SectionCard>
+  );
 }
 
 export default async function JobsPage({
@@ -67,92 +130,36 @@ export default async function JobsPage({
   const requestedCustomerId = getSingleParam(params.customer);
   const requestedSiteId = getSingleParam(params.site);
   const requestedSiteContactId = getSingleParam(params.siteContact);
-  const [jobs, customers, services, jobTypes, customFields, staff, sites, siteContacts] = await Promise.all([
-    listJobs(demoState.mode),
-    listCustomers(demoState.mode),
-    listServices(),
-    listJobTypes(),
-    listCustomFieldDefinitions(),
-    listStaffDirectory(demoState.mode),
-    listSites(demoState.mode),
-    listSiteContacts(demoState.mode),
-  ]);
-  const engineers = getAssignableEngineerOptions(staff);
-  const defaultCustomerId =
-    requestedCustomerId && customers.some((customer) => customer.id === requestedCustomerId)
-      ? requestedCustomerId
-      : "";
-  const defaultSiteId =
-    requestedSiteId &&
-    sites.some(
-      (site) => site.id === requestedSiteId && (!defaultCustomerId || site.customer_id === defaultCustomerId),
-    )
-      ? requestedSiteId
-      : "";
-  const defaultSiteContactId =
-    requestedSiteContactId &&
-    siteContacts.some(
-      (contact) =>
-        contact.id === requestedSiteContactId &&
-        (!defaultSiteId || contact.site_id === defaultSiteId) &&
-        (!defaultCustomerId || contact.site?.customer_id === defaultCustomerId),
-    )
-      ? requestedSiteContactId
-      : "";
+  const showCreatePanel = wantsCreatePanel(params) || Boolean(requestedCustomerId || requestedSiteId || requestedSiteContactId);
+  const pagination = crmPaginationFromSearchParams(params);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Jobs</h1>
-        <p className="mt-1 text-sm text-slate-500">{jobs.length} jobs across all pipeline stages.</p>
+        <p className="mt-1 text-sm text-slate-500">Jobs across all pipeline stages.</p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <SectionCard title="Job List" demoAnchor="job-record">
-          {jobs.length === 0 ? (
-            <EmptyState
-              message={
-                demoState.active
-                  ? getCrmDemoEmptyMessage("jobs")
-                  : "No jobs yet. Create the first job from the form."
-              }
-            />
-          ) : (
-            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-              {jobs.map((job) => (
-                <Link
-                  key={job.id}
-                  href={`/jobs/${job.id}`}
-                  className="flex items-start justify-between gap-4 px-4 py-4 hover:bg-slate-50"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{job.title}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {job.customer?.full_name ?? "Customer"} ·{" "}
-                      {job.site?.label ?? job.service?.name ?? "Service"} · {job.scheduled_date ?? "TBC"}
-                    </p>
-                  </div>
-                  <StatusBadge config={jobStatusConfig[job.status]} />
-                </Link>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard title="Add Job">
-          <JobCreateForm
-            customers={customers}
-            services={services}
-            jobTypes={jobTypes}
-            sites={sites}
-            siteContacts={siteContacts}
-            engineers={engineers}
-            customFields={customFields}
-            defaultCustomerId={defaultCustomerId}
-            defaultSiteId={defaultSiteId}
-            defaultSiteContactId={defaultSiteContactId}
+      <div className={showCreatePanel ? "grid gap-6 xl:grid-cols-[1.4fr_0.9fr]" : "space-y-6"}>
+        <Suspense fallback={<SectionCard title="Job List"><p className="text-sm text-slate-500">Loading jobs...</p></SectionCard>}>
+          <JobsClientPanel
+            pagination={pagination}
+            params={params}
+            showCreatePanel={showCreatePanel}
+            demoActive={demoState.active}
           />
-        </SectionCard>
+        </Suspense>
+
+        {showCreatePanel ? (
+          <Suspense fallback={<SectionCard title="Add Job"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+            <JobCreatePanel
+              mode={demoState.mode}
+              requestedCustomerId={requestedCustomerId}
+              requestedSiteId={requestedSiteId}
+              requestedSiteContactId={requestedSiteContactId}
+            />
+          </Suspense>
+        ) : null}
       </div>
     </div>
   );

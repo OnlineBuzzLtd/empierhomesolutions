@@ -5,7 +5,8 @@ test.describe("Live channel tester", () => {
     await page.goto("/ai-hub/live", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
 
-    await expect(page.getByRole("heading", { level: 1, name: "Live Channel Tester" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { level: 1, name: "AI Hub" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("Tenant-Linked Runtime Surface")).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "Web" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "SMS" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "WhatsApp" })).toBeVisible();

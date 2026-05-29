@@ -20,6 +20,20 @@ export type LeadCustomerMatchResult = (typeof leadCustomerMatchResults)[number];
 export const leadDedupeResults = ["created", "updated_existing"] as const;
 export type LeadDedupeResult = (typeof leadDedupeResults)[number];
 
+export const leadSources = [
+  "webchat",
+  "voice",
+  "sms",
+  "whatsapp",
+  "email",
+  "landing_form",
+  "google_lead",
+  "meta_lead",
+  "manual",
+  "other",
+] as const;
+export type LeadSource = (typeof leadSources)[number];
+
 export const jobStatuses = [
   "enquiry",
   "booked",
@@ -167,6 +181,17 @@ export type TenantSettings = {
   // See src/modules/crm/demo-console/README.md. Distinct from
   // `demo_mode_enabled` which controls the canned walkthrough.
   demo_console_enabled: boolean;
+  lost_lead_reengagement_enabled?: boolean;
+  review_google_place_id?: string | null;
+  review_trustpilot_url?: string | null;
+  review_facebook_url?: string | null;
+  review_primary_platform?: "none" | "google" | "trustpilot" | "facebook";
+  review_requests_enabled?: boolean;
+  fsm_provider?: "none" | "servicem8" | "joblogic";
+  fsm_config?: Record<string, unknown>;
+  payment_primary_provider?: "none" | "stripe" | "gocardless";
+  stripe_account_id?: string | null;
+  gocardless_merchant_id?: string | null;
   default_payment_terms: Record<string, unknown>;
   show_per_package_vat: boolean;
   created_at: string;
@@ -250,6 +275,8 @@ export type Lead = {
   status: LeadStatus;
   lost_reason: string | null;
   source: string | null;
+  source_enum?: LeadSource;
+  lead_attribution?: Record<string, unknown>;
   assigned_to: string | null;
   next_action_at: string | null;
   notes: string | null;
@@ -267,6 +294,7 @@ export type Lead = {
   matched_customer_confidence: string | null;
   customer_match_result: LeadCustomerMatchResult | null;
   dedupe_result: LeadDedupeResult | null;
+  re_engaged_at?: string | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
@@ -287,9 +315,11 @@ export type Customer = {
   property_type: string | null;
   occupancy_type: string | null;
   source: string | null;
+  source_enum?: LeadSource;
   referral_notes: string | null;
   notes: string | null;
   archived: boolean;
+  requires_call?: boolean;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
@@ -656,6 +686,11 @@ export type Payment = {
   received_at: string | null;
   reference: string | null;
   notes: string | null;
+  provider?: string | null;
+  provider_payment_id?: string | null;
+  provider_checkout_url?: string | null;
+  provider_status?: string | null;
+  provider_metadata?: Record<string, unknown>;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;

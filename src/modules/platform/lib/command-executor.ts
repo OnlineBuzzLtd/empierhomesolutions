@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppointmentStatus, AppointmentType, LeadStatus } from "@/modules/crm/types";
+import { syncAppointmentReminder24h } from "@/modules/crm/notifications/appointment-reminders";
 import type { PlatformCommandEnvelope } from "@/modules/platform/contracts";
 import {
   getPlatformConversationLink,
@@ -385,12 +386,23 @@ async function createLead(
       is_test: extractIsTestFromPayload(payload),
       ...leadFieldPatch,
     })
-    .select("id")
-    .single<{ id: string }>();
+    .select("*")
+    .single<{
+      id: string;
+      tenant_id: string;
+      customer_id: string | null;
+      type: string;
+      title: string;
+      starts_at: string;
+      status: string;
+      is_test?: boolean | null;
+    }>();
 
   if (error || !data) {
     throw error ?? new Error("Failed to create CRM lead from platform command.");
   }
+
+  await syncAppointmentReminder24h(supabase, alias.tenant_id, data);
 
   return data.id;
 }
@@ -1493,7 +1505,7 @@ export async function executePlatformCommand(
             : incomingBookingStatus === "cancelled"
               ? "cancelled"
               : "scheduled";
-        await supabase
+        const { data: updatedAppointment } = await supabase
           .schema("crm")
           .from("appointments")
           .update({
@@ -1506,7 +1518,21 @@ export async function executePlatformCommand(
             ...(postcodeStatus ? { postcode_status: postcodeStatus } : {}),
           })
           .eq("id", link.booking_appointment_id)
-          .eq("tenant_id", alias.tenant_id);
+          .eq("tenant_id", alias.tenant_id)
+          .select("*")
+          .single<{
+            id: string;
+            tenant_id: string;
+            customer_id: string | null;
+            type: string;
+            title: string;
+            starts_at: string;
+            status: string;
+            is_test?: boolean | null;
+          }>();
+        if (updatedAppointment) {
+          await syncAppointmentReminder24h(supabase, alias.tenant_id, updatedAppointment);
+        }
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,
           latestEventAt: startsAt,

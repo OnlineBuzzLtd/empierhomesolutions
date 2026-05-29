@@ -1,0 +1,6 @@
+docs/private/
+docs/CURRENT_STABLE_STATE_TECHNICAL_GUIDE.md
+.claude/
+coverage/
+test-results/
+playwright-report/

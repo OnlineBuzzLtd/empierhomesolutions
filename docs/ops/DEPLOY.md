@@ -43,6 +43,18 @@ Once Phase 3.1 is ready:
 - **Auto-generated URLs** (`empire-home-solutions-*.vercel.app`): enable
   "Block Vercel-generated URLs" once the custom domain is live.
 
+## 2.1 Vercel Cron Schedule
+
+The repository `vercel.json` currently registers `/api/_cron/dispatch` once
+per day because the linked Vercel account is on Hobby. Hobby projects reject
+cron schedules that run more than daily.
+
+For production-grade reminder/chase automation, either:
+
+- upgrade the project to Vercel Pro and restore the cron to `*/5 * * * *`, or
+- keep Vercel on Hobby and use an external scheduler to call
+  `/api/_cron/dispatch` every 5 minutes with the `x-cron-secret` header.
+
 ## 3. Production env vars
 
 All secrets **MUST** live in Vercel (Production target only), not in the git

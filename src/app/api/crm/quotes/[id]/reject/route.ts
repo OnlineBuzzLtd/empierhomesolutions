@@ -1,5 +1,6 @@
 import { quoteRejectionSchema } from "@/modules/crm/lib/validation";
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { cancelQuoteChaseSequence } from "@/modules/crm/notifications/quote-chase";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return jsonError(parsed.error.issues[0]?.message ?? "Invalid rejection payload.");
     }
 
-    const { supabase } = auth.session;
+    const { supabase, tenant } = auth.session;
     const { data, error } = await supabase
       .schema("crm")
       .from("quotes")
@@ -30,6 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error) {
       return jsonError(error.message, 500);
     }
+    await cancelQuoteChaseSequence(supabase, { tenantId: tenant.id, quoteId: id });
     return jsonSuccess({ quote: data });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Failed to reject quote.", 500);

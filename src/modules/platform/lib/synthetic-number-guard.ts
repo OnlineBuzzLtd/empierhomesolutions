@@ -21,6 +21,13 @@ const TWILIO_MAGIC_NUMBER_PREFIX = "+150055500";
 // whose E.164 form starts with one of these.
 const KNOWN_SYNTHETIC_PREFIXES: ReadonlyArray<string> = [
   "+447463366", // CAL-003 / May 12-13 sequential booking tests (+447463366301..310)
+  "+44755912", // May 12 live-channel run synthetic batch (+44755912xxxx)
+  "+447700100", // Legacy e2e-engineer-channel-test fixtures (07700100011 etc.)
+  "+447700900", // UK drama/test range used by unit fixtures (07700 900xxx)
+];
+
+const KNOWN_SYNTHETIC_NUMBERS: ReadonlyArray<string> = [
+  "+447712345678", // Legacy live-lp-tests webchat fixture (07712345678)
 ];
 
 // Historical Empire sender numbers. A destination matching the sender is the
@@ -57,15 +64,24 @@ export type PhoneGuardResult =
   | { ok: true }
   | { ok: false; pattern: string };
 
+export function normalizePhoneNumberForGuard(raw: string): string {
+  const withoutTransport = raw.trim().replace(/^whatsapp:/i, "");
+  const compact = withoutTransport.replace(/[^\d+]/g, "");
+  if (compact.startsWith("00")) return `+${compact.slice(2)}`;
+  if (compact.startsWith("+")) return compact;
+  if (compact.startsWith("07")) return `+44${compact.slice(1)}`;
+  return compact;
+}
+
 export function evaluatePhoneNumber(
   raw: string | null | undefined,
   options: PhoneGuardOptions,
 ): PhoneGuardResult {
   if (raw == null) return { ok: true };
-  const normalised = raw.trim();
+  const normalised = normalizePhoneNumberForGuard(raw);
   if (normalised.length === 0) return { ok: true };
 
-  const allowlist = options.allowlist ?? [];
+  const allowlist = (options.allowlist ?? []).map(normalizePhoneNumberForGuard);
   if (allowlist.includes(normalised)) return { ok: true };
   if (normalised.startsWith(TWILIO_MAGIC_NUMBER_PREFIX)) return { ok: true };
 
@@ -73,6 +89,10 @@ export function evaluatePhoneNumber(
     if (normalised.startsWith(prefix)) {
       return { ok: false, pattern: `known_synthetic_prefix:${prefix}` };
     }
+  }
+
+  if (KNOWN_SYNTHETIC_NUMBERS.includes(normalised)) {
+    return { ok: false, pattern: "known_synthetic_number" };
   }
 
   if (KNOWN_SENDER_NUMBERS.includes(normalised)) {

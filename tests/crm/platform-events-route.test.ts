@@ -18,7 +18,7 @@ describe("platform events route", () => {
       name: "missed call recovery",
       eventType: "MissedCallCaptured",
       payload: {
-        from: "+447700900111",
+        from: "+15005550006",
         call_sid: "CA123",
         call_status: "no-answer",
       },
@@ -29,7 +29,7 @@ describe("platform events route", () => {
       eventType: "ConversationStarted",
       payload: {
         channel: "sms",
-        identity_phone: "+447700900111",
+        identity_phone: "+15005550006",
         message_summary: "Customer asked about a boiler fault.",
       },
       expectedCommandTypes: ["MatchCustomerByChannelIdentity", "LinkConversationToCustomerOrJob"],
@@ -239,7 +239,7 @@ describe("platform events route", () => {
       },
       payload: {
         channel: "sms",
-        identity_phone: "+447700900111",
+        identity_phone: "+15005550006",
       },
     });
     const timestamp = Math.floor(Date.now() / 1000).toString();

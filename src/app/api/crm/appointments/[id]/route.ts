@@ -1,5 +1,6 @@
 import { appointmentSchema } from "@/modules/crm/lib/validation";
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { syncAppointmentReminder24h } from "@/modules/crm/notifications/appointment-reminders";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,6 +20,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error) {
     return jsonError(error.message, 500);
   }
+
+  await syncAppointmentReminder24h(supabase, tenant.id, data);
 
   // Keep the linked job's engineer in sync with the appointment. The diary view
   // filters jobs by the logged-in engineer's full name against

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/modules/crm/lib/supabase-browser";
+import { clearCrmClientCache } from "@/modules/crm/components/client/CrmClientRuntime";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export function LogoutButton() {
     }
 
     await supabase.auth.signOut();
+    clearCrmClientCache();
     router.push("/login");
     router.refresh();
   }

@@ -173,7 +173,7 @@ describe("POST /api/platform/calendar/check-availability", () => {
           from: () => ({
             select: () => ({
               eq: () => ({
-                neq: () => ({ lt: () => ({ gt: () => ({ limit: limitFn }) }) }),
+                neq: () => ({ eq: () => ({ lt: () => ({ gt: () => ({ limit: limitFn }) }) }) }),
               }),
             }),
           }),
@@ -202,7 +202,13 @@ describe("POST /api/platform/calendar/check-availability", () => {
             select: () => ({
               eq: () => ({
                 neq: () => ({
-                  lt: () => ({ gt: () => ({ limit: vi.fn().mockResolvedValue({ data: [{ id: "appt-1" }], error: null }) }) }),
+                  eq: () => ({
+                    lt: () => ({
+                      gt: () => ({
+                        limit: vi.fn().mockResolvedValue({ data: [{ id: "appt-1" }], error: null }),
+                      }),
+                    }),
+                  }),
                 }),
               }),
             }),

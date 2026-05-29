@@ -23,12 +23,25 @@ export function getCrmEnv() {
   const twilioAccountSid = normalizeEnv(process.env.TWILIO_ACCOUNT_SID);
   const twilioAuthToken = normalizeEnv(process.env.TWILIO_AUTH_TOKEN);
   const twilioDefaultNumberPoolSid = normalizeEnv(process.env.TWILIO_DEFAULT_NUMBER_POOL_SID);
+  const postmarkInboundWebhookSecret = normalizeEnv(process.env.POSTMARK_INBOUND_WEBHOOK_SECRET);
+  const googleLeadAdsVerifyToken = normalizeEnv(process.env.GOOGLE_LEAD_ADS_VERIFY_TOKEN);
+  const googleLeadAdsWebhookSecret = normalizeEnv(process.env.GOOGLE_LEAD_ADS_WEBHOOK_SECRET);
+  const metaLeadAdsVerifyToken = normalizeEnv(process.env.META_LEAD_ADS_VERIFY_TOKEN);
+  const metaLeadAdsAppSecret = normalizeEnv(process.env.META_LEAD_ADS_APP_SECRET);
+  const stripeSecretKey = normalizeEnv(process.env.STRIPE_SECRET_KEY);
+  const stripeWebhookSecret = normalizeEnv(process.env.STRIPE_WEBHOOK_SECRET);
+  const gocardlessAccessToken = normalizeEnv(process.env.GOCARDLESS_ACCESS_TOKEN);
+  const gocardlessWebhookSecret = normalizeEnv(process.env.GOCARDLESS_WEBHOOK_SECRET);
+  const gocardlessEnvironment = normalizeEnv(process.env.GOCARDLESS_ENVIRONMENT) ?? "sandbox";
+  const serviceM8WebhookSecret = normalizeEnv(process.env.SERVICEM8_WEBHOOK_SECRET);
+  const joblogicWebhookSecret = normalizeEnv(process.env.JOBLOGIC_WEBHOOK_SECRET);
   const crmE2ePlatformFixturesEnabled = process.env.CRM_E2E_PLATFORM_FIXTURES === "1";
   const vercelApiToken = normalizeEnv(process.env.VERCEL_API_TOKEN);
   const vercelProjectId = normalizeEnv(process.env.VERCEL_PROJECT_ID);
   const vercelTeamId = normalizeEnv(process.env.VERCEL_TEAM_ID);
   const crmTenantRootDomain =
     normalizeEnv(process.env.CRM_TENANT_ROOT_DOMAIN) ?? "crm.customerjourneys.ai";
+  const cronSecret = normalizeEnv(process.env.CRON_SECRET);
 
   return {
     url,
@@ -49,11 +62,24 @@ export function getCrmEnv() {
     twilioAuthToken,
     twilioDefaultNumberPoolSid,
     twilioProvisioningEnabled: Boolean(twilioAccountSid && twilioAuthToken),
+    postmarkInboundWebhookSecret,
+    googleLeadAdsVerifyToken,
+    googleLeadAdsWebhookSecret,
+    metaLeadAdsVerifyToken,
+    metaLeadAdsAppSecret,
+    stripeSecretKey,
+    stripeWebhookSecret,
+    gocardlessAccessToken,
+    gocardlessWebhookSecret,
+    gocardlessEnvironment,
+    serviceM8WebhookSecret,
+    joblogicWebhookSecret,
     crmE2ePlatformFixturesEnabled,
     vercelApiToken,
     vercelProjectId,
     vercelTeamId,
     crmTenantRootDomain,
+    cronSecret,
     enabled: Boolean(url && publishableKey),
     adminEnabled: Boolean(url && serviceRoleKey),
   };

@@ -31,6 +31,7 @@ export const platformEventTypes = [
   "CustomerUpdated",
   "JobCreated",
   "JobRescheduled",
+  "JobCompleted",
   "QuoteAccepted",
   "InvoiceOverdue",
   "WorkspaceSettingsChanged",

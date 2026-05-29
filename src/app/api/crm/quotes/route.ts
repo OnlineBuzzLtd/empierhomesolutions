@@ -1,6 +1,21 @@
 import { quoteSchema } from "@/modules/crm/lib/validation";
-import { computeFinancials, jsonError, jsonSuccess, nextQuoteNumber, parseLineItems, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
+import { computeFinancials, jsonError, jsonSuccess, nextQuoteNumber, paginationFromRequestUrl, parseLineItems, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
+import { listQuotes } from "@/modules/crm/lib/data";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
+import { normalizeCrmPagination } from "@/modules/crm/lib/performance";
+
+export async function GET(request: Request) {
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const pagination = paginationFromRequestUrl(request);
+  const demoState = await getCrmDemoState();
+  const items = await listQuotes(demoState.mode, pagination);
+  return jsonSuccess({ items, pagination: normalizeCrmPagination(pagination) });
+}
 
 export async function POST(request: Request) {
   try {

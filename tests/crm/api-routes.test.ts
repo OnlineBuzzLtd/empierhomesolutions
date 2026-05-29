@@ -16,6 +16,10 @@ describe("crm api routes", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
+    process.env.NEXT_PUBLIC_CALL_NUMBER = "01895 725 151";
+    process.env.FORM_WEBHOOK_URL = "http://localhost:3000/api/mock-webhook";
+    process.env.CONVERSION_API_SECRET = "test-conversion-secret";
   });
 
   it("archives a customer through the delete route", async () => {
@@ -407,6 +411,11 @@ describe("crm api routes", () => {
       enqueueCrmPlatformEvent: vi.fn(),
       publishPendingPlatformOutboxEvents: vi.fn(),
     }));
+    vi.doMock("@/modules/crm/notifications/review-requests", () => ({
+      scheduleReviewRequestsForCompletedJob: vi
+        .fn()
+        .mockResolvedValue({ scheduled: 0, skipped: "review_config_missing" }),
+    }));
 
     const route = await import("@/app/api/crm/jobs/[id]/route");
     const response = (await route.PATCH!(
@@ -614,7 +623,7 @@ describe("crm api routes", () => {
     expect(body.job.id).toBe("job-1");
   });
 
-  it("creates a job phase and defaults the sort order after the latest phase", async () => {
+  it("blocks new job phase writes while the off-loop surface is hidden", async () => {
     const single = vi.fn().mockResolvedValue({
       data: { id: "phase-2", job_id: "job-1", name: "Install", sort_order: 2, status: "planned" },
       error: null,
@@ -658,17 +667,9 @@ describe("crm api routes", () => {
     )) as Response;
     const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(insert).toHaveBeenCalledWith({
-      tenant_id: "tenant-1",
-      job_id: "job-1",
-      name: "Install",
-      description: null,
-      status: "planned",
-      sort_order: 2,
-      target_date: null,
-    });
-    expect(body.phase.id).toBe("phase-2");
+    expect(response.status).toBe(410);
+    expect(body.error).toContain("Job phases");
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it("blocks non-managers from approving job variations", async () => {
@@ -769,7 +770,10 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       normalizeBlankFields,
-      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase } }),
+      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
+    }));
+    vi.doMock("@/modules/crm/notifications/invoice-chase", () => ({
+      cancelInvoiceChaseSequence: vi.fn().mockResolvedValue(undefined),
     }));
 
     const route = await import("@/app/api/crm/invoices/[id]/mark-paid/route");
@@ -1125,6 +1129,9 @@ describe("crm api routes", () => {
     vi.doMock("@/modules/platform/lib/outbox", () => ({
       enqueueCrmPlatformEvent: vi.fn(),
       publishPendingPlatformOutboxEvents: vi.fn(),
+    }));
+    vi.doMock("@/modules/crm/notifications/quote-chase", () => ({
+      cancelQuoteChaseSequence: vi.fn().mockResolvedValue(undefined),
     }));
 
     const route = await import("@/app/api/crm/quotes/[id]/accept/route");

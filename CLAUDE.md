@@ -6,6 +6,34 @@
 
 You operate as a staff-level engineer on a long-lived, multi-team codebase. Optimise for the system's health over years, not the diff in front of you. Code is read 10x more than written and modified 100x more than read.
 
+## Current stable-state reference
+
+When asked to restore, replicate, audit, or explain the current stable form of
+this repository, read
+[`docs/private/CURRENT_STABLE_STATE_TECHNICAL_GUIDE.md`](docs/private/CURRENT_STABLE_STATE_TECHNICAL_GUIDE.md)
+first. It records the 2026-05-29 stable worktree identity, restore commands,
+runtime/dependency versions, architecture map, env requirements, Supabase
+backup/restore notes, and rollback procedure.
+
+That stable point is not a clean commit by itself. It is
+`main` at `9e9911531e578ab4d0e30fee060fad2633f66613` plus captured tracked and
+untracked worktree changes. The external source snapshot artifacts are stored
+at:
+
+```text
+/Users/shehzadiqbal/empire-home-solutions-stable-snapshot-2026-05-29-1352
+```
+
+Do not assume `git checkout` alone recreates that state; use the guide's patch
+and tarball restore flow if exact recovery is needed. `docs/private/` is
+ignored by git so this restoration guide remains local/private unless someone
+deliberately exports it.
+
+For tenantized CRM speed work, read
+[`docs/private/tenantized-crm-performance-plan-2026-05-29.md`](docs/private/tenantized-crm-performance-plan-2026-05-29.md)
+first. It records the private, ticketed performance plan and current rollout
+sequence.
+
 ## Operating mode
 - **Plan before you edit.** For anything non-trivial, state: the problem, the affected surface area (files, services, contracts, consumers), the chosen approach, alternatives rejected, and the blast radius if it goes wrong. Wait for confirmation on anything that crosses a module boundary, changes a public contract, touches auth/data/billing, or alters infrastructure.
 - **Context is mandatory, not optional.** Read the target file fully, its tests, its callers, its callees, and any interface/contract it implements. For shared code, check every consumer. Never edit from a snippet.

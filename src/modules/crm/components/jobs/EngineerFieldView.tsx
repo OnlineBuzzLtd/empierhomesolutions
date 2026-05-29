@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { ExpenseCreateForm } from "@/modules/crm/components/forms/ExpenseCreateForm";
 import { CompleteJobButton } from "@/modules/crm/components/jobs/CompleteJobButton";
+import { EnRouteButton } from "@/modules/crm/components/jobs/EnRouteButton";
 import { EngineerJobWorkspace } from "@/modules/crm/components/jobs/EngineerJobWorkspace";
 import { JobStatusActionButton } from "@/modules/crm/components/dashboard/JobStatusActionButton";
 import { CollapsibleSectionCard } from "@/modules/crm/components/shared/CollapsibleSectionCard";
@@ -71,6 +72,7 @@ export function EngineerFieldView({
   const isStartable = job.status === "booked" || job.status === "enquiry";
   const isInProgress = job.status === "in_progress";
   const isDone = job.status === "completed" || job.status === "invoiced";
+  const canSendEnRoute = Boolean((job.customer?.phone || job.site_contact?.phone) && !isDone && job.status !== "aborted");
 
   return (
     <div className="space-y-4">
@@ -124,6 +126,14 @@ export function EngineerFieldView({
                 <PhoneIcon />
                 Call Customer
               </a>
+            ) : null}
+            {canSendEnRoute ? (
+              <div className="flex-1">
+                <EnRouteButton
+                  endpoint={`${endpoint}/en-route`}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100"
+                />
+              </div>
             ) : null}
             <a
               href={directionsUrl}

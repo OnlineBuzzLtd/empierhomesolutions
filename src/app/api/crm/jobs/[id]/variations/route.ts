@@ -1,7 +1,11 @@
 import { jobVariationSchema } from "@/modules/crm/lib/validation";
 import { jsonError, jsonSuccess, normalizeBlankFields, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
+import { offLoopJobSurfaceDisabled, offLoopJobSurfaceMessage } from "@/modules/crm/lib/scope-trim";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (offLoopJobSurfaceDisabled()) {
+    return jsonError(offLoopJobSurfaceMessage("Job variations"), 410);
+  }
   try {
     const { id } = await params;
     const body = normalizeBlankFields(await request.json(), ["description"]);

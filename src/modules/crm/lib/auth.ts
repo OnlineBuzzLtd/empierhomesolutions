@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { CrmRole, Tenant, TenantBranding, TenantMembership, TenantSettings, UserProfile } from "@/modules/crm/types";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
@@ -8,7 +9,7 @@ import { buildPlatformE2eMockSession } from "@/modules/platform/lib/e2e-fixtures
 
 export const crmActiveTenantCookieName = "crm_active_tenant";
 
-export async function getCrmSession() {
+export const getCrmSession = cache(async function getCrmSession() {
   const env = getCrmEnv();
   if (env.crmE2ePlatformFixturesEnabled) {
     return buildPlatformE2eMockSession();
@@ -123,7 +124,7 @@ export async function getCrmSession() {
     settings: settings ?? null,
     configured: true,
   };
-}
+});
 
 export async function requireCrmUser() {
   const session = await getCrmSession();

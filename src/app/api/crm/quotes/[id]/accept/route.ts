@@ -2,6 +2,7 @@ import { quoteAcceptanceSchema } from "@/modules/crm/lib/validation";
 import { jsonError, jsonSuccess, normalizeBlankFields, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
 import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
+import { cancelQuoteChaseSequence } from "@/modules/crm/notifications/quote-chase";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -90,6 +91,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       },
     });
     await publishPendingPlatformOutboxEvents(supabase);
+    await cancelQuoteChaseSequence(supabase, { tenantId: tenant.id, quoteId: id });
 
     return jsonSuccess({ quote, acceptance });
   } catch (error) {

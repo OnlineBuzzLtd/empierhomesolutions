@@ -1,9 +1,10 @@
 import { cookies, headers } from "next/headers";
+import { cache } from "react";
 import { getCrmSession } from "@/modules/crm/lib/auth";
 import { CrmDemoState, crmDemoCookieName, crmDemoSteps, findCrmDemoStepIndex, resolveCrmDemoMode } from "@/modules/crm/lib/demo";
 import { resolveCrmDemoSteps } from "@/modules/crm/lib/demo-routes";
 
-export async function getCrmDemoState(): Promise<CrmDemoState> {
+export const getCrmDemoState = cache(async function getCrmDemoState(): Promise<CrmDemoState> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const cookieValue = cookieStore.get(crmDemoCookieName)?.value;
@@ -24,4 +25,4 @@ export async function getCrmDemoState(): Promise<CrmDemoState> {
     currentStepIndex,
     currentStep: currentStepIndex >= 0 ? steps[currentStepIndex] ?? null : null,
   };
-}
+});

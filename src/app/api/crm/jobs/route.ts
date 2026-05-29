@@ -1,8 +1,24 @@
 import { jobSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
-import { jsonError, jsonSuccess, normalizeBlankFields, parseIdList, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
+import { jsonError, jsonSuccess, normalizeBlankFields, paginationFromRequestUrl, parseIdList, requireCrmApiUser, resolveCreatedByUserId } from "@/modules/crm/lib/api";
+import { listJobs } from "@/modules/crm/lib/data";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
+import { normalizeCrmPagination } from "@/modules/crm/lib/performance";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
+import { findBestEngineerAssignment } from "@/modules/crm/lib/engineer-assignment";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
+
+export async function GET(request: Request) {
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const pagination = paginationFromRequestUrl(request);
+  const demoState = await getCrmDemoState();
+  const items = await listJobs(demoState.mode, pagination);
+  return jsonSuccess({ items, pagination: normalizeCrmPagination(pagination) });
+}
 
 async function syncJobAssignees(supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>, tenantId: string, jobId: string, userProfileIds: string[]) {
   const uniqueIds = [...new Set(userProfileIds)];
@@ -80,15 +96,27 @@ export async function POST(request: Request) {
       assigned_engineer_ids: undefined,
     };
 
+    const autoAssignment =
+      assignedEngineerIds.length === 0
+        ? await findBestEngineerAssignment(supabase, {
+            tenantId: tenant.id,
+            scheduledDate: parsed.data.scheduled_date,
+            customerId: parsed.data.customer_id,
+            serviceId: parsed.data.service_id,
+            jobTypeId: parsed.data.job_type_id,
+          })
+        : null;
+    const finalAssignedEngineerIds = assignedEngineerIds.length > 0 ? assignedEngineerIds : autoAssignment ? [autoAssignment.id] : [];
+
     const { data, error } = await supabase.schema("crm").from("jobs").insert({
       ...payload,
-      assigned_engineer: null,
+      assigned_engineer: autoAssignment?.full_name ?? null,
     }).select("*").single();
     if (error) {
       return jsonError(error.message, 500);
     }
 
-    const assignedEngineerSummary = await syncJobAssignees(supabase, tenant.id, data.id, assignedEngineerIds);
+    const assignedEngineerSummary = await syncJobAssignees(supabase, tenant.id, data.id, finalAssignedEngineerIds);
     const updatedJob =
       assignedEngineerSummary !== ""
         ? (

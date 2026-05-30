@@ -76,6 +76,63 @@ describe("AI catalogue projection", () => {
     expect(JSON.stringify(catalog)).not.toContain("unit_cost");
   });
 
+  it("redacts accidental PII from AI-visible catalogue text", () => {
+    const catalog = projectAiCatalog({
+      tenant,
+      settings: {
+        ai_catalog_price_disclaimer: "Call Jane on +44 7700 900123 before pricing.",
+        ai_catalog_emergency_escalation_text: "Do not mention tenant contact jane@example.com.",
+      },
+      services: [
+        {
+          id: "s1",
+          slug: "repair",
+          name: "Repair",
+          active: true,
+          ai_visible: true,
+          description: "Previous customer was at 10 Test Street, SW1A 1AA. Email jane@example.com.",
+          ai_price_disclaimer: "Phone 07700 900123 for approval.",
+        },
+      ],
+      jobTypes: [
+        {
+          id: "j1",
+          service_id: "s1",
+          slug: "callout",
+          name: "Callout",
+          active: true,
+          ai_visible: true,
+          description: "Ask for +44 7700 900456 only internally.",
+        },
+      ],
+      packages: [
+        {
+          id: "pkg-1",
+          name: "Package",
+          description: "Legacy note: owner@example.com, E1 2BT.",
+          is_active: true,
+          ai_visible: true,
+          ai_price_enabled: true,
+          items: [{ id: "i1", qty: 1, unit_price: 120 }],
+        },
+      ],
+      generatedAt: "2026-05-30T11:00:00.000Z",
+    });
+
+    const json = JSON.stringify(catalog);
+
+    expect(json).not.toContain("jane@example.com");
+    expect(json).not.toContain("owner@example.com");
+    expect(json).not.toContain("+44 7700 900123");
+    expect(json).not.toContain("07700 900123");
+    expect(json).not.toContain("SW1A 1AA");
+    expect(json).not.toContain("E1 2BT");
+    expect(json).toContain("[redacted email]");
+    expect(json).toContain("[redacted phone]");
+    expect(json).toContain("[redacted postcode]");
+    expect(assertAiCatalogIsRedacted(catalog)).toEqual([]);
+  });
+
   it("uses a stable tenant-specific version and changes when relevant data changes", () => {
     const base = projectAiCatalog({
       tenant,

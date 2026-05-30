@@ -190,6 +190,19 @@ function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function sanitizeAiCatalogText(value: string | null | undefined) {
+  const text = value?.trim();
+  if (!text) return null;
+
+  return text
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted email]")
+    .replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/gi, "[redacted postcode]")
+    .replace(/(?:\+?\d[\d\s().-]{8,}\d)/g, (match) => {
+      const digits = match.replace(/\D/g, "");
+      return digits.length >= 10 ? "[redacted phone]" : match;
+    });
+}
+
 function defaultSafetyPolicy(vertical: TradeVertical) {
   return {
     emergency_escalation_text:
@@ -206,10 +219,8 @@ function defaultSafetyPolicy(vertical: TradeVertical) {
 }
 
 function fallbackPhrase(settings: CatalogSettings | null | undefined) {
-  return (
-    settings?.ai_catalog_price_disclaimer?.trim() ||
-    "I can give guide pricing where available, but the office confirms final pricing before work starts."
-  );
+  const fallback = "I can give guide pricing where available, but the office confirms final pricing before work starts.";
+  return sanitizeAiCatalogText(settings?.ai_catalog_price_disclaimer || fallback) || fallback;
 }
 
 function collectVersionParts(input: AiCatalogProjectionInput, catalogWithoutVersion: Omit<AiCatalogResponse, "version">) {
@@ -248,13 +259,13 @@ export function projectAiCatalog(input: AiCatalogProjectionInput): AiCatalogResp
         id: service.id,
         slug: service.slug,
         name: service.name,
-        description: service.description ?? null,
+        description: sanitizeAiCatalogText(service.description),
         active: service.active !== false,
         bookable: service.ai_bookable !== false,
         price_enabled: service.ai_price_enabled === true,
         requires_office_quote: service.ai_requires_office_quote !== false,
         estimated_duration_minutes: serviceDuration,
-        price_disclaimer: service.ai_price_disclaimer?.trim() || priceFallback,
+        price_disclaimer: sanitizeAiCatalogText(service.ai_price_disclaimer) || priceFallback,
         job_types: (input.jobTypes ?? [])
           .filter((jobType) => jobType.service_id === service.id)
           .filter((jobType) => jobType.active !== false)
@@ -263,7 +274,7 @@ export function projectAiCatalog(input: AiCatalogProjectionInput): AiCatalogResp
             id: jobType.id,
             slug: jobType.slug,
             name: jobType.name,
-            description: jobType.description ?? null,
+            description: sanitizeAiCatalogText(jobType.description),
             estimated_duration_minutes: asPositiveInt(jobType.ai_default_duration_minutes),
             bookable: jobType.ai_bookable !== false,
           })),
@@ -283,10 +294,10 @@ export function projectAiCatalog(input: AiCatalogProjectionInput): AiCatalogResp
         id: pkg.id,
         service_id: pkg.service_id ?? null,
         name: pkg.name,
-        description: pkg.description ?? null,
+        description: sanitizeAiCatalogText(pkg.description),
         display_price: priceEnabled ? round2(total) : null,
         vat_category: null,
-        price_disclaimer: pkg.ai_price_disclaimer?.trim() || priceFallback,
+        price_disclaimer: sanitizeAiCatalogText(pkg.ai_price_disclaimer) || priceFallback,
         bookable: pkg.ai_bookable === true,
         price_enabled: priceEnabled,
         requires_office_quote: pkg.ai_requires_office_quote !== false,
@@ -332,10 +343,12 @@ export function projectAiCatalog(input: AiCatalogProjectionInput): AiCatalogResp
     },
     safety_policy: {
       emergency_escalation_text:
-        settings?.ai_catalog_emergency_escalation_text?.trim() || safetyDefaults.emergency_escalation_text,
-      gas_safety_text: settings?.ai_catalog_gas_safety_text?.trim() || safetyDefaults.gas_safety_text,
+        sanitizeAiCatalogText(settings?.ai_catalog_emergency_escalation_text) ||
+        safetyDefaults.emergency_escalation_text,
+      gas_safety_text: sanitizeAiCatalogText(settings?.ai_catalog_gas_safety_text) || safetyDefaults.gas_safety_text,
       electrical_safety_text:
-        settings?.ai_catalog_electrical_safety_text?.trim() || safetyDefaults.electrical_safety_text,
+        sanitizeAiCatalogText(settings?.ai_catalog_electrical_safety_text) ||
+        safetyDefaults.electrical_safety_text,
     },
   };
 
@@ -349,8 +362,16 @@ export function projectAiCatalog(input: AiCatalogProjectionInput): AiCatalogResp
 
 export function assertAiCatalogIsRedacted(catalog: AiCatalogResponse) {
   const json = JSON.stringify(catalog).toLowerCase();
-  const forbidden = ["unit_cost", "markup", "margin", "profit", "supplier"];
-  return forbidden.filter((term) => json.includes(term));
+  const forbiddenTerms = ["unit_cost", "markup", "margin", "profit", "supplier"];
+  const piiPatterns = [
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+    /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i,
+    /(?:\+44|0\d{2,4})[\d\s().-]{7,}\d/,
+  ];
+  return [
+    ...forbiddenTerms.filter((term) => json.includes(term)),
+    ...piiPatterns.flatMap((pattern) => (pattern.test(JSON.stringify(catalog)) ? [String(pattern)] : [])),
+  ];
 }
 
 export async function buildAiCatalogForTenant(

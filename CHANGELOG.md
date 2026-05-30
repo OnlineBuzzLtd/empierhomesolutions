@@ -49,10 +49,10 @@ This release reworks the CRM around a simpler trade-business workflow while pres
 
 ### Verified
 
-- `npm run typecheck` passed.
-- `npx vitest run tests/crm/enquiries-worklist.test.ts tests/crm/ux-navigation.test.ts` passed.
+- `npx vitest run tests/unit/live-channel-script-guard.test.ts tests/unit/synthetic-number-guard.test.ts tests/unit/ai-catalog.test.ts tests/crm/platform-catalog-route.test.ts tests/crm/command-executor-channels.test.ts tests/crm/platform-events-route.test.ts` passed.
 - `npm run build` passed.
-- Production deployment is ready at `https://empire-home-solutions.vercel.app` with deployment id `dpl_Ge8YZoyWdLGngG66kZxwvVsZpKMu`.
+- `CRM_BASE_URL=https://empire-home-solutions.vercel.app npm run crm:smoke:routes` passed.
+- Production deployment is ready at `https://empire-home-solutions.vercel.app` with deployment id `dpl_9v6K1exp6RqsoEMG1hjqjE6uuHrG`.
 
 ## 2026-05-29 — CRM automation, tenant performance, and proof harness
 

@@ -140,7 +140,7 @@ Live CRM:
 
 Current production deployment note:
 
-- The 2026-05-30 CRM UX/recovery release is deployed at `https://empire-home-solutions.vercel.app` (`dpl_Ge8YZoyWdLGngG66kZxwvVsZpKMu`).
+- The 2026-05-30 CRM UX/recovery and AI catalogue release is deployed at `https://empire-home-solutions.vercel.app` (`dpl_9v6K1exp6RqsoEMG1hjqjE6uuHrG`).
 - The CRM now has faster screen-shell navigation, bounded list fetches, tenant-scoped client caching, and database/query performance indexes.
 - The admin CRM now uses the simplified trade workflow navigation and the Enquiries worklist count matches the dashboard `Enquiries to do` card.
 - AI Receptionist booking recovery is visible as `Needs review` work and no longer hides successful-but-unlinked bookings only inside Scheduler.

@@ -14,7 +14,9 @@ import { ServiceSettingsForm } from "@/modules/crm/components/forms/ServiceSetti
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
+import { assertAiCatalogIsRedacted, buildAiCatalogForTenant } from "@/modules/crm/lib/ai-catalog";
 import { requireSettingsAccess } from "@/modules/crm/lib/auth";
+import { getCustomerJourneysRuntimeLink } from "@/modules/crm/lib/customerjourneys";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
@@ -56,6 +58,11 @@ function SettingsHub() {
       title: "AI receptionist",
       description: "Review connection status, follow-ups, and test customer conversations.",
       href: "/ai-hub?tab=settings",
+    },
+    {
+      title: "AI catalogue",
+      description: "Control the services, packages, prices, and safety wording the AI can use.",
+      href: "/settings?section=advanced#ai-catalogue",
     },
     {
       title: "Payments",
@@ -132,6 +139,8 @@ export default async function SettingsPage({
     quoteTemplates,
     { data: jobReportTemplates },
     { data: twilioState },
+    aiCatalog,
+    runtimeLink,
   ] = await Promise.all([
     supabase
       .schema("crm")
@@ -162,7 +171,16 @@ export default async function SettingsPage({
       )
       .eq("tenant_id", session.tenant!.id)
       .maybeSingle(),
+    buildAiCatalogForTenant(supabase, session.tenant!.id),
+    getCustomerJourneysRuntimeLink(supabase, session.tenant!.id).catch(() => null),
   ]);
+  const catalogLeaks = aiCatalog ? assertAiCatalogIsRedacted(aiCatalog) : [];
+  const channelRows = [
+    { label: "WhatsApp", ready: Boolean(runtimeLink?.whatsapp_enabled), detail: runtimeLink?.display_whatsapp_number },
+    { label: "SMS", ready: Boolean(runtimeLink?.sms_enabled), detail: runtimeLink?.display_sms_number },
+    { label: "Web chat", ready: Boolean(runtimeLink?.webchat_enabled), detail: "Uses the same catalogue endpoint" },
+    { label: "Phone", ready: Boolean(runtimeLink?.voice_enabled), detail: runtimeLink?.display_voice_number },
+  ];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -270,11 +288,173 @@ export default async function SettingsPage({
                   unchanged)
                 </span>
               </label>
+              <select
+                name="trade_vertical"
+                defaultValue={String(tenantSettings?.trade_vertical ?? "general_trades")}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="plumbing">Plumbing</option>
+                <option value="heating">Heating</option>
+                <option value="electrical">Electrical</option>
+                <option value="drainage">Drainage</option>
+                <option value="roofing">Roofing</option>
+                <option value="cleaning">Cleaning</option>
+                <option value="pest_control">Pest control</option>
+                <option value="locksmith">Locksmith</option>
+                <option value="general_trades">General trades</option>
+              </select>
+              <input
+                name="ai_catalog_default_duration_minutes"
+                type="number"
+                min="1"
+                defaultValue={Number(tenantSettings?.ai_catalog_default_duration_minutes ?? 60)}
+                placeholder="Default booking duration minutes"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <input
+                name="ai_catalog_emergency_duration_minutes"
+                type="number"
+                min="1"
+                defaultValue={Number(tenantSettings?.ai_catalog_emergency_duration_minutes ?? 120)}
+                placeholder="Emergency duration minutes"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <select
+                name="ai_catalog_can_give_fixed_prices"
+                defaultValue={String(Boolean(tenantSettings?.ai_catalog_can_give_fixed_prices))}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="false">AI does not give fixed prices</option>
+                <option value="true">AI may give fixed prices</option>
+              </select>
+              <select
+                name="ai_catalog_can_give_from_prices"
+                defaultValue={String(tenantSettings?.ai_catalog_can_give_from_prices ?? true)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="true">AI may give guide/from prices</option>
+                <option value="false">AI does not give guide prices</option>
+              </select>
+              <select
+                name="ai_catalog_requires_office_quote_for_installations"
+                defaultValue={String(tenantSettings?.ai_catalog_requires_office_quote_for_installations ?? true)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="true">Installations require office quote</option>
+                <option value="false">Installations may use catalogue pricing</option>
+              </select>
+              <textarea
+                name="ai_catalog_price_disclaimer"
+                defaultValue={String(
+                  tenantSettings?.ai_catalog_price_disclaimer ??
+                    "I can give guide pricing where available, but the office confirms final pricing before work starts.",
+                )}
+                placeholder="AI pricing disclaimer"
+                className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+              />
+              <textarea
+                name="ai_catalog_emergency_escalation_text"
+                defaultValue={String(
+                  tenantSettings?.ai_catalog_emergency_escalation_text ??
+                    "If there is an immediate risk to safety or property, call the emergency services or make the situation safe before waiting for a callback.",
+                )}
+                placeholder="Emergency escalation wording"
+                className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+              />
+              <textarea
+                name="ai_catalog_gas_safety_text"
+                defaultValue={String(tenantSettings?.ai_catalog_gas_safety_text ?? "")}
+                placeholder="Gas safety wording"
+                className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <textarea
+                name="ai_catalog_electrical_safety_text"
+                defaultValue={String(tenantSettings?.ai_catalog_electrical_safety_text ?? "")}
+                placeholder="Electrical safety wording"
+                className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
             </ApiForm>
             <p className="mt-3 text-xs text-slate-500">
               These settings are owned by the current tenant and replace hardcoded Empire branding in the CRM
               shell and future documents.
             </p>
+          </SectionCard>
+
+          <SectionCard title="AI Receptionist catalogue">
+            <div id="ai-catalogue" className="space-y-4">
+              <p className="text-sm text-slate-600">
+                This is the customer-safe catalogue used by WhatsApp, SMS, web chat, and phone calls. It
+                excludes costs, margins, supplier details, and internal diagnostics.
+              </p>
+              {aiCatalog ? (
+                <>
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Version</p>
+                      <p className="mt-1 break-all text-sm font-semibold text-slate-900">{aiCatalog.version}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Services</p>
+                      <p className="mt-1 text-2xl font-bold text-slate-900">{aiCatalog.services.length}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Packages</p>
+                      <p className="mt-1 text-2xl font-bold text-slate-900">{aiCatalog.packages.length}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Trade</p>
+                      <p className="mt-1 text-sm font-semibold capitalize text-slate-900">
+                        {aiCatalog.tenant.trade_vertical.replaceAll("_", " ")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {channelRows.map((channel) => (
+                      <div key={channel.label} className="rounded-lg border border-slate-200 p-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-semibold text-slate-900">{channel.label}</p>
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                              channel.ready ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {channel.ready ? "Connected" : "Needs setup"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-slate-500">{channel.detail ?? "No number connected yet"}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {catalogLeaks.length > 0 ? (
+                    <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                      Catalogue preview includes restricted terms: {catalogLeaks.join(", ")}
+                    </p>
+                  ) : (
+                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                      Preview is customer-safe: no cost, margin, supplier, profit, or markup fields are exposed.
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {aiCatalog.services.length === 0 ? (
+                      <EmptyState message="No AI-visible services yet. Add services and job types before enabling pricing answers." />
+                    ) : (
+                      aiCatalog.services.slice(0, 6).map((service) => (
+                        <div key={service.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+                          <p className="font-semibold text-slate-900">{service.name}</p>
+                          <p className="mt-1 text-slate-500">
+                            {service.bookable ? "Bookable" : "Not bookable"} ·{" "}
+                            {service.price_enabled ? "Pricing enabled" : "Office confirms pricing"} ·{" "}
+                            {service.job_types.length} job types
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              ) : (
+                <EmptyState message="AI catalogue is not available for this tenant yet." />
+              )}
+            </div>
           </SectionCard>
 
           <SectionCard title="Twilio Provisioning">
@@ -432,12 +612,23 @@ export default async function SettingsPage({
                 placeholder="Gas Safe number"
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
-              <input type="hidden" name="clone_from_current" value="true" />
+              <select name="trade_vertical" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <option value="general_trades">General trades</option>
+                <option value="plumbing">Plumbing</option>
+                <option value="heating">Heating</option>
+                <option value="electrical">Electrical</option>
+                <option value="drainage">Drainage</option>
+                <option value="roofing">Roofing</option>
+                <option value="cleaning">Cleaning</option>
+                <option value="pest_control">Pest control</option>
+                <option value="locksmith">Locksmith</option>
+              </select>
+              <input type="hidden" name="clone_from_current" value="false" />
             </ApiForm>
             <p className="mt-3 text-xs text-slate-500">
-              This creates a new workspace, assigns the current user as owner, and clones the current
-              tenant&apos;s configuration baseline for services, job types, fields, rules, suppliers,
-              products, templates, and add-ons.
+              This creates a new workspace, assigns the current user as owner, and seeds a safe starter
+              service catalogue for the selected trade. Prices stay cautious until the tenant configures
+              them.
             </p>
           </SectionCard>
 

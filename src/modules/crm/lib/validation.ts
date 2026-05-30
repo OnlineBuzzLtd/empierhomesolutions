@@ -22,6 +22,7 @@ import {
   supplierReconciliationEntryTypes,
   supplierReconciliationStatuses,
   supportedEntityTypes,
+  tradeVerticals,
 } from "@/modules/crm/types";
 
 const emptyStringToNull = (v: unknown) => (v === "" ? null : v);
@@ -75,6 +76,7 @@ export const packageItemSchema = z.object({
 });
 
 export const packageSchema = z.object({
+  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   name: z.string().min(2),
   description: z.string().optional().nullable(),
   default_markup_percent: z
@@ -87,6 +89,14 @@ export const packageSchema = z.object({
     .preprocess((v) => (v === "" || v === undefined ? null : v), z.string().url().nullable())
     .refine((v) => v === null || /^https?:\/\//i.test(v), { message: "image_url must be http(s)" })
     .optional(),
+  ai_visible: z.coerce.boolean().default(true),
+  ai_bookable: z.coerce.boolean().default(false),
+  ai_price_enabled: z.coerce.boolean().default(false),
+  ai_requires_office_quote: z.coerce.boolean().default(true),
+  ai_default_duration_minutes: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().int().positive().nullable())
+    .optional(),
+  ai_price_disclaimer: z.string().optional().nullable(),
   items: z.array(packageItemSchema).default([]),
 });
 
@@ -346,6 +356,14 @@ export const serviceSchema = z.object({
   name: z.string().min(2),
   active: z.coerce.boolean().default(true),
   launch_date: z.string().optional().nullable(),
+  ai_visible: z.coerce.boolean().default(true),
+  ai_bookable: z.coerce.boolean().default(true),
+  ai_price_enabled: z.coerce.boolean().default(false),
+  ai_requires_office_quote: z.coerce.boolean().default(true),
+  ai_default_duration_minutes: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().int().positive().nullable())
+    .optional(),
+  ai_price_disclaimer: z.string().optional().nullable(),
 });
 
 export const jobTypeSchema = z.object({
@@ -355,6 +373,24 @@ export const jobTypeSchema = z.object({
   name: z.string().min(2),
   description: z.string().optional().nullable(),
   active: z.coerce.boolean().default(true),
+  ai_visible: z.coerce.boolean().default(true),
+  ai_bookable: z.coerce.boolean().default(true),
+  ai_default_duration_minutes: z
+    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().int().positive().nullable())
+    .optional(),
+});
+
+export const aiCatalogSettingsSchema = z.object({
+  trade_vertical: z.enum(tradeVerticals).default("general_trades"),
+  ai_catalog_default_duration_minutes: z.coerce.number().int().positive().default(60),
+  ai_catalog_emergency_duration_minutes: z.coerce.number().int().positive().default(120),
+  ai_catalog_can_give_fixed_prices: z.coerce.boolean().default(false),
+  ai_catalog_can_give_from_prices: z.coerce.boolean().default(true),
+  ai_catalog_requires_office_quote_for_installations: z.coerce.boolean().default(true),
+  ai_catalog_price_disclaimer: z.string().min(10).default("The office confirms final pricing before work starts."),
+  ai_catalog_emergency_escalation_text: z.string().min(10).default("If there is an immediate risk, call the emergency services."),
+  ai_catalog_gas_safety_text: z.string().optional().nullable(),
+  ai_catalog_electrical_safety_text: z.string().optional().nullable(),
 });
 
 export const customFieldDefinitionSchema = z.object({

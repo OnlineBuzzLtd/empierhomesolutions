@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/lib/api";
+import { tradeVerticals } from "@/modules/crm/types";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 
 const logoUrlSchema = z.union([
@@ -7,6 +8,8 @@ const logoUrlSchema = z.union([
   z.string().regex(/^\/[A-Za-z0-9/_\- .]+$/, "Logo URL must be a valid URL or local asset path."),
   z.literal(""),
 ]);
+
+const checkboxBoolean = z.preprocess((v) => (v === "on" || v === "true" || v === true ? true : false), z.boolean());
 
 const tenantSettingsSchema = z.object({
   business_name: z.string().min(2),
@@ -28,6 +31,16 @@ const tenantSettingsSchema = z.object({
   show_per_package_vat: z
     .preprocess((v) => (v === "on" || v === "true" || v === true ? true : false), z.boolean())
     .optional(),
+  trade_vertical: z.enum(tradeVerticals).default("general_trades"),
+  ai_catalog_default_duration_minutes: z.coerce.number().int().positive().default(60),
+  ai_catalog_emergency_duration_minutes: z.coerce.number().int().positive().default(120),
+  ai_catalog_can_give_fixed_prices: checkboxBoolean.optional(),
+  ai_catalog_can_give_from_prices: checkboxBoolean.optional(),
+  ai_catalog_requires_office_quote_for_installations: checkboxBoolean.optional(),
+  ai_catalog_price_disclaimer: z.string().min(10),
+  ai_catalog_emergency_escalation_text: z.string().min(10),
+  ai_catalog_gas_safety_text: z.string().optional().nullable(),
+  ai_catalog_electrical_safety_text: z.string().optional().nullable(),
 });
 
 export async function POST(request: Request) {
@@ -63,6 +76,17 @@ export async function POST(request: Request) {
       quote_footer: parsed.data.quote_footer || null,
       certificate_footer: parsed.data.certificate_footer || null,
       show_per_package_vat: parsed.data.show_per_package_vat ?? false,
+      trade_vertical: parsed.data.trade_vertical,
+      ai_catalog_default_duration_minutes: parsed.data.ai_catalog_default_duration_minutes,
+      ai_catalog_emergency_duration_minutes: parsed.data.ai_catalog_emergency_duration_minutes,
+      ai_catalog_can_give_fixed_prices: parsed.data.ai_catalog_can_give_fixed_prices ?? false,
+      ai_catalog_can_give_from_prices: parsed.data.ai_catalog_can_give_from_prices ?? true,
+      ai_catalog_requires_office_quote_for_installations:
+        parsed.data.ai_catalog_requires_office_quote_for_installations ?? true,
+      ai_catalog_price_disclaimer: parsed.data.ai_catalog_price_disclaimer,
+      ai_catalog_emergency_escalation_text: parsed.data.ai_catalog_emergency_escalation_text,
+      ai_catalog_gas_safety_text: parsed.data.ai_catalog_gas_safety_text || null,
+      ai_catalog_electrical_safety_text: parsed.data.ai_catalog_electrical_safety_text || null,
     };
 
     const [{ data: branding, error: brandingError }, { data: settings, error: settingsError }] =

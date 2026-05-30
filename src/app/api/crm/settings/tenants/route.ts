@@ -4,6 +4,7 @@ import { jsonError, jsonSuccess, requireManagerCrmApiUser } from "@/modules/crm/
 import { crmActiveTenantCookieName } from "@/modules/crm/lib/auth";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { createTenantWorkspace } from "@/modules/crm/lib/tenants";
+import { tradeVerticals } from "@/modules/crm/types";
 
 const createTenantSchema = z.object({
   name: z.string().min(2),
@@ -19,7 +20,8 @@ const createTenantSchema = z.object({
   legal_name: z.string().optional().nullable(),
   vat_registration_number: z.string().optional().nullable(),
   gas_safe_number: z.string().optional().nullable(),
-  clone_from_current: z.coerce.boolean().default(true),
+  trade_vertical: z.enum(tradeVerticals).default("general_trades"),
+  clone_from_current: z.coerce.boolean().default(false),
 });
 
 export async function POST(request: Request) {

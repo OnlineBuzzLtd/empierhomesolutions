@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import type { CrmRole, Tenant, TenantBranding, TenantSettings, UserProfile } from "@/modules/crm/types";
+import type { CrmRole, Tenant, TenantBranding, TenantSettings, TradeVertical, UserProfile } from "@/modules/crm/types";
 import { ensureCustomerJourneysRuntimeLink } from "@/modules/crm/lib/customerjourneys";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { ensureTenantTwilioProvisioning } from "@/modules/crm/lib/twilio-provisioning";
@@ -8,6 +8,50 @@ import { ensureTenantVercelDomain } from "@/modules/crm/lib/vercel-domains";
 type ServiceRoleClient = ReturnType<typeof createCrmServiceRoleClient>;
 
 type IdRow = { id: string };
+
+const tradeDefaults: Record<
+  TradeVertical,
+  Array<{ slug: string; name: string; jobTypes: Array<{ slug: string; name: string; duration: number }> }>
+> = {
+  plumbing: [
+    { slug: "emergency-callout", name: "Emergency callout", jobTypes: [{ slug: "leak", name: "Leak or urgent repair", duration: 120 }] },
+    { slug: "plumbing-repair", name: "Plumbing repair", jobTypes: [{ slug: "general-repair", name: "General repair", duration: 90 }] },
+    { slug: "boiler-service", name: "Boiler service", jobTypes: [{ slug: "annual-service", name: "Annual service", duration: 60 }] },
+  ],
+  heating: [
+    { slug: "boiler-service", name: "Boiler service", jobTypes: [{ slug: "annual-service", name: "Annual service", duration: 60 }] },
+    { slug: "heating-repair", name: "Heating repair", jobTypes: [{ slug: "no-heating", name: "No heating or hot water", duration: 120 }] },
+    { slug: "boiler-installation", name: "Boiler installation", jobTypes: [{ slug: "survey", name: "Installation survey", duration: 90 }] },
+  ],
+  electrical: [
+    { slug: "emergency-electrical", name: "Emergency electrical", jobTypes: [{ slug: "urgent-fault", name: "Urgent fault", duration: 120 }] },
+    { slug: "electrical-repair", name: "Electrical repair", jobTypes: [{ slug: "fault-finding", name: "Fault finding", duration: 90 }] },
+    { slug: "eicr", name: "EICR", jobTypes: [{ slug: "certificate", name: "Electrical certificate", duration: 180 }] },
+  ],
+  drainage: [
+    { slug: "blocked-drain", name: "Blocked drain", jobTypes: [{ slug: "clearance", name: "Drain clearance", duration: 120 }] },
+    { slug: "drain-survey", name: "Drain survey", jobTypes: [{ slug: "camera-survey", name: "Camera survey", duration: 120 }] },
+  ],
+  roofing: [
+    { slug: "roof-repair", name: "Roof repair", jobTypes: [{ slug: "leak-repair", name: "Leak repair", duration: 120 }] },
+    { slug: "roof-survey", name: "Roof survey", jobTypes: [{ slug: "inspection", name: "Inspection", duration: 90 }] },
+  ],
+  cleaning: [
+    { slug: "domestic-cleaning", name: "Domestic cleaning", jobTypes: [{ slug: "regular-clean", name: "Regular clean", duration: 120 }] },
+    { slug: "deep-cleaning", name: "Deep cleaning", jobTypes: [{ slug: "deep-clean", name: "Deep clean", duration: 240 }] },
+  ],
+  pest_control: [
+    { slug: "pest-control", name: "Pest control", jobTypes: [{ slug: "inspection-treatment", name: "Inspection and treatment", duration: 90 }] },
+  ],
+  locksmith: [
+    { slug: "emergency-locksmith", name: "Emergency locksmith", jobTypes: [{ slug: "lockout", name: "Lockout", duration: 60 }] },
+    { slug: "lock-replacement", name: "Lock replacement", jobTypes: [{ slug: "replace-lock", name: "Replace lock", duration: 90 }] },
+  ],
+  general_trades: [
+    { slug: "callout", name: "Callout", jobTypes: [{ slug: "assessment", name: "Assessment", duration: 60 }] },
+    { slug: "repair", name: "Repair", jobTypes: [{ slug: "general-repair", name: "General repair", duration: 120 }] },
+  ],
+};
 
 export type TenantWorkspaceProvisioningInput = {
   name: string;
@@ -20,6 +64,7 @@ export type TenantWorkspaceProvisioningInput = {
   legal_name?: string | null;
   vat_registration_number?: string | null;
   gas_safe_number?: string | null;
+  trade_vertical?: TradeVertical | null;
   clone_from_source?: boolean;
   source_tenant_id?: string | null;
   owner: {
@@ -71,6 +116,47 @@ async function resolveSourceTenant(admin: ServiceRoleClient, requestedTenantId?:
   return ((activeTenants ?? []) as Tenant[])[0] ?? null;
 }
 
+async function seedTenantTradeDefaults(admin: ServiceRoleClient, tenantId: string, vertical: TradeVertical, warnings: string[]) {
+  for (const service of tradeDefaults[vertical] ?? tradeDefaults.general_trades) {
+    const { data, error } = await admin
+      .schema("crm")
+      .from("services")
+      .insert({
+        tenant_id: tenantId,
+        slug: service.slug,
+        name: service.name,
+        active: true,
+        ai_visible: true,
+        ai_bookable: true,
+        ai_price_enabled: false,
+        ai_requires_office_quote: true,
+      })
+      .select("id")
+      .single<IdRow>();
+
+    if (error || !data) {
+      warnings.push(error?.message ?? `Failed to seed service ${service.slug}`);
+      continue;
+    }
+
+    for (const jobType of service.jobTypes) {
+      const { error: jobTypeError } = await admin.schema("crm").from("job_types").insert({
+        tenant_id: tenantId,
+        service_id: data.id,
+        slug: jobType.slug,
+        name: jobType.name,
+        active: true,
+        ai_visible: true,
+        ai_bookable: true,
+        ai_default_duration_minutes: jobType.duration,
+      });
+      if (jobTypeError) {
+        warnings.push(jobTypeError.message);
+      }
+    }
+  }
+}
+
 async function cloneTenantBaseline(admin: ServiceRoleClient, sourceTenantId: string, newTenantId: string, warnings: string[]) {
   const [
     { data: services },
@@ -106,6 +192,12 @@ async function cloneTenantBaseline(admin: ServiceRoleClient, sourceTenantId: str
         name: service.name,
         active: service.active,
         launch_date: service.launch_date,
+        ai_visible: service.ai_visible ?? true,
+        ai_bookable: service.ai_bookable ?? true,
+        ai_price_enabled: service.ai_price_enabled ?? false,
+        ai_requires_office_quote: service.ai_requires_office_quote ?? true,
+        ai_default_duration_minutes: service.ai_default_duration_minutes,
+        ai_price_disclaimer: service.ai_price_disclaimer,
       })
       .select("id")
       .single<IdRow>();
@@ -150,6 +242,9 @@ async function cloneTenantBaseline(admin: ServiceRoleClient, sourceTenantId: str
         name: jobType.name,
         description: jobType.description,
         active: jobType.active,
+        ai_visible: jobType.ai_visible ?? true,
+        ai_bookable: jobType.ai_bookable ?? true,
+        ai_default_duration_minutes: jobType.ai_default_duration_minutes,
       })
       .select("id")
       .single<IdRow>();
@@ -294,6 +389,7 @@ export async function createTenantWorkspace(admin: ServiceRoleClient, input: Ten
     legal_name: input.legal_name?.trim() || input.name.trim(),
     vat_registration_number: input.vat_registration_number?.trim() || null,
     gas_safe_number: input.gas_safe_number?.trim() || null,
+    trade_vertical: input.trade_vertical ?? "general_trades",
   };
 
   const membershipPayload = {
@@ -338,6 +434,8 @@ export async function createTenantWorkspace(admin: ServiceRoleClient, input: Ten
 
   if (sourceTenant?.id) {
     await cloneTenantBaseline(admin, sourceTenant.id, createdTenant.id, warnings);
+  } else {
+    await seedTenantTradeDefaults(admin, createdTenant.id, input.trade_vertical ?? "general_trades", warnings);
   }
 
   try {

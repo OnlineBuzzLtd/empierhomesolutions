@@ -26,6 +26,7 @@ The CRM is no longer a single-business Empire-only workspace. It now supports:
 - simplified trade-business CRM UX: admin navigation follows `Dashboard -> Enquiries -> Jobs -> Scheduler -> Customers -> Quotes -> Invoices -> AI Receptionist -> More`
 - Commusoft-style engineer field app remains the default for engineers, with Today / Diary / Jobs / Profile bottom navigation
 - AI Receptionist recovery cases for bookings that arrive from AI/WhatsApp/voice but need office review before they become linked customer/job records
+- AI Receptionist catalogue sync: Supabase-backed services, job types, packages, pricing policy, booking durations, and safety wording are projected through signed `GET /api/platform/catalog` for WhatsApp, SMS, web chat, and phone-call runtimes
 
 Current Empire tenant state:
 

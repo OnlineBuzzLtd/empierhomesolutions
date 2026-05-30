@@ -46,11 +46,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .schema("crm")
       .from("packages")
       .update({
+        service_id: parsed.data.service_id ?? null,
         name: parsed.data.name,
         description: parsed.data.description ?? null,
         default_markup_percent: parsed.data.default_markup_percent ?? null,
         is_active: parsed.data.is_active,
         image_url: parsed.data.image_url ?? null,
+        ai_visible: parsed.data.ai_visible,
+        ai_bookable: parsed.data.ai_bookable,
+        ai_price_enabled: parsed.data.ai_price_enabled,
+        ai_requires_office_quote: parsed.data.ai_requires_office_quote,
+        ai_default_duration_minutes: parsed.data.ai_default_duration_minutes ?? null,
+        ai_price_disclaimer: parsed.data.ai_price_disclaimer ?? null,
       })
       .eq("id", id);
     if (updateError) {

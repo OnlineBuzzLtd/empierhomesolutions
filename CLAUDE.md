@@ -79,6 +79,16 @@ Live CRM cleanup is destructive and may contain PII. Treat every request to dele
 - After deletion, run a read-only verification query that proves the requested records and their visible orphan surfaces are gone.
 - In the final response, report aggregate counts and backup file paths, but do not paste PII from the backup into chat.
 
+### AI catalogue source of truth
+
+Supabase CRM is the source of truth for AI-visible services, job types, packages, booking durations, price policy, and safety wording. WhatsApp, SMS, web chat, and ElevenLabs phone calls must consume the same tenant-scoped catalogue contract exposed by `GET /api/platform/catalog`.
+
+- Do not hardcode tenant prices, service names, package contents, booking durations, or safety wording in prompts, channel adapters, fixtures, or ElevenLabs managed-agent config.
+- Do not expose unit cost, markup, margin, profit, supplier terms, raw quote templates, tenant runtime diagnostics, or platform internals to customer-facing AI paths.
+- If the catalogue cannot be fetched, the AI may qualify the customer and collect details, but it must defer exact pricing to the office.
+- Every new AI channel or booking path should attach the catalogue version to safe conversation or booking metadata where possible.
+- New tenant defaults must be trade-vertical driven and cautious by default; never clone Empire-specific pricing into a new tenant unless the user explicitly asks for a clone.
+
 ## Live testing against paid third-party providers
 > This section is non-negotiable. There have been TWO Twilio compliance incidents in May 2026 driven by automated testing:
 > 1. **May 12** — a live channel-test pass fired ~150–200 invalid-destination SMS through the production Twilio number (synthetic numbers in valid UK mobile format, all bounced with **error 21211**). That damaged sender reputation, cost real money, and risked compliance throttling.

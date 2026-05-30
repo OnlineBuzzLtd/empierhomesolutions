@@ -11,6 +11,34 @@ export function ServiceSettingsForm() {
         <input name="active" type="checkbox" defaultChecked />
         Active
       </label>
+      <label className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <input name="ai_visible" type="checkbox" defaultChecked />
+        AI can see
+      </label>
+      <label className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <input name="ai_bookable" type="checkbox" defaultChecked />
+        AI can book
+      </label>
+      <label className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <input name="ai_price_enabled" type="checkbox" />
+        AI may mention price
+      </label>
+      <label className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <input name="ai_requires_office_quote" type="checkbox" defaultChecked />
+        Office confirms quote
+      </label>
+      <input
+        name="ai_default_duration_minutes"
+        type="number"
+        min="1"
+        placeholder="AI duration minutes"
+        className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+      />
+      <input
+        name="ai_price_disclaimer"
+        placeholder="AI price disclaimer"
+        className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+      />
     </ApiForm>
   );
 }

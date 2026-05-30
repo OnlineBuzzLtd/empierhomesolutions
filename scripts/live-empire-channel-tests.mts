@@ -253,6 +253,34 @@ function isMockPlatformUrl() {
   return PLATFORM_API_URL.includes("mock---");
 }
 
+function parseLiveRecipientAllowlist() {
+  const raw = process.env.LIVE_TEST_RECIPIENT_ALLOWLIST ?? "";
+  return new Set(
+    raw
+      .split(",")
+      .map((value) => normalizeDialablePhone(value.trim()))
+      .filter(Boolean)
+  );
+}
+
+function assertLivePhoneRecipientAllowed(phone: string, context: string) {
+  if (isMockPlatformUrl()) {
+    return;
+  }
+
+  const normalized = normalizeDialablePhone(phone);
+  const allowlist = parseLiveRecipientAllowlist();
+  if (!allowlist.has(normalized)) {
+    throw new Error(
+      [
+        `${context} is blocked: ${normalized} is not in LIVE_TEST_RECIPIENT_ALLOWLIST.`,
+        "Do not send live-provider tests to synthetic real-format numbers.",
+        "Use Tier 1 webhook-only testing, provider test identifiers, or an explicitly pre-consented allowlisted recipient.",
+      ].join(" ")
+    );
+  }
+}
+
 async function enforceLiveTwilioGuard(target: LiveTenantTarget) {
   if (isMockPlatformUrl()) {
     return;
@@ -264,7 +292,17 @@ async function enforceLiveTwilioGuard(target: LiveTenantTarget) {
     console.error(`Messaging number: ${target.messagingNumber} (${target.messagingProvider})`);
     console.error("This run can send real Twilio traffic and incur provider charges.");
     console.error("For Tier 1, set PLATFORM_API_URL to the mock revision URL containing `mock---`.");
-    console.error("For an intentional Tier 3 run, set ALLOW_LIVE_TWILIO=1 and rerun.");
+    console.error(
+      "For an intentional Tier 3 run, set ALLOW_LIVE_TWILIO=1 and LIVE_TEST_RECIPIENT_ALLOWLIST to explicit pre-consented recipients."
+    );
+    process.exit(1);
+  }
+
+  if (parseLiveRecipientAllowlist().size === 0) {
+    console.error("\nRefusing to run Tier 3 live channel tests.");
+    console.error("ALLOW_LIVE_TWILIO=1 is not enough for this script.");
+    console.error("Set LIVE_TEST_RECIPIENT_ALLOWLIST to explicit pre-consented phone numbers.");
+    console.error("Synthetic real-format numbers are forbidden by CLAUDE.md.");
     process.exit(1);
   }
 
@@ -272,6 +310,7 @@ async function enforceLiveTwilioGuard(target: LiveTenantTarget) {
   console.warn(`Target:           ${PLATFORM_API_URL}`);
   console.warn(`Account SID:      ${target.messagingAccountSid ?? "unknown"}`);
   console.warn(`Messaging number: ${target.messagingNumber} (${target.messagingProvider})`);
+  console.warn(`Recipient allowlist size: ${parseLiveRecipientAllowlist().size}`);
   console.warn("Cost:             real provider charges may apply.");
   console.warn("Press Ctrl+C within 10 seconds to abort.\n");
 
@@ -924,6 +963,7 @@ async function sendSms(
   channel: "sms" | "whatsapp",
   toNumber: string
 ) {
+  assertLivePhoneRecipientAllowed(from, `${channel.toUpperCase()} recipient`);
   const fromNumber = channel === "whatsapp" ? `whatsapp:${from}` : from;
   const toNumberWithTransport = channel === "whatsapp" ? `whatsapp:${toNumber}` : toNumber;
   const params = new URLSearchParams({
@@ -1207,6 +1247,7 @@ async function runVoiceScenario(
   checkPlatform: (state: Awaited<ReturnType<typeof fetchPlatformConversationState>>) => Verdict
 ): Promise<TestResult> {
   const target = requireLiveTarget();
+  assertLivePhoneRecipientAllowed(callerNumber, "Voice caller");
   console.log(`\n${"═".repeat(64)}`);
   console.log(`  ${label}  [VOICE — ElevenLabs managed]`);
   console.log(`  Caller: ${callerNumber}  Name: "${fullName}"`);
@@ -1951,6 +1992,147 @@ async function main() {
         note: state.bookings[0]
           ? `booking=${state.bookings[0].booking_status}`
           : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T11 — SMS catalogue/pricing smoke. This should remain an enquiry:
+  // the post-catalogue runtime may give cautious guide pricing only when
+  // CRM policy allows it, but should not force a booking.
+  results.push(
+    await runSmsScenario(
+      "T11 — SMS Catalogue Price Enquiry",
+      "sms",
+      `+447${runId}11`,
+      [
+        "How much is an emergency plumbing callout?",
+        "Thanks, I just wanted the price for now",
+      ],
+      {
+        phone: `+447${runId}11`,
+        problemDescription: "Customer asked for emergency callout pricing only",
+      },
+      internalToken,
+      new Date(),
+      "conversation",
+      (state) => ({
+        passed: Boolean(state.conversation) && state.bookings.length === 0,
+        note: state.conversation
+          ? `conv=${state.conversation.conversation_id.slice(0, 8)} bookings=${state.bookings.length}`
+          : "no conversation",
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T12 — WhatsApp non-booking coverage enquiry.
+  results.push(
+    await runSmsScenario(
+      "T12 — WhatsApp Coverage Enquiry",
+      "whatsapp",
+      `+447${runId}12`,
+      [
+        "Do you cover Uxbridge for a small leak repair?",
+        "No booking yet, I will check with my landlord first",
+      ],
+      {
+        phone: `+447${runId}12`,
+        postcode: "UB8 1AA",
+        problemDescription: "Small leak repair coverage enquiry",
+      },
+      internalToken,
+      new Date(),
+      "conversation",
+      (state) => ({
+        passed: Boolean(state.conversation) && state.bookings.length === 0,
+        note: state.conversation
+          ? `conv=${state.conversation.conversation_id.slice(0, 8)} bookings=${state.bookings.length}`
+          : "no conversation",
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T13 — Webchat catalogue/pricing smoke.
+  results.push(
+    await runWebchatScenario(
+      "T13 — Webchat Catalogue Price Enquiry",
+      `webchat-${runId}13`,
+      "Nadia Price",
+      `nadia.web.${runId}13@test.com`,
+      [
+        "Can you tell me the price for a boiler service?",
+        "Thanks, I am only comparing prices today",
+      ],
+      {
+        fullName: "Nadia Price",
+        email: `nadia.web.${runId}13@test.com`,
+      },
+      internalToken,
+      new Date(),
+      "conversation",
+      (state) => ({
+        passed: Boolean(state.conversation) && state.bookings.length === 0,
+        note: state.conversation
+          ? `conv=${state.conversation.conversation_id.slice(0, 8)} bookings=${state.bookings.length}`
+          : "no conversation",
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T14 — Voice catalogue-backed booking path after ElevenLabs re-provision.
+  results.push(
+    await runVoiceScenario(
+      "T14 — Voice Catalogue Booking",
+      `+447${runId}14`,
+      "Rachel Green",
+      `rachel.voice.${runId}14@test.com`,
+      managedVoiceSecret,
+      new Date(),
+      "booking",
+      (state) => ({
+        passed: state.bookings.some((booking) => booking.booking_status === "confirmed"),
+        note: state.bookings[0]
+          ? `booking=${state.bookings[0].booking_status}`
+          : `state=${state.bookingState?.current_state ?? "n/a"}`,
+      })
+    )
+  );
+
+  await sleep(3_000);
+
+  // T15 — WhatsApp human handoff path, still expected to materialise as a
+  // CRM conversation even without a booking.
+  results.push(
+    await runSmsScenario(
+      "T15 — WhatsApp Human Handoff",
+      "whatsapp",
+      `+447${runId}15`,
+      [
+        "I have a heating problem but it is complicated",
+        "Please can a real person call me instead",
+      ],
+      {
+        fullName: "WhatsApp Handoff Customer",
+        phone: `+447${runId}15`,
+        problemDescription: "Complicated heating problem, customer requested human callback",
+      },
+      internalToken,
+      new Date(),
+      "conversation",
+      (state) => ({
+        passed:
+          Boolean(state.conversation) &&
+          (state.bookings.length === 0 ||
+            state.bookingState?.current_state === "escalated" ||
+            state.bookingState?.current_state === "handoff_required"),
+        note: `state=${state.bookingState?.current_state ?? "n/a"} bookings=${state.bookings.length}`,
       })
     )
   );

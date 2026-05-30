@@ -4,6 +4,15 @@
 
 This release reworks the CRM around a simpler trade-business workflow while preserving the Commusoft-style engineer field experience. It also fixes the AI booking edge case where a confirmed AI/WhatsApp/voice booking could appear only as an unlinked Scheduler appointment.
 
+### Added — AI catalogue source of truth
+
+- Added a tenant-scoped, customer-safe AI catalogue projection for services, job types, packages, pricing policy, booking durations, and safety wording.
+- Added signed platform endpoint `GET /api/platform/catalog` for CustomerJourneys and the ElevenLabs voice path to consume the same catalogue across WhatsApp, SMS, web chat, and phone calls.
+- Added cautious AI visibility/pricing controls for services, job types, packages, and tenant catalogue policy.
+- Added trade vertical defaults for plumbing, heating, electrical, drainage, roofing, cleaning, pest control, locksmiths, and general trades.
+- Added Settings preview for the AI Receptionist catalogue with channel coverage status and restricted-field redaction checks.
+- Added `docs/ai-agent-catalog-sync-prd.md` as the cross-repo implementation contract for CustomerJourneys/ElevenLabs runtime consumption.
+
 ### Added — AI booking recovery
 
 - Recovery APIs:

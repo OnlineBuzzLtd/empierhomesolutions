@@ -120,6 +120,19 @@ export type CrmAddonKey = (typeof crmAddonKeys)[number];
 export const tenantStatuses = ["trial", "active", "suspended", "archived"] as const;
 export type TenantStatus = (typeof tenantStatuses)[number];
 
+export const tradeVerticals = [
+  "plumbing",
+  "heating",
+  "electrical",
+  "drainage",
+  "roofing",
+  "cleaning",
+  "pest_control",
+  "locksmith",
+  "general_trades",
+] as const;
+export type TradeVertical = (typeof tradeVerticals)[number];
+
 export const engineerAiAssistActions = [
   "summary",
   "arrival_note_draft",
@@ -194,6 +207,16 @@ export type TenantSettings = {
   gocardless_merchant_id?: string | null;
   default_payment_terms: Record<string, unknown>;
   show_per_package_vat: boolean;
+  trade_vertical: TradeVertical;
+  ai_catalog_default_duration_minutes: number;
+  ai_catalog_emergency_duration_minutes: number;
+  ai_catalog_can_give_fixed_prices: boolean;
+  ai_catalog_can_give_from_prices: boolean;
+  ai_catalog_requires_office_quote_for_installations: boolean;
+  ai_catalog_price_disclaimer: string;
+  ai_catalog_emergency_escalation_text: string;
+  ai_catalog_gas_safety_text: string | null;
+  ai_catalog_electrical_safety_text: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -250,20 +273,31 @@ export type UserCertification = {
 
 export type Service = {
   id: string;
+  tenant_id?: string;
   slug: string;
   name: string;
   active: boolean;
   launch_date: string | null;
+  ai_visible?: boolean;
+  ai_bookable?: boolean;
+  ai_price_enabled?: boolean;
+  ai_requires_office_quote?: boolean;
+  ai_default_duration_minutes?: number | null;
+  ai_price_disclaimer?: string | null;
   created_at: string;
 };
 
 export type JobType = {
   id: string;
+  tenant_id?: string;
   service_id: string;
   slug: string;
   name: string;
   description: string | null;
   active: boolean;
+  ai_visible?: boolean;
+  ai_bookable?: boolean;
+  ai_default_duration_minutes?: number | null;
   created_at: string;
 };
 
@@ -540,11 +574,18 @@ export type LineItem = {
 export type Package = {
   id: string;
   tenant_id: string;
+  service_id: string | null;
   name: string;
   description: string | null;
   default_markup_percent: number | null;
   is_active: boolean;
   image_url: string | null;
+  ai_visible: boolean;
+  ai_bookable: boolean;
+  ai_price_enabled: boolean;
+  ai_requires_office_quote: boolean;
+  ai_default_duration_minutes: number | null;
+  ai_price_disclaimer: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

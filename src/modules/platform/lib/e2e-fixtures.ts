@@ -50,6 +50,17 @@ export function buildPlatformE2eMockSession() {
     demo_mode_enabled: true,
     demo_console_enabled: false,
     show_per_package_vat: false,
+    trade_vertical: "plumbing",
+    ai_catalog_default_duration_minutes: 60,
+    ai_catalog_emergency_duration_minutes: 120,
+    ai_catalog_can_give_fixed_prices: false,
+    ai_catalog_can_give_from_prices: true,
+    ai_catalog_requires_office_quote_for_installations: true,
+    ai_catalog_price_disclaimer: "The office confirms final pricing before work starts.",
+    ai_catalog_emergency_escalation_text:
+      "If there is an immediate risk to safety or property, call the emergency services.",
+    ai_catalog_gas_safety_text: null,
+    ai_catalog_electrical_safety_text: null,
     created_at: "2026-04-07T08:00:00.000Z",
     updated_at: "2026-04-07T08:00:00.000Z",
   };

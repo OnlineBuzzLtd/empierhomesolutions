@@ -19,6 +19,12 @@ type EditableState = {
   default_markup_percent: string;
   is_active: boolean;
   image_url: string;
+  ai_visible: boolean;
+  ai_bookable: boolean;
+  ai_price_enabled: boolean;
+  ai_requires_office_quote: boolean;
+  ai_default_duration_minutes: string;
+  ai_price_disclaimer: string;
   items: EditableItem[];
 };
 
@@ -51,7 +57,20 @@ function blankItem(sortOrder: number): EditableItem {
 }
 
 function blankState(): EditableState {
-  return { name: "", description: "", default_markup_percent: "", is_active: true, image_url: "", items: [blankItem(0)] };
+  return {
+    name: "",
+    description: "",
+    default_markup_percent: "",
+    is_active: true,
+    image_url: "",
+    ai_visible: true,
+    ai_bookable: false,
+    ai_price_enabled: false,
+    ai_requires_office_quote: true,
+    ai_default_duration_minutes: "",
+    ai_price_disclaimer: "",
+    items: [blankItem(0)],
+  };
 }
 
 function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
@@ -61,6 +80,15 @@ function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
     default_markup_percent: pkg.default_markup_percent === null || pkg.default_markup_percent === undefined ? "" : String(pkg.default_markup_percent),
     is_active: pkg.is_active,
     image_url: pkg.image_url ?? "",
+    ai_visible: pkg.ai_visible !== false,
+    ai_bookable: pkg.ai_bookable === true,
+    ai_price_enabled: pkg.ai_price_enabled === true,
+    ai_requires_office_quote: pkg.ai_requires_office_quote !== false,
+    ai_default_duration_minutes:
+      pkg.ai_default_duration_minutes === null || pkg.ai_default_duration_minutes === undefined
+        ? ""
+        : String(pkg.ai_default_duration_minutes),
+    ai_price_disclaimer: pkg.ai_price_disclaimer ?? "",
     items: (pkg.items ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -191,6 +219,13 @@ export function PackageManagerForm({
       default_markup_percent: state.default_markup_percent === "" ? null : Number(state.default_markup_percent),
       is_active: state.is_active,
       image_url: state.image_url.trim() === "" ? null : state.image_url.trim(),
+      ai_visible: state.ai_visible,
+      ai_bookable: state.ai_bookable,
+      ai_price_enabled: state.ai_price_enabled,
+      ai_requires_office_quote: state.ai_requires_office_quote,
+      ai_default_duration_minutes:
+        state.ai_default_duration_minutes.trim() === "" ? null : Number(state.ai_default_duration_minutes),
+      ai_price_disclaimer: state.ai_price_disclaimer.trim() === "" ? null : state.ai_price_disclaimer.trim(),
       items: state.items.map((it, idx) => ({
         product_id: it.product_id ?? null,
         description: it.description,
@@ -305,6 +340,52 @@ export function PackageManagerForm({
             />
             Active
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={state.ai_visible}
+              onChange={(e) => setState({ ...state, ai_visible: e.target.checked })}
+            />
+            AI can see this package
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={state.ai_bookable}
+              onChange={(e) => setState({ ...state, ai_bookable: e.target.checked })}
+            />
+            AI can book this package
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={state.ai_price_enabled}
+              onChange={(e) => setState({ ...state, ai_price_enabled: e.target.checked })}
+            />
+            AI may mention package price
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={state.ai_requires_office_quote}
+              onChange={(e) => setState({ ...state, ai_requires_office_quote: e.target.checked })}
+            />
+            Office confirms final quote
+          </label>
+          <input
+            value={state.ai_default_duration_minutes}
+            onChange={(e) => setState({ ...state, ai_default_duration_minutes: e.target.value })}
+            placeholder="AI booking duration minutes"
+            type="number"
+            min="1"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <textarea
+            value={state.ai_price_disclaimer}
+            onChange={(e) => setState({ ...state, ai_price_disclaimer: e.target.value })}
+            placeholder="AI price disclaimer"
+            className="min-h-16 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+          />
         </div>
 
         <div className="mt-4 space-y-2">

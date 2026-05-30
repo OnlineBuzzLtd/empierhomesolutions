@@ -30,7 +30,78 @@ import {
   listUserProfiles,
 } from "@/modules/crm/lib/data";
 
-export default async function SettingsPage() {
+function SettingsHub() {
+  const cards = [
+    {
+      title: "Business details",
+      description: "Business name, contact details, logo, and document footer text.",
+      href: "/settings?section=advanced#business-details",
+    },
+    {
+      title: "Team",
+      description: "Add office users and engineers, reset passwords, and update access.",
+      href: "/settings?section=advanced#team",
+    },
+    {
+      title: "Services & job types",
+      description: "Set the work types your team quotes, books, and reports on.",
+      href: "/settings?section=advanced#services",
+    },
+    {
+      title: "Quote & invoice setup",
+      description: "Templates, packages, products, payment terms, and document rules.",
+      href: "/settings?section=advanced#documents",
+    },
+    {
+      title: "AI receptionist",
+      description: "Review connection status, follow-ups, and test customer conversations.",
+      href: "/ai-hub?tab=settings",
+    },
+    {
+      title: "Payments",
+      description: "Payment provider details used for invoice payment links.",
+      href: "/settings/payments",
+    },
+    {
+      title: "Integrations",
+      description: "Connected systems used for bookings, calendars, and messaging.",
+      href: "/settings?section=advanced#integrations",
+    },
+    {
+      title: "Advanced",
+      description: "Provisioning, diagnostics, demo tools, and low-level setup.",
+      href: "/settings?section=advanced",
+    },
+  ];
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="mt-1 text-sm text-slate-500">Choose the area you want to update.</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <Link
+            key={card.title}
+            href={card.href}
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30"
+          >
+            <h2 className="text-base font-semibold text-slate-900">{card.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{card.description}</p>
+            <p className="mt-4 text-sm font-semibold text-blue-700">Open</p>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const setup = getCrmSetupState();
   if (!setup.configured && setup.message) {
     return <SetupNotice message={setup.message} />;
@@ -39,6 +110,12 @@ export default async function SettingsPage() {
   const session = await requireSettingsAccess();
   if (!session.user) {
     notFound();
+  }
+
+  const params = await searchParams;
+  const section = typeof params.section === "string" ? params.section : null;
+  if (section !== "advanced") {
+    return <SettingsHub />;
   }
 
   const demoState = await getCrmDemoState();
@@ -91,9 +168,7 @@ export default async function SettingsPage() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Backend UI for CRM configuration, roles, services, job types, and rules.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">Advanced setup, team access, services, documents, products, and integrations.</p>
       </div>
 
       <DemoAnchor name="settings-config">
@@ -249,15 +324,15 @@ export default async function SettingsPage() {
             </Link>
           </SectionCard>
 
-          <SectionCard title="FSM Integration">
+          <SectionCard title="Field system integration">
             <p className="text-sm text-slate-600">
-              Select the tenant field-service system for future booking handoff.
+              Select the field-service system used for future booking handoff.
             </p>
             <Link
               href="/settings/fsm"
               className="mt-4 inline-flex rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              Configure FSM
+              Configure integration
             </Link>
           </SectionCard>
 

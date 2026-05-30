@@ -13,6 +13,9 @@ import {
   Inbox,
   LayoutDashboard,
   Menu,
+  MoreHorizontal,
+  Package,
+  PackageCheck,
   PhoneCall,
   ReceiptText,
   Settings,
@@ -40,12 +43,19 @@ export type CrmNavIconKey =
   | "ai-hub"
   | "reports"
   | "settings"
-  | "demo";
+  | "demo"
+  | "more"
+  | "suppliers"
+  | "products"
+  | "packages"
+  | "templates"
+  | "integrations";
 
 export type CrmNavItem = {
   href: string;
   label: string;
   icon: CrmNavIconKey;
+  children?: CrmNavItem[];
 };
 
 export type CrmNavGroup = {
@@ -54,13 +64,14 @@ export type CrmNavGroup = {
 };
 
 function isActive(pathname: string, href: string) {
-  if (href === "/dashboard") {
+  const hrefPath = href.split(/[?#]/)[0] || href;
+  if (hrefPath === "/dashboard") {
     return pathname === "/dashboard";
   }
-  if (href === "/calendar" && pathname.startsWith("/calendar/today")) {
+  if (hrefPath === "/calendar" && pathname.startsWith("/calendar/today")) {
     return false;
   }
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
 }
 
 const navIcons: Record<CrmNavIconKey, LucideIcon> = {
@@ -80,7 +91,17 @@ const navIcons: Record<CrmNavIconKey, LucideIcon> = {
   reports: BarChart3,
   settings: Settings,
   demo: Clapperboard,
+  more: MoreHorizontal,
+  suppliers: BriefcaseBusiness,
+  products: Package,
+  packages: PackageCheck,
+  templates: FileText,
+  integrations: Settings,
 };
+
+function isItemActive(pathname: string, item: CrmNavItem) {
+  return isActive(pathname, item.href) || Boolean(item.children?.some((child) => isActive(pathname, child.href)));
+}
 
 function NavIcon({ icon, active }: { icon: CrmNavIconKey; active: boolean }) {
   const Icon = navIcons[icon] ?? UserRound;
@@ -97,7 +118,45 @@ export function CrmSidebarNav({ groups }: { groups: CrmNavGroup[] }) {
             {group.label}
           </p>
           {group.items.map((item) => {
-            const active = isActive(pathname, item.href);
+            const active = isItemActive(pathname, item);
+            if (item.children?.length) {
+              return (
+                <details key={item.href} className="group/more" open={active}>
+                  <summary
+                    className={`flex min-h-10 cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
+                      active ? "bg-white text-slate-950 shadow-sm" : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-md transition-colors ${
+                        active ? "bg-cyan-100 text-cyan-700" : "bg-white/5 text-slate-400 group-hover/more:text-white"
+                      }`}
+                    >
+                      <NavIcon icon={item.icon} active={active} />
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </summary>
+                  <div className="mt-1 space-y-1 pl-10">
+                    {item.children.map((child) => {
+                      const childActive = isActive(pathname, child.href);
+                      return (
+                        <CrmInstantLink
+                          key={child.href}
+                          href={child.href}
+                          aria-current={childActive ? "page" : undefined}
+                          className={`block rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
+                            childActive ? "bg-white/15 text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          {child.label}
+                        </CrmInstantLink>
+                      );
+                    })}
+                  </div>
+                </details>
+              );
+            }
             return (
               <CrmInstantLink
                 key={item.href}
@@ -173,7 +232,46 @@ export function CrmMobileMenu({ groups }: { groups: CrmNavGroup[] }) {
               </p>
               <div className="space-y-1">
                 {group.items.map((item) => {
-                  const active = isActive(pathname, item.href);
+                  const active = isItemActive(pathname, item);
+                  if (item.children?.length) {
+                    return (
+                      <div key={item.href}>
+                        <div
+                          className={`flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
+                            active ? "bg-slate-900 text-white" : "text-slate-700"
+                          }`}
+                        >
+                          <span
+                            aria-hidden
+                            className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
+                              active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            <NavIcon icon={item.icon} active={active} />
+                          </span>
+                          <span className="truncate">{item.label}</span>
+                        </div>
+                        <div className="mt-1 space-y-1 pl-10">
+                          {item.children.map((child) => {
+                            const childActive = isActive(pathname, child.href);
+                            return (
+                              <CrmInstantLink
+                                key={child.href}
+                                href={child.href}
+                                aria-current={childActive ? "page" : undefined}
+                                onClick={() => setOpen(false)}
+                                className={`block rounded-md px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+                                  childActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                                }`}
+                              >
+                                {child.label}
+                              </CrmInstantLink>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <CrmInstantLink
                       key={item.href}

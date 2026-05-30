@@ -13,7 +13,7 @@ async function CustomerCreatePanel() {
   const customFields = await listCustomFieldDefinitions();
 
   return (
-    <SectionCard title="Add Customer">
+    <SectionCard title="New Customer">
       <CustomerCreateForm customFields={customFields} />
     </SectionCard>
   );
@@ -43,11 +43,11 @@ export default async function CustomersPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
-        <p className="mt-1 text-sm text-slate-500">Customers in CRM.</p>
+        <p className="mt-1 text-sm text-slate-500">Customer details, addresses, and job history.</p>
       </div>
 
       <div className={showCreatePanel ? "grid gap-6 xl:grid-cols-[1.4fr_0.9fr]" : "space-y-6"}>
-        <Suspense fallback={<SectionCard title="Customer List"><p className="text-sm text-slate-500">Loading customers...</p></SectionCard>}>
+        <Suspense fallback={<SectionCard title="Customers"><p className="text-sm text-slate-500">Loading customers...</p></SectionCard>}>
           <CustomersClientPanel
             pagination={pagination}
             params={params}
@@ -57,7 +57,7 @@ export default async function CustomersPage({
         </Suspense>
 
         {showCreatePanel ? (
-          <Suspense fallback={<SectionCard title="Add Customer"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+          <Suspense fallback={<SectionCard title="New Customer"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
             <CustomerCreatePanel />
           </Suspense>
         ) : null}

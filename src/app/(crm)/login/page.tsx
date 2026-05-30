@@ -15,7 +15,7 @@ export default async function LoginPage() {
         <div className="mb-8 text-center">
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Trades CRM</p>
           <h1 className="text-3xl font-bold text-white">Sign in to your workspace</h1>
-          <p className="mt-2 text-sm text-slate-400">Tenant-isolated CRM access for heating and plumbing teams.</p>
+          <p className="mt-2 text-sm text-slate-400">CRM access for heating and plumbing teams.</p>
         </div>
 
         {!setup.configured && setup.message ? <SetupNotice message={setup.message} /> : <LoginForm fallbackNext={fallbackNext} />}

@@ -1,11 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { AppointmentCreateForm } from "@/modules/crm/components/forms/AppointmentCreateForm";
-import {
-  buildCalendarApiUrl,
-  CalendarTypeFilters,
-  CalendarWeekClientPanel,
-} from "@/modules/crm/components/client/CrmFastScreenPanels";
+import { CalendarWeekClientPanel } from "@/modules/crm/components/client/CrmFastScreenPanels";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
@@ -75,17 +71,16 @@ export default async function CalendarPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Calendar</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Scheduler</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Week timeline for calls, surveys, bookings, recurring reminders, service due dates, and warranty expiries.
+            Book jobs, check engineer availability, and see the week at a glance.
           </p>
         </div>
-        <CalendarTypeFilters type={type} status={status} assignedTo={assignedTo} weekParam={weekParam} />
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs">
         <Link href="/calendar" className="rounded-full bg-slate-900 px-3 py-1.5 font-medium text-white">
-          Week view
+          Week
         </Link>
         <Link
           href="/calendar/availability"
@@ -97,7 +92,7 @@ export default async function CalendarPage({
           href="/calendar/schedule"
           className="rounded-full border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50"
         >
-          Dispatch board
+          Schedule
         </Link>
       </div>
 
@@ -116,7 +111,7 @@ export default async function CalendarPage({
           demoActive={demoState.active}
         />
 
-        <Suspense fallback={<SectionCard title="Add Calendar Item"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+        <Suspense fallback={<SectionCard title="New Appointment"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
           <CalendarCreatePanel mode={demoState.mode} />
         </Suspense>
       </div>
@@ -136,7 +131,7 @@ async function CalendarCreatePanel({
   ]);
 
   return (
-    <SectionCard title="Add Calendar Item">
+    <SectionCard title="New Appointment">
       <AppointmentCreateForm customers={customers} leads={leads} users={users} />
     </SectionCard>
   );
@@ -164,6 +159,15 @@ function buildWeekHref(filters: {
   week: string | null;
 }) {
   return `/calendar${buildFilterQuery(filters)}`;
+}
+
+function buildCalendarApiUrl(filters: {
+  type: string | null;
+  status: string | null;
+  assignedTo: string | null;
+  week?: string | null;
+}) {
+  return `/api/crm/calendar/week${buildFilterQuery(filters)}`;
 }
 
 function ymd(date: Date): string {

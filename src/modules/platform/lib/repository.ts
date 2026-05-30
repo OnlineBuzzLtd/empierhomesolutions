@@ -325,6 +325,26 @@ export async function listPlatformEvents(supabase: SupabaseClient, tenantId: str
   return ((data ?? []) as PlatformEventRow[]).map(mapPlatformEventRow);
 }
 
+export async function getPlatformEventById(
+  supabase: SupabaseClient,
+  tenantId: string,
+  eventId: string,
+) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("platform_event_log")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("event_id", eventId)
+    .maybeSingle<PlatformEventRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapPlatformEventRow(data) : null;
+}
+
 export async function listPlatformCommands(supabase: SupabaseClient, tenantId: string, limit = 25) {
   const { data, error } = await supabase
     .schema("crm")
@@ -737,10 +757,13 @@ export async function upsertPlatformConversationLink(
   input: {
     conversationId: string;
     customerId?: string | null;
+    clearCustomerId?: boolean;
     leadId?: string | null;
     jobId?: string | null;
+    clearJobId?: boolean;
     callbackAppointmentId?: string | null;
     bookingAppointmentId?: string | null;
+    clearBookingAppointmentId?: boolean;
     latestChannel?: string | null;
     identityPhone?: string | null;
     identityEmail?: string | null;
@@ -753,11 +776,11 @@ export async function upsertPlatformConversationLink(
     workspace_id: alias.workspace_id,
     tenant_id: alias.tenant_id,
     conversation_id: input.conversationId,
-    customer_id: input.customerId ?? existing?.customer_id ?? null,
+    customer_id: input.clearCustomerId ? null : input.customerId ?? existing?.customer_id ?? null,
     lead_id: input.leadId ?? existing?.lead_id ?? null,
-    job_id: input.jobId ?? existing?.job_id ?? null,
+    job_id: input.clearJobId ? null : input.jobId ?? existing?.job_id ?? null,
     callback_appointment_id: input.callbackAppointmentId ?? existing?.callback_appointment_id ?? null,
-    booking_appointment_id: input.bookingAppointmentId ?? existing?.booking_appointment_id ?? null,
+    booking_appointment_id: input.clearBookingAppointmentId ? null : input.bookingAppointmentId ?? existing?.booking_appointment_id ?? null,
     latest_channel: input.latestChannel ?? existing?.latest_channel ?? null,
     identity_phone: input.identityPhone ?? existing?.identity_phone ?? null,
     identity_email: input.identityEmail ?? existing?.identity_email ?? null,

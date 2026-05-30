@@ -19,7 +19,7 @@ async function LeadCreatePanel({ mode }: { mode: CrmMode }) {
   ]);
 
   return (
-    <SectionCard title="Add Lead">
+    <SectionCard title="New Enquiry">
       <LeadCreateForm services={services} jobTypes={jobTypes} users={users} customFields={customFields} />
     </SectionCard>
   );
@@ -48,22 +48,24 @@ export default async function LeadsPage({
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Leads</h1>
-        <p className="mt-1 text-sm text-slate-500">Leads tracked in the pipeline.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Enquiries</h1>
+        <p className="mt-1 text-sm text-slate-500">Customer requests that need a reply, quote, or job booking.</p>
+        <p className="mt-1 text-xs text-slate-500">
+          An enquiry is a customer request that still needs office action: call back, qualify, quote, or turn into a job.
+        </p>
       </div>
 
       <div className={showCreatePanel ? "grid gap-6 xl:grid-cols-[1.4fr_0.9fr]" : "space-y-6"}>
-        <Suspense fallback={<SectionCard title="Lead Pipeline"><p className="text-sm text-slate-500">Loading leads...</p></SectionCard>}>
+        <Suspense fallback={<SectionCard title="Enquiries"><p className="text-sm text-slate-500">Loading enquiries...</p></SectionCard>}>
           <LeadsClientPanel
             pagination={pagination}
             params={params}
             showCreatePanel={showCreatePanel}
-            demoActive={demoState.active}
           />
         </Suspense>
 
         {showCreatePanel ? (
-          <Suspense fallback={<SectionCard title="Add Lead"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+          <Suspense fallback={<SectionCard title="New Enquiry"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
             <LeadCreatePanel mode={demoState.mode} />
           </Suspense>
         ) : null}

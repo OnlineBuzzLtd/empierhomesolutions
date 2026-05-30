@@ -73,7 +73,7 @@ function makeBaseLink(overrides: Partial<Record<string, unknown>> = {}) {
  * Builds a lightweight Supabase mock whose per-table chains are individually
  * observable via the returned spy references.
  */
-function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; customerId?: string } = {}) {
+function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; customerId?: string; customerLookupRows?: unknown[] } = {}) {
   const aptId = opts.appointmentId ?? "appt-test-1";
   const jId = opts.jobId ?? "job-test-1";
   const cId = opts.customerId ?? "cust-test-1";
@@ -91,7 +91,7 @@ function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; custo
   const leadsInsert = vi.fn().mockReturnValue({ select: leadInsertSelect });
 
   // customers – lookup select.eq.eq.returns and insert.select.single
-  const customersReturns = vi.fn().mockResolvedValue({ data: [], error: null });
+  const customersReturns = vi.fn().mockResolvedValue({ data: opts.customerLookupRows ?? [], error: null });
   const customersEq2 = vi.fn().mockReturnValue({ returns: customersReturns });
   const customersEq1 = vi.fn().mockReturnValue({ eq: customersEq2 });
   const customersSelect = vi.fn().mockReturnValue({ eq: customersEq1 });
@@ -287,6 +287,84 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
         scheduled_time: "14:00",
         assigned_engineer: null,
         is_demo: false,
+      }),
+    );
+  });
+
+  it("WhatsApp: marks booking for review instead of overwriting a conflicting customer", async () => {
+    const baseLink = makeBaseLink({
+      latest_channel: "whatsapp",
+      customer_id: null,
+      job_id: null,
+      booking_appointment_id: null,
+      identity_phone: "+447779305853",
+    });
+
+    const getPlatformConversationLink = vi.fn().mockResolvedValue(baseLink);
+    const upsertPlatformConversationLink = vi.fn().mockResolvedValue(baseLink);
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink,
+      upsertPlatformConversationLink,
+    }));
+
+    const { supabase, apptInsert, jobInsert } = buildSupabaseMock({
+      appointmentId: "review-appt-1",
+      customerLookupRows: [
+        {
+          id: "existing-customer-1",
+          tenant_id: TENANT_ID,
+          full_name: "Heating has stopped",
+          first_name: "Heating",
+          last_name: "Stopped",
+          phone: "+447779305853",
+          email: "test@example.com",
+          address_line1: "Old address",
+          city: null,
+          postcode: "RN10 6PD",
+          archived: false,
+        },
+      ],
+    });
+    const { executePlatformCommand } = await import("@/modules/platform/lib/command-executor");
+
+    await executePlatformCommand(
+      supabase as never,
+      alias,
+      makeCommand("CreateOrUpdateAppointment", {
+        channel: "whatsapp",
+        customer_full_name: "George James",
+        customer_phone: "+447779305853",
+        customer_email: "test@example.com",
+        customer_address: "1 commercial road",
+        customer_postcode: "E1 2BT",
+        booking_title: "Emergency Callout",
+        booking_start_at: "2026-06-01T07:00:00.000Z",
+        booking_end_at: "2026-06-01T09:00:00.000Z",
+      }),
+    );
+
+    expect(apptInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "booking",
+        title: "Emergency Callout",
+        customer_id: null,
+        job_id: null,
+      }),
+    );
+    expect(jobInsert).not.toHaveBeenCalled();
+    expect(upsertPlatformConversationLink).toHaveBeenCalledWith(
+      expect.anything(),
+      alias,
+      expect.objectContaining({
+        conversationId: CONVERSATION_ID,
+        clearCustomerId: true,
+        clearJobId: true,
+        metadata: expect.objectContaining({
+          needs_review: true,
+          conflicting_customer_id: "existing-customer-1",
+          review_customer_name: "George James",
+        }),
       }),
     );
   });

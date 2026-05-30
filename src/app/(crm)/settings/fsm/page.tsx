@@ -29,14 +29,12 @@ export default async function FsmSettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">FSM Integration</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Select the tenant field-service system used for booking handoff.
-        </p>
+        <h1 className="text-2xl font-bold text-slate-900">Field System Integration</h1>
+        <p className="mt-1 text-sm text-slate-500">Select the field-service system used for booking handoff.</p>
       </div>
 
       <SectionCard title="Provider">
-        <ApiForm endpoint="/api/crm/settings/fsm" submitLabel="Save FSM Settings" className="grid gap-3">
+        <ApiForm endpoint="/api/crm/settings/fsm" submitLabel="Save Integration Settings" className="grid gap-3">
           <select
             name="fsm_provider"
             defaultValue={String(settings?.fsm_provider ?? "none")}

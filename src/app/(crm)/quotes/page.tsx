@@ -22,7 +22,7 @@ async function QuoteCreatePanel({ mode, templateId }: { mode: CrmMode; templateI
   const selectedTemplate = templateId ? templates.find((template) => template.id === templateId) ?? null : null;
 
   return (
-    <SectionCard title="Create Quote">
+    <SectionCard title="New Quote">
       <div className="mb-4 flex flex-wrap gap-2">
         <Link href="/quotes" className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate ? "border border-slate-200 text-slate-600 hover:bg-slate-50" : "bg-slate-900 text-white"}`}>
           Blank quote
@@ -75,11 +75,11 @@ export default async function QuotesPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Quotes</h1>
-        <p className="mt-1 text-sm text-slate-500">Quotes in CRM.</p>
+        <p className="mt-1 text-sm text-slate-500">Create quotes, send them to customers, and chase decisions.</p>
       </div>
 
       <div className={showCreatePanel ? "grid gap-6 xl:grid-cols-[1.4fr_0.9fr]" : "space-y-6"}>
-        <Suspense fallback={<SectionCard title="Quote List"><p className="text-sm text-slate-500">Loading quotes...</p></SectionCard>}>
+        <Suspense fallback={<SectionCard title="Quotes"><p className="text-sm text-slate-500">Loading quotes...</p></SectionCard>}>
           <QuotesClientPanel
             pagination={pagination}
             params={params}
@@ -89,7 +89,7 @@ export default async function QuotesPage({
         </Suspense>
 
         {showCreatePanel ? (
-          <Suspense fallback={<SectionCard title="Create Quote"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+          <Suspense fallback={<SectionCard title="New Quote"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
             <QuoteCreatePanel mode={demoState.mode} templateId={templateId} />
           </Suspense>
         ) : null}

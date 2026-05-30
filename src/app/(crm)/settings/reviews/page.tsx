@@ -29,9 +29,7 @@ export default async function ReviewSettingsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Review Requests</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Configure the public review destination for this tenant.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">Configure where post-job review requests should send customers.</p>
       </div>
 
       <SectionCard title="Review Platform">

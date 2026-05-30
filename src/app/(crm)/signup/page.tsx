@@ -11,7 +11,7 @@ export default function SignupPage() {
         <div className="mb-8 text-center">
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Trades CRM</p>
           <h1 className="text-3xl font-bold text-white">Create your workspace</h1>
-          <p className="mt-2 text-sm text-slate-400">Launch a tenant-isolated CRM workspace for your heating or plumbing business.</p>
+          <p className="mt-2 text-sm text-slate-400">Launch a CRM workspace for your heating or plumbing business.</p>
         </div>
 
         {!setup.configured && setup.message ? <SetupNotice message={setup.message} /> : <SignupForm />}

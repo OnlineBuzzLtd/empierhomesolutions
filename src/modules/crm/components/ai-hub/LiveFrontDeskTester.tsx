@@ -139,7 +139,7 @@ function formatChannelLabel(channel: "webchat" | "sms" | "whatsapp" | "voice") {
 }
 
 function formatRuntimeMode(mode: CustomerJourneysRuntimeSurface["runtimeMode"]) {
-  return mode === "legacy_fallback" ? "Legacy fallback" : mode === "platform_ai" ? "Platform AI" : "Unknown";
+  return mode === "legacy_fallback" ? "Backup responder" : mode === "platform_ai" ? "AI connected" : "Unknown";
 }
 
 function formatChannelTone(ready: boolean) {
@@ -163,11 +163,11 @@ function formatConversationChannel(value: string | null) {
 }
 
 function formatRecordTitle(record: PlatformConversationRecord) {
-  return record.customer?.full_name ?? record.job?.title ?? record.bookingAppointment?.title ?? "Unlinked conversation";
+  return record.customer?.full_name ?? record.job?.title ?? record.bookingAppointment?.title ?? "Conversation needs linking";
 }
 
 function formatRecordMeta(record: PlatformConversationRecord) {
-  return [record.lead?.status ? `Lead ${record.lead.status}` : null, record.bookingAppointment?.title ?? null]
+  return [record.lead?.status ? `Enquiry ${record.lead.status}` : null, record.bookingAppointment?.title ?? null]
     .filter((value): value is string => Boolean(value))
     .join(" · ");
 }
@@ -209,7 +209,7 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
     });
     const data = await parseJson<{ snapshot?: RuntimeSnapshot; error?: string }>(response);
     if (!response.ok || !data.snapshot) {
-      throw new Error(data.error ?? "Failed to refresh runtime state.");
+        throw new Error(data.error ?? "Failed to refresh AI receptionist.");
     }
     setSnapshot(data.snapshot);
     return data.snapshot;
@@ -265,19 +265,19 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
       });
       const data = await parseJson<{ session?: unknown; error?: string }>(response);
       if (!response.ok || !data.session) {
-        throw new Error(data.error ?? "Failed to create the linked webchat session.");
+        throw new Error(data.error ?? "Failed to start the test conversation.");
       }
 
       const nextSession = normalizeWebchatSession(data.session);
       if (!nextSession) {
-        throw new Error("CustomerJourneys returned an invalid webchat session.");
+        throw new Error("The test conversation could not be started.");
       }
 
       setWebchatSession(nextSession);
       setCreateForm(emptyCreateForm);
       await refreshSnapshot().catch(() => undefined);
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Failed to create the linked webchat session.");
+      setError(createError instanceof Error ? createError.message : "Failed to start the test conversation.");
     } finally {
       setBusy(false);
     }
@@ -305,7 +305,7 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
       });
       const data = await parseJson<{ session?: unknown; error?: string }>(response);
       if (!response.ok || !data.session) {
-        throw new Error(data.error ?? "Failed to send the linked webchat message.");
+        throw new Error(data.error ?? "Failed to send the message.");
       }
 
       const nextSession = normalizeWebchatSession(data.session);
@@ -314,7 +314,7 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
       } else {
         const turn = normalizeWebchatTurnResponse(data.session);
         if (!turn || !webchatSession) {
-          throw new Error("CustomerJourneys returned an invalid webchat response.");
+          throw new Error("The AI receptionist returned an invalid response.");
         }
 
         setWebchatSession({
@@ -331,7 +331,7 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
         refreshSnapshot().catch(() => undefined);
       }, 800);
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "Failed to send the linked webchat message.");
+      setError(sendError instanceof Error ? sendError.message : "Failed to send the message.");
     } finally {
       setBusy(false);
     }
@@ -355,7 +355,7 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Linked Runtime</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">AI Receptionist</p>
               <span
                 className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
                   snapshot.usingFixtures
@@ -364,23 +364,23 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
                 }`}
                 title={
                   snapshot.usingFixtures
-                    ? "Canned fixture replies - not calling the real LLM. Unset CRM_E2E_PLATFORM_FIXTURES to hit the live runtime."
-                    : "Messages are handled by the live CustomerJourneys platform runtime."
+                    ? "Demo responses are being used."
+                    : "Messages are being handled by the live AI receptionist."
                 }
               >
-                {snapshot.usingFixtures ? "Fixtures" : "Live platform"}
+                {snapshot.usingFixtures ? "Demo" : "Live"}
               </span>
             </div>
             <h2 className="mt-2 text-xl font-semibold text-slate-900">
-              {runtime?.tenant?.name ?? snapshot.link?.customerjourneys_tenant_id ?? "CustomerJourneys not linked"}
+              {runtime?.tenant?.name ?? "AI receptionist not connected"}
             </h2>
             <p className="mt-2 text-sm text-slate-500">
-              Runtime mode: <span className="font-medium text-slate-700">{formatRuntimeMode(runtime?.runtimeMode ?? null)}</span>
+              Status: <span className="font-medium text-slate-700">{formatRuntimeMode(runtime?.runtimeMode ?? null)}</span>
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <KeyValueCard label="CRM tenant" value={snapshot.link?.crm_tenant_id ?? "Not linked"} />
-            <KeyValueCard label="Runtime tenant" value={snapshot.link?.customerjourneys_tenant_id ?? "Not linked"} />
+            <KeyValueCard label="Linked customer/job" value={snapshot.link?.crm_tenant_id ? "Connected" : "Not connected"} />
+            <KeyValueCard label="AI connected" value={snapshot.runtimeConfigured ? "Yes" : "No"} />
           </div>
         </div>
 
@@ -394,7 +394,7 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
       <section className="grid gap-4 lg:grid-cols-4">
         {channelCards.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-            No linked CustomerJourneys runtime was found for this CRM tenant yet.
+            The AI receptionist is not connected yet.
           </div>
         ) : (
           channelCards.map(([channel, details]) => (
@@ -502,13 +502,13 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Conversation ID</p>
                 <p className="mt-2 break-all text-sm font-semibold text-slate-900">{webchatSession.conversation.id}</p>
                 <p className="mt-2 text-sm text-slate-500">
-                  Booking state: {webchatSession.bookingState?.currentState ?? "active"}
+                  Booking step: {webchatSession.bookingState?.currentState ?? "active"}
                 </p>
               </div>
 
               <div className="mt-5 space-y-3">
                 {webchatSession.messages.length === 0 ? (
-                  <p className="text-sm text-slate-500">No runtime messages yet.</p>
+                  <p className="text-sm text-slate-500">No messages yet.</p>
                 ) : (
                   webchatSession.messages.map((message) => (
                     <div
@@ -539,11 +539,11 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
                   value={messageBody}
                   onChange={(event) => setMessageBody(event.target.value)}
                   className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400"
-                  placeholder="Customer message to send into the linked webchat runtime..."
+                  placeholder="Customer message to send into the test conversation..."
                 />
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">
-                    SMS, WhatsApp, and phone stay on the real live numbers. Web chat is proxied through CustomerJourneys from this CRM page.
+                    SMS, WhatsApp, and phone stay on the live numbers. This test sends web chat messages from the CRM.
                   </p>
                   <button
                     type="submit"
@@ -560,10 +560,10 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
 
         <aside className="space-y-4">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-900">Live CRM results</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Recent AI activity</h3>
             <div className="mt-4 space-y-3">
               {snapshot.recentRecords.length === 0 ? (
-                <p className="text-sm text-slate-500">No CRM-linked conversations have landed yet.</p>
+                <p className="text-sm text-slate-500">No recent conversations yet.</p>
               ) : (
                 snapshot.recentRecords.map((record) => (
                   <div key={record.link.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -573,12 +573,12 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
                         {formatConversationChannel(record.link.latest_channel)}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600">{formatRecordMeta(record) || "Awaiting CRM linkage details."}</p>
+                    <p className="mt-2 text-sm text-slate-600">{formatRecordMeta(record) || "Waiting to link to a customer or job."}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <DeepLink href="/inbox" label="Inbox" />
+                      <DeepLink href="/ai-hub?tab=conversations" label="Conversations" />
                       {record.customer ? <DeepLink href={`/customers/${record.customer.id}`} label="Customer" /> : null}
                       {record.job ? <DeepLink href={`/jobs/${record.job.id}`} label="Job" /> : null}
-                      {record.bookingAppointment ? <DeepLink href="/calendar" label="Calendar" /> : null}
+                      {record.bookingAppointment ? <DeepLink href="/calendar" label="Scheduler" /> : null}
                     </div>
                   </div>
                 ))
@@ -587,11 +587,11 @@ export function LiveFrontDeskTester({ initialSnapshot }: { initialSnapshot: Runt
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-900">Readiness</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Advanced diagnostics</h3>
             <div className="mt-4 space-y-3 text-sm">
-              <KeyValueRow label="Runtime linked" value={snapshot.link?.customerjourneys_tenant_id ? "Yes" : "No"} />
-              <KeyValueRow label="Runtime configured" value={snapshot.runtimeConfigured ? "Yes" : "No"} />
-              <KeyValueRow label="Booking resources" value={String(runtime?.bookingResourceCount ?? 0)} />
+              <KeyValueRow label="AI connected" value={snapshot.link?.customerjourneys_tenant_id ? "Yes" : "No"} />
+              <KeyValueRow label="Settings completed" value={snapshot.runtimeConfigured ? "Yes" : "No"} />
+              <KeyValueRow label="Engineers available for booking" value={String(runtime?.bookingResourceCount ?? 0)} />
               <KeyValueRow label="Mode" value={formatRuntimeMode(runtime?.runtimeMode ?? null)} />
             </div>
           </section>

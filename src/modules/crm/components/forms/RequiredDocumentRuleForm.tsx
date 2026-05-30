@@ -6,7 +6,7 @@ export function RequiredDocumentRuleForm({ services, jobTypes }: { services: Ser
     <ApiForm endpoint="/api/crm/settings/document-rules" submitLabel="Save Rule" className="grid gap-3 md:grid-cols-2">
       <select name="entity_type" defaultValue="job" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
         <option value="job">Job</option>
-        <option value="lead">Lead</option>
+        <option value="lead">Enquiry</option>
         <option value="asset">Asset</option>
       </select>
       <input name="document_type" required placeholder="certificate, compliance, image…" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />

@@ -25,8 +25,8 @@ export default async function StaffPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Staff</h1>
-        <p className="mt-1 text-sm text-slate-500">Internal directory, contracts/pay notes, and certification expiry tracking.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Team</h1>
+        <p className="mt-1 text-sm text-slate-500">Engineers, office users, contact details, and qualifications.</p>
       </div>
 
       {staff.length === 0 ? <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("staff profiles") : "No staff profiles found yet."} /> : null}

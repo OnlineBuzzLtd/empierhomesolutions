@@ -25,7 +25,7 @@ export function EngineerDashboard({ data, engineerName }: { data: EngineerDashbo
       <div className="sticky top-0 z-10 -mx-4 border-y border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold">
           <Link href="/dashboard" className="rounded-full border border-slate-200 px-3 py-2 text-slate-700">
-            Dashboard
+            Today
           </Link>
           <a href="#today-route" className="rounded-full border border-slate-200 px-3 py-2 text-slate-700">
             Today
@@ -38,8 +38,8 @@ export function EngineerDashboard({ data, engineerName }: { data: EngineerDashbo
               Call
             </a>
           ) : (
-            <Link href="/calendar" className="rounded-full border border-slate-200 px-3 py-2 text-slate-700">
-              Calendar
+            <Link href="/diary" className="rounded-full border border-slate-200 px-3 py-2 text-slate-700">
+              Diary
             </Link>
           )}
         </div>
@@ -63,7 +63,7 @@ export function EngineerDashboard({ data, engineerName }: { data: EngineerDashbo
                 <p className="mt-2 text-sm text-slate-600">
                   {nextJob
                     ? `${buildScheduleLabel(nextJob)} · ${nextJob.customer?.full_name ?? "Customer"} · ${nextJob.customer?.postcode ?? "Postcode pending"}`
-                    : "No assigned jobs are due today. Use Jobs or Calendar to check upcoming work."}
+                    : "No assigned jobs are due today. Use Jobs or Diary to check upcoming work."}
                 </p>
                 {hasUpcomingFallback ? (
                   <p className="mt-2 inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-blue-800">

@@ -68,6 +68,17 @@ sequence.
 - **Secrets, PII, and credentials never enter logs, errors, code, tests, or commits.** If you see one, flag it.
 - **Least privilege by default** for new permissions, roles, scopes, and access patterns.
 
+### Production CRM data cleanup
+
+Live CRM cleanup is destructive and may contain PII. Treat every request to delete customers, enquiries, jobs, appointments, AI recovery records, platform events, or platform links as production data work unless proven otherwise.
+
+- Do not delete live CRM records unless the user explicitly asks for deletion in the current turn.
+- Before deletion, export a local JSON backup of the targeted rows and linked rows that will be deleted or orphaned.
+- Store cleanup backups under `backups/`; this directory is gitignored and must never be committed.
+- Delete in FK-safe order and include generic entity tables such as notes, attachments, and custom field values when their `entity_id` points at the deleted records.
+- After deletion, run a read-only verification query that proves the requested records and their visible orphan surfaces are gone.
+- In the final response, report aggregate counts and backup file paths, but do not paste PII from the backup into chat.
+
 ## Live testing against paid third-party providers
 > This section is non-negotiable. There have been TWO Twilio compliance incidents in May 2026 driven by automated testing:
 > 1. **May 12** — a live channel-test pass fired ~150–200 invalid-destination SMS through the production Twilio number (synthetic numbers in valid UK mobile format, all bounced with **error 21211**). That damaged sender reputation, cost real money, and risked compliance throttling.

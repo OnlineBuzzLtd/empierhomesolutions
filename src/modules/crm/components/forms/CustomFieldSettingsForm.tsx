@@ -5,7 +5,7 @@ export function CustomFieldSettingsForm({ services, jobTypes }: { services: Serv
   return (
     <ApiForm endpoint="/api/crm/settings/custom-fields" submitLabel="Save Custom Field" className="grid gap-3 md:grid-cols-2">
       <select name="entity_type" required className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-        <option value="lead">Lead</option>
+        <option value="lead">Enquiry</option>
         <option value="customer">Customer</option>
         <option value="job">Job</option>
         <option value="asset">Asset</option>

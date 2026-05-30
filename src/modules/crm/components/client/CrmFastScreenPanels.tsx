@@ -80,25 +80,33 @@ export function DashboardClientPanel({ demoActive }: { demoActive: boolean }) {
   return (
     <div className="space-y-8" data-crm-screen-ready="true">
       <DemoAnchor name="dashboard-overview">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Open Jobs" value={String(dashboard.openJobsCount)} sub="enquiry / booked / in progress" />
-          <StatCard label="Today&apos;s Jobs" value={String(dashboard.todaysJobs.length)} sub="scheduled today" />
-          <StatCard label="Unpaid Invoices" value={formatCurrency(dashboard.unpaidInvoicesTotal)} sub="awaiting payment" />
-          <StatCard label="Open Leads" value={String(dashboard.newLeadCount)} sub="new / follow-up workload" />
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Trade control centre</h2>
+            <p className="mt-1 text-sm text-slate-500">The work that needs attention today.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <AttentionCard href="/jobs" label="Jobs today" value={String(dashboard.todaysJobs.length)} action="Check schedule" />
+            <AttentionCard href="/calendar" label="Jobs tomorrow" value="Open scheduler" action="Plan ahead" />
+            <AttentionCard href="/leads?tab=todo" label="Enquiries to do" value={String(dashboard.newLeadCount)} action="Follow up" />
+            <AttentionCard href="/quotes" label="Quotes to chase" value="Review quotes" action="Open quotes" />
+            <AttentionCard href="/invoices" label="Unpaid invoices" value={formatCurrency(dashboard.unpaidInvoicesTotal)} action="Chase payment" />
+            <AttentionCard href="/ai-hub" label="AI receptionist needs review" value={String(dashboard.aiReceptionistReviewCount)} action="Review" />
+          </div>
         </div>
       </DemoAnchor>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Today&apos;s Jobs</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Jobs today</h2>
             <CrmInstantLink href="/jobs" className="text-xs font-medium text-blue-600 hover:underline">
               View all
             </CrmInstantLink>
           </div>
           {dashboard.todaysJobs.length === 0 ? (
             <p className="text-sm text-slate-500">
-              {demoActive ? "Demo data has no scheduled jobs for today." : "No jobs scheduled today."}
+              {demoActive ? "Demo data has no scheduled jobs for today." : "No jobs today. Create a job when work is ready to schedule."}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -233,7 +241,7 @@ export function ReportsClientPanel() {
           <StatCard label="Revenue" value={formatCurrency(summary.totalRevenue)} />
           <StatCard label="Unpaid" value={formatCurrency(summary.unpaidRevenue)} />
           <StatCard label="Profit Est." value={formatCurrency(summary.profitEstimate)} />
-          <StatCard label="Lead Conversion" value={`${summary.convertedLeadCount}/${summary.leadCount || 0}`} />
+          <StatCard label="Enquiry Conversion" value={`${summary.convertedLeadCount}/${summary.leadCount || 0}`} />
           <StatCard label="Completed Jobs" value={`${summary.completedJobCount}/${summary.jobCount || 0}`} />
         </div>
       </DemoAnchor>
@@ -243,8 +251,8 @@ export function ReportsClientPanel() {
           <div className="grid gap-3 text-sm text-slate-700 md:grid-cols-2">
             <p>Invoices raised: <span className="font-semibold text-slate-900">{summary.invoiceCount}</span></p>
             <p>Paid invoices: <span className="font-semibold text-slate-900">{summary.paidInvoiceCount}</span></p>
-            <p>Total leads: <span className="font-semibold text-slate-900">{summary.leadCount}</span></p>
-            <p>Converted leads: <span className="font-semibold text-slate-900">{summary.convertedLeadCount}</span></p>
+            <p>Total enquiries: <span className="font-semibold text-slate-900">{summary.leadCount}</span></p>
+            <p>Converted enquiries: <span className="font-semibold text-slate-900">{summary.convertedLeadCount}</span></p>
             <p>Total expenses: <span className="font-semibold text-slate-900">{formatCurrency(summary.totalExpenses)}</span></p>
           </div>
         </SectionCard>
@@ -434,6 +442,16 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
       <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
       {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
     </div>
+  );
+}
+
+function AttentionCard({ href, label, value, action }: { href: string; label: string; value: string; action: string }) {
+  return (
+    <CrmInstantLink href={href} className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200 hover:bg-blue-50/30">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+      <p className="mt-2 text-sm font-semibold text-blue-700">{action}</p>
+    </CrmInstantLink>
   );
 }
 

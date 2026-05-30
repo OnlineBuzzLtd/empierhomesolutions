@@ -89,12 +89,12 @@ export function CustomerCreateForm({ customFields }: { customFields: CustomField
         />
         <input
           name="occupancy_type"
-          placeholder="Tenant / landlord / homeowner"
+          placeholder="Landlord / homeowner"
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
         <input
           name="source"
-          placeholder="Lead source"
+          placeholder="Enquiry source"
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
         />
       </div>

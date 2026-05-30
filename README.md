@@ -23,6 +23,9 @@ The CRM is no longer a single-business Empire-only workspace. It now supports:
 - scheduled notification automations for reminders, quote chase, lead chase, invoice chase, review requests, and lost-lead re-engagement
 - FSM, payment, review, and message-template settings for tenant-managed operations
 - tenantized performance guardrails: bounded list APIs, tenant-first indexes, dashboard/report fast-path RPCs, and private production proof tooling
+- simplified trade-business CRM UX: admin navigation follows `Dashboard -> Enquiries -> Jobs -> Scheduler -> Customers -> Quotes -> Invoices -> AI Receptionist -> More`
+- Commusoft-style engineer field app remains the default for engineers, with Today / Diary / Jobs / Profile bottom navigation
+- AI Receptionist recovery cases for bookings that arrive from AI/WhatsApp/voice but need office review before they become linked customer/job records
 
 Current Empire tenant state:
 
@@ -30,6 +33,7 @@ Current Empire tenant state:
 - the public Empire website lead form writes into tenant 1 CRM
 - seeded non-demo admin/engineer roleplay jobs are available in tenant 1 so office and field users can exercise the same live workflow
 - tenant 1 can be reset to a realistic 14-day production scenario set with `node scripts/tenant1-production-scenarios-seed.mjs`
+- Enquiries are defined as customer requests that still need office action: call back, qualify, quote, or turn into a job. The dashboard `Enquiries to do` number uses the same filter as `/leads?tab=todo`.
 
 ### Agentic Front Desk Status
 
@@ -50,6 +54,7 @@ Current validated behavior (as of May 13, 2026):
 - **[2026-05-14] Calendar squatter cleanup — both sides** (`scripts/diagnose-test-booking-pollution.mts` + `scripts/cancel-platform-api-squatters.mts`). CAL-001/002 cancelled 54 squatter bookings on Empire's `crm.appointments`. CAL-006 cancelled 90 more on the platform-api's own Cloud SQL `bookings` table (separate DB). Engineer resource availability for the next 30 days dropped from 23 blocked weekdays to 2 (only real customers remain).
 - **[2026-05-14] Managed-voice agent fixed end-to-end** (CustomerJourneys `601db752`). The ElevenLabs managed agent (`empire-home-solutions-managed-production`) was 400-failing on `search_availability` (string-vs-number `limit`) and returning "that time has already passed" on `check_availability` (stale prompt date). Fixed in the CustomerJourneys repo; no Empire-side code change.
 - **[2026-05-14] Twilio testing rules hardened** ([CLAUDE.md](CLAUDE.md), commit `44c4ffb`). Second Twilio compliance incident this week (40 undelivered messages, error 30453, all from a single live-channel test run on May 12). Root cause: the platform-api `MESSAGING_ADAPTER=mock` flag only suppresses outbound from the platform-api itself — the Empire CRM notification path on Vercel still fires real Twilio SMS when it receives `BookingConfirmed`. CLAUDE.md now: (a) classifies any end-to-end test that confirms a booking as Tier 3 for authorization purposes, (b) names the four scripts that fire Twilio in this repo, (c) requires the user to name the specific script in the current turn before any such run, (d) bans re-running failed tests as a verification path. **The four named scripts should never be run without an explicit fresh authorization quoting the script name.**
+- **[2026-05-30] CRM UX simplification and AI booking recovery**. Admin UX now uses trade-native terminology (`Enquiries`, `Scheduler`, `AI Receptionist`) and keeps secondary/technical surfaces behind More or Advanced settings. Engineers retain the Commusoft-style field app. AI booking recovery cases now surface inside Enquiries/AI Receptionist instead of leaving anonymous Scheduler blocks. Production fake/test CRM records were cleaned with local JSON backups under ignored `backups/`.
 - Live validation: `scripts/live-empire-channel-tests.mts` — 10-scenario end-to-end channel suite. The CustomerJourneys reliability patchset was validated on the mock-tagged runtime at **3 consecutive 10/10 runs**, then promoted to production revision `customerjourneys-platform-api-00758-xmx`.
 
 Current local operator setup:
@@ -112,12 +117,13 @@ CRM:
 - `http://localhost:3000/login`
 - `http://localhost:3000/signup`
 - `http://localhost:3000/dashboard`
-- `http://localhost:3000/leads`
+- `http://localhost:3000/leads` (Enquiries)
 - `http://localhost:3000/customers`
 - `http://localhost:3000/jobs`
-- `http://localhost:3000/calendar`
+- `http://localhost:3000/calendar` (Scheduler)
 - `http://localhost:3000/quotes`
 - `http://localhost:3000/invoices`
+- `http://localhost:3000/ai-hub` (AI Receptionist)
 - `http://localhost:3000/staff`
 - `http://localhost:3000/reports`
 - `http://localhost:3000/settings`
@@ -133,8 +139,10 @@ Live CRM:
 
 Current production deployment note:
 
-- The 2026-05-29 performance release is deployed at `https://empire-home-solutions.vercel.app`.
+- The 2026-05-30 CRM UX/recovery release is deployed at `https://empire-home-solutions.vercel.app` (`dpl_Ge8YZoyWdLGngG66kZxwvVsZpKMu`).
 - The CRM now has faster screen-shell navigation, bounded list fetches, tenant-scoped client caching, and database/query performance indexes.
+- The admin CRM now uses the simplified trade workflow navigation and the Enquiries worklist count matches the dashboard `Enquiries to do` card.
+- AI Receptionist booking recovery is visible as `Needs review` work and no longer hides successful-but-unlinked bookings only inside Scheduler.
 - Production proof against a synthetic enterprise tenant showed `/calendar` passing budget, `/customers` close to budget, and several hot screens still failing p95 route budgets. Do not claim the CRM is fully “super fast” until `npm run crm:perf:proof` passes.
 
 Live front-desk test surface:
@@ -183,6 +191,10 @@ CRM:
 - **[2026-05-18] `/calendar` is a week-grid timeline** ([WeekTimeline.tsx](src/modules/crm/components/calendar/WeekTimeline.tsx)). Day columns × hour rows, type-coloured appointment blocks with side-by-side stacking for overlaps, a "now" line on today, and prev/today/next week navigation via `?week=YYYY-MM-DD`. Replaces the previous stacked list. Pure layout logic in [calendar-layout.ts](src/modules/crm/lib/calendar-layout.ts) with 39 unit tests covering DST boundaries, multi-day spans, and overlap colouring.
 - **[2026-05-29] tenantized CRM performance acceleration**. Hot list screens now use bounded API fetches and client-loaded panels, dashboard/reports/calendar/diary use faster screen shells, navigation shows immediate progress feedback, and a tenant-scoped client cache is cleared on tenant switch/logout. Database support includes tenant-first indexes and summary fast-path migrations for dashboard, reports, and engineer diary.
 - **[2026-05-29] production performance proof harness**. `scripts/perf/*` can seed a disposable synthetic tenant, benchmark authenticated production routes, run Supabase `EXPLAIN`, benchmark screen transitions, write private reports under `docs/private/performance-proof/`, and clean up the synthetic tenant. Proof artifacts are private and excluded from Vercel uploads.
+- **[2026-05-30] admin CRM simplification**. Main navigation now follows the trades workflow (`Dashboard`, `Enquiries`, `Jobs`, `Scheduler`, `Customers`, `Quotes`, `Invoices`, `AI Receptionist`, `More`). Lower-frequency tools move behind More/Settings, while existing direct routes remain available.
+- **[2026-05-30] Enquiries worklist contract**. `/api/crm/leads` accepts `tab=todo|done|all`, defaults to To-do, returns tab counts, and includes unresolved AI booking recovery cases in To-do. Dashboard summary uses the same To-do definition so the card and tab count match.
+- **[2026-05-30] AI Receptionist recovery**. Failed or orphan `BookingConfirmed` events can be listed and resolved through `/api/crm/ai-receptionist/recovery-cases`, with conflict-safe identity rules and no destructive customer merge.
+- **[2026-05-30] engineer UX retained**. Engineers still default to the Commusoft-style field app, with relabelled bottom navigation for Today, Diary, Jobs, and Profile.
 
 ## Supabase Notes
 

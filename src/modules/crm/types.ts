@@ -508,6 +508,8 @@ export type Appointment = {
   confirmation_sms_sent_at?: string | null;
   notification_status?: string | null;
   notification_failure_reason?: string | null;
+  source?: string | null;
+  external_id?: string | null;
   reminder_offset_minutes: number | null;
   recurrence_rule: string | null;
   is_demo?: boolean;
@@ -950,6 +952,7 @@ export type RequiredDocumentRule = {
 
 export type CalendarItem = Appointment & {
   source: "appointment" | "lead_follow_up" | "service_due" | "warranty_expiry";
+  appointment_source?: string | null;
   customer?: Pick<Customer, "id" | "full_name" | "postcode"> | null;
   lead?: Pick<Lead, "id" | "status" | "source"> | null;
   owner?: Pick<UserProfile, "id" | "full_name" | "role"> | null;
@@ -1031,6 +1034,7 @@ export type DashboardData = {
   todaysJobs: JobWithRelations[];
   unpaidInvoicesTotal: number;
   newLeadCount: number;
+  aiReceptionistReviewCount: number;
   recentCustomers: Customer[];
   activeJobs: JobWithRelations[];
 };

@@ -26,10 +26,10 @@ export default async function InvoicesPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Invoices</h1>
-        <p className="mt-1 text-sm text-slate-500">Invoices in CRM.</p>
+        <p className="mt-1 text-sm text-slate-500">Track invoices, overdue payments, and what needs chasing.</p>
       </div>
 
-      <Suspense fallback={<SectionCard title="Invoice List"><p className="text-sm text-slate-500">Loading invoices...</p></SectionCard>}>
+      <Suspense fallback={<SectionCard title="Invoices"><p className="text-sm text-slate-500">Loading invoices...</p></SectionCard>}>
         <InvoicesClientPanel pagination={pagination} params={params} demoActive={demoState.active} />
       </Suspense>
     </div>

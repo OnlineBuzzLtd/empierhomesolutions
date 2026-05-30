@@ -29,9 +29,7 @@ export default async function PaymentSettingsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Payment Providers</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Store tenant payment-provider identifiers for invoice payment links.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">Store payment-provider details for invoice payment links.</p>
       </div>
 
       <SectionCard title="Primary Provider">

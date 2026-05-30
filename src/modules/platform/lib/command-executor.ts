@@ -1,7 +1,15 @@
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppointmentStatus, AppointmentType, LeadStatus } from "@/modules/crm/types";
 import { syncAppointmentReminder24h } from "@/modules/crm/notifications/appointment-reminders";
 import type { PlatformCommandEnvelope } from "@/modules/platform/contracts";
+import type { PlatformEventEnvelope } from "@/modules/platform/contracts";
+import {
+  buildBookingReviewMetadata,
+  detectBookingIdentityConflict,
+  type BookingCustomerIdentity,
+  type BookingIdentityConflict,
+} from "@/modules/platform/lib/booking-identity";
 import {
   getPlatformConversationLink,
   type PlatformConversationLink,
@@ -307,6 +315,25 @@ function buildLeadSource(payload: Record<string, unknown>) {
   return channel ? `ai_${channel}` : "ai_platform";
 }
 
+function buildLeadSourceEnum(payload: Record<string, unknown>) {
+  const channel = pickString(payload, ["channel", "response_channel", "source_channel"]);
+  switch (channel) {
+    case "webchat":
+    case "web_chat":
+      return "webchat";
+    case "voice":
+      return "voice";
+    case "sms":
+      return "sms";
+    case "whatsapp":
+      return "whatsapp";
+    case "email":
+      return "email";
+    default:
+      return "other";
+  }
+}
+
 function buildLeadNotes(payload: Record<string, unknown>) {
   const summaryParts = [
     pickString(payload, ["message_summary"]),
@@ -355,6 +382,10 @@ function buildCallbackTitle(payload: Record<string, unknown>) {
 }
 
 function buildBookingTitle(payload: Record<string, unknown>) {
+  const explicitTitle = pickString(payload, ["booking_title", "job_title", "title"]);
+  if (explicitTitle) {
+    return explicitTitle;
+  }
   const bookingSlot = pickString(payload, ["booking_slot_label"]);
   const treatmentType = pickString(payload, ["treatmentType", "serviceCategory"]);
   if (bookingSlot && treatmentType) {
@@ -382,6 +413,14 @@ async function createLead(
       tenant_id: alias.tenant_id,
       status: buildLeadStatus(payload),
       source: buildLeadSource(payload),
+      source_enum: buildLeadSourceEnum(payload),
+      intake_source: "ai_receptionist",
+      lead_attribution: {
+        platform_lead_id: pickString(payload, ["lead_id", "platform_lead_id"]),
+        platform_booking_id: pickString(payload, ["booking_id", "booking_uid", "calcom_booking_id"]),
+        platform_conversation_id: pickString(payload, ["conversation_id"]),
+        channel: pickString(payload, ["channel", "response_channel", "source_channel"]),
+      },
       notes: buildLeadNotes(payload) || null,
       is_test: extractIsTestFromPayload(payload),
       ...leadFieldPatch,
@@ -505,10 +544,11 @@ async function createCustomerFromPayload(
       last_name: lastName ?? parsedParts.lastName,
       phone,
       email,
-      address_line1: pickString(payload, ["serviceAddressLine1", "service_address_line1", "address_line1"]),
+      address_line1: pickString(payload, ["serviceAddressLine1", "service_address_line1", "address_line1", "customer_address"]),
       city: pickString(payload, ["serviceCity", "service_city", "city"]),
       postcode: pickString(payload, ["servicePostcode", "customer_postcode", "postcode"]),
       source: buildLeadSource(payload),
+      source_enum: buildLeadSourceEnum(payload),
       notes: buildLeadNotes(payload) || null,
       archived: false,
       is_test: extractIsTestFromPayload(payload),
@@ -537,7 +577,7 @@ async function updateCustomerFromPayload(
   const nextLastName = pickString(payload, ["last_name"]);
   const nextPhone = pickString(payload, ["customerPhone", "customer_phone", "identity_phone", "from"]);
   const nextEmail = pickString(payload, ["customerEmail", "customer_email", "identity_email"]);
-  const nextAddressLine1 = pickString(payload, ["serviceAddressLine1", "service_address_line1", "address_line1"]);
+  const nextAddressLine1 = pickString(payload, ["serviceAddressLine1", "service_address_line1", "address_line1", "customer_address"]);
   const nextCity = pickString(payload, ["serviceCity", "service_city", "city"]);
   const nextPostcode = pickString(payload, ["servicePostcode", "customer_postcode", "postcode"]);
 
@@ -847,6 +887,8 @@ async function createAppointment(
     notificationStatus?: string | null;
     notificationFailureReason?: string | null;
     postcodeStatus?: string | null;
+    source?: string | null;
+    externalId?: string | null;
   },
 ) {
   const { data, error } = await supabase
@@ -868,6 +910,8 @@ async function createAppointment(
       notification_status: input.notificationStatus ?? null,
       notification_failure_reason: input.notificationFailureReason ?? null,
       postcode_status: input.postcodeStatus ?? null,
+      source: input.source ?? "crm",
+      external_id: input.externalId ?? null,
       reminder_offset_minutes: null,
       recurrence_rule: null,
     })
@@ -899,6 +943,71 @@ async function updateAppointmentLeadReference(
 
   if (error) {
     throw error;
+  }
+}
+
+async function updateBookingAppointment(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  input: {
+    appointmentId: string;
+    title: string;
+    startsAt: string;
+    endsAt: string;
+    status: AppointmentStatus;
+    customerId?: string | null;
+    leadId?: string | null;
+    jobId?: string | null;
+    postcodeStatus?: string | null;
+    isTest?: boolean;
+  },
+) {
+  const patch: Record<string, unknown> = {
+    tenant_id: alias.tenant_id,
+    title: input.title,
+    starts_at: input.startsAt,
+    ends_at: input.endsAt,
+    status: input.status,
+  };
+  if (input.customerId) {
+    patch.customer_id = input.customerId;
+  }
+  if (input.leadId) {
+    patch.lead_id = input.leadId;
+  }
+  if (input.jobId) {
+    patch.job_id = input.jobId;
+  }
+  if (input.postcodeStatus) {
+    patch.postcode_status = input.postcodeStatus;
+  }
+  if (input.isTest) {
+    patch.is_test = true;
+  }
+
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("appointments")
+    .update(patch)
+    .eq("id", input.appointmentId)
+    .eq("tenant_id", alias.tenant_id)
+    .select("*")
+    .single<{
+      id: string;
+      tenant_id: string;
+      customer_id: string | null;
+      type: string;
+      title: string;
+      starts_at: string;
+      status: string;
+      is_test?: boolean | null;
+    }>();
+
+  if (error) {
+    throw error;
+  }
+  if (data) {
+    await syncAppointmentReminder24h(supabase, alias.tenant_id, data);
   }
 }
 
@@ -936,6 +1045,7 @@ async function updateLeadStatus(
 
 type PlatformBookingPayload = {
   bookingId: string | null;
+  title: string | null;
   startAt: string;
   endAt: string;
   status: string | null;
@@ -968,6 +1078,7 @@ function extractPlatformBookingPayload(payload: Record<string, unknown>, fallbac
   const end = toIsoString(pickString(payload, ["end_at", "booking_end_at", "ends_at"]), addMinutes(start, 60));
   return {
     bookingId: pickString(payload, ["booking_id", "booking_uid"]),
+    title: pickString(payload, ["booking_title", "job_title", "title"]),
     startAt: start,
     endAt: end,
     status: pickString(payload, ["status", "booking_status"]),
@@ -977,12 +1088,12 @@ function extractPlatformBookingPayload(payload: Record<string, unknown>, fallbac
     serviceName: pickString(payload, ["service_name", "service_key", "serviceCategory"]),
     conversationId: pickString(payload, ["conversation_id"]),
     customer: {
-      name: pickString(customer, ["name", "full_name"]) ?? pickString(payload, ["customerName"]),
-      phone: pickString(customer, ["phone"]) ?? pickString(payload, ["customerPhone", "identity_phone"]),
-      email: pickString(customer, ["email"]) ?? pickString(payload, ["customerEmail", "identity_email"]),
-      addressLine1: pickString(customer, ["address_line1"]) ?? pickString(payload, ["serviceAddressLine1"]),
-      city: pickString(customer, ["city"]) ?? pickString(payload, ["serviceCity"]),
-      postcode: pickString(customer, ["postcode"]) ?? pickString(payload, ["servicePostcode"]),
+      name: pickString(customer, ["name", "full_name"]) ?? pickString(payload, ["customerName", "customer_full_name"]),
+      phone: pickString(customer, ["phone"]) ?? pickString(payload, ["customerPhone", "customer_phone", "identity_phone"]),
+      email: pickString(customer, ["email"]) ?? pickString(payload, ["customerEmail", "customer_email", "identity_email"]),
+      addressLine1: pickString(customer, ["address_line1"]) ?? pickString(payload, ["serviceAddressLine1", "service_address_line1", "customer_address", "address_line1"]),
+      city: pickString(customer, ["city"]) ?? pickString(payload, ["serviceCity", "service_city", "city"]),
+      postcode: pickString(customer, ["postcode"]) ?? pickString(payload, ["servicePostcode", "customer_postcode", "postcode"]),
     },
     metadata: (() => {
       const raw = asRecord(payload.metadata);
@@ -1006,6 +1117,9 @@ function mapPlatformBookingStatus(status: string | null, action: string | null):
 }
 
 function buildPlatformBookingTitle(booking: PlatformBookingPayload): string {
+  if (booking.title) {
+    return booking.title;
+  }
   const prefix = booking.action === "held" ? "Hold" : "Booked visit";
   if (booking.serviceName && booking.resourceName) {
     return `${prefix}: ${booking.serviceName} (${booking.resourceName})`;
@@ -1060,10 +1174,78 @@ async function resolveCustomerForPlatformBooking(
   });
 
   if (existing) {
+    const conflict = detectBookingIdentityConflict(existing, booking.customer);
+    if (conflict) {
+      return null;
+    }
     return updateCustomerFromPayload(supabase, alias, existing, flat);
   }
 
   return createCustomerFromPayload(supabase, alias, flat);
+}
+
+type BookingCustomerResolution =
+  | { status: "resolved"; customer: CustomerMatchRow | null }
+  | { status: "conflict"; conflict: BookingIdentityConflict };
+
+function buildBookingCustomerIdentityFromPayload(payload: Record<string, unknown>): BookingCustomerIdentity {
+  return {
+    name: pickString(payload, ["customerName", "customer_full_name", "full_name"]),
+    phone: pickString(payload, ["customerPhone", "customer_phone", "identity_phone", "from"]),
+    email: pickString(payload, ["customerEmail", "customer_email", "identity_email"]),
+    addressLine1: pickString(payload, ["serviceAddressLine1", "service_address_line1", "address_line1", "customer_address"]),
+    city: pickString(payload, ["serviceCity", "service_city", "city"]),
+    postcode: pickString(payload, ["servicePostcode", "customer_postcode", "postcode"]),
+  };
+}
+
+function bookingCustomerIdentityToPayload(customer: BookingCustomerIdentity): Record<string, unknown> {
+  return {
+    customerName: customer.name,
+    customerPhone: customer.phone,
+    customerEmail: customer.email,
+    serviceAddressLine1: customer.addressLine1,
+    serviceCity: customer.city,
+    servicePostcode: customer.postcode,
+  };
+}
+
+async function resolveCustomerForBookingPayload(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  payload: Record<string, unknown>,
+): Promise<BookingCustomerResolution> {
+  const identityMode = pickString(payload, ["identity_resolution"]);
+  const bookingCustomer = buildBookingCustomerIdentityFromPayload(payload);
+  const flat = bookingCustomerIdentityToPayload(bookingCustomer);
+
+  if (identityMode === "force_new_customer") {
+    return { status: "resolved", customer: await createCustomerFromPayload(supabase, alias, flat) };
+  }
+
+  const explicitCustomerId = pickString(payload, ["recovery_customer_id"]);
+  if (identityMode === "link_customer" && explicitCustomerId) {
+    const explicitCustomer = await findCustomerById(supabase, alias.tenant_id, explicitCustomerId);
+    return {
+      status: "resolved",
+      customer: explicitCustomer ? await updateCustomerFromPayload(supabase, alias, explicitCustomer, flat) : null,
+    };
+  }
+
+  const existing = await findCustomerByIdentity(supabase, alias.tenant_id, {
+    phone: bookingCustomer.phone,
+    email: bookingCustomer.email,
+  });
+
+  if (existing) {
+    const conflict = detectBookingIdentityConflict(existing, bookingCustomer);
+    if (conflict) {
+      return { status: "conflict", conflict };
+    }
+    return { status: "resolved", customer: await updateCustomerFromPayload(supabase, alias, existing, flat) };
+  }
+
+  return { status: "resolved", customer: await createCustomerFromPayload(supabase, alias, flat) };
 }
 
 async function upsertAppointmentFromPlatformBooking(
@@ -1282,6 +1464,53 @@ async function ensureLeadForConversation(
   });
 }
 
+async function ensureBookingLeadForConversation(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  conversationId: string,
+  payload: Record<string, unknown>,
+) {
+  const link = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
+  const metadata = asRecord(link?.metadata);
+  const incomingPlatformLeadId = pickString(payload, ["lead_id", "platform_lead_id"]);
+  const linkedPlatformLeadId = pickString(metadata, ["platform_lead_id"]);
+  const incomingBookingId = pickString(payload, ["booking_id", "booking_uid", "calcom_booking_id"]);
+  const linkedBookingId = pickString(metadata, ["platform_booking_id", "booking_id", "booking_uid", "calcom_booking_id"]);
+  const hasDifferentExternalLead =
+    Boolean(incomingPlatformLeadId && linkedPlatformLeadId && incomingPlatformLeadId !== linkedPlatformLeadId);
+  const hasDifferentBooking = Boolean(incomingBookingId && linkedBookingId && incomingBookingId !== linkedBookingId);
+  const oldLinkHasUnattributedBooking =
+    Boolean(incomingPlatformLeadId && !linkedPlatformLeadId && link?.booking_appointment_id);
+
+  if (link?.lead_id && !hasDifferentExternalLead && !hasDifferentBooking && !oldLinkHasUnattributedBooking) {
+    return link;
+  }
+
+  const leadId = await createLead(supabase, alias, {
+    ...payload,
+    conversation_id: conversationId,
+  });
+  return upsertPlatformConversationLink(supabase, alias, {
+    conversationId,
+    leadId,
+    clearCustomerId: hasDifferentBooking || oldLinkHasUnattributedBooking,
+    clearJobId: hasDifferentBooking || oldLinkHasUnattributedBooking,
+    clearBookingAppointmentId: hasDifferentBooking || oldLinkHasUnattributedBooking,
+    latestChannel: pickString(payload, ["channel", "response_channel"]) ?? link?.latest_channel ?? null,
+    identityPhone: pickString(payload, ["identity_phone", "customer_phone", "customerPhone", "from"]) ?? link?.identity_phone ?? null,
+    identityEmail: pickString(payload, ["identity_email", "customer_email", "customerEmail"]) ?? link?.identity_email ?? null,
+    metadata: {
+      latest_reason: pickString(payload, ["reason"]),
+      platform_lead_id: incomingPlatformLeadId,
+      platform_booking_id: incomingBookingId,
+      needs_review: false,
+      review_reason: null,
+      ...buildConversationSessionMetadata(payload),
+    },
+    latestEventAt: pickString(payload, ["occurred_at", "booking_start_at", "starts_at"]) ?? null,
+  });
+}
+
 export async function executePlatformCommand(
   supabase: SupabaseClient,
   alias: WorkspaceAlias,
@@ -1439,9 +1668,12 @@ export async function executePlatformCommand(
         return;
       }
 
-      const link = await ensureLeadForConversation(supabase, alias, conversationId, payload);
+      const link = await ensureBookingLeadForConversation(supabase, alias, conversationId, payload);
       const startsAt = toIsoString(pickString(payload, ["booking_start_at", "starts_at"]), command.issued_at);
       const endsAt = toIsoString(pickString(payload, ["booking_end_at", "ends_at"]), addMinutes(startsAt, 60));
+      const bookingId = pickString(payload, ["booking_id", "booking_uid", "calcom_booking_id"]);
+      const externalAppointment = bookingId ? await findAppointmentByExternalId(supabase, alias.tenant_id, bookingId) : null;
+      const title = buildBookingTitle(payload);
 
       // EHS-V-001: derive postcode_status so the engineer diary shows a
       // "needs verification" badge when a voice booking confirmed without a
@@ -1469,11 +1701,102 @@ export async function executePlatformCommand(
         }
       }
 
-      if (!link.booking_appointment_id) {
+      let activeLink = link;
+      const explicitJobId = pickString(payload, ["job_id"]);
+      if (explicitJobId) {
+        const explicitJob = await findJobById(supabase, alias.tenant_id, explicitJobId);
+        if (explicitJob) {
+          activeLink = await upsertPlatformConversationLink(supabase, alias, {
+            conversationId,
+            jobId: explicitJob.id,
+            customerId: explicitJob.customer_id,
+            latestEventAt: startsAt,
+            metadata: {
+              needs_review: false,
+              review_reason: null,
+            },
+          });
+        }
+      }
+      const customerResolution: BookingCustomerResolution = activeLink.customer_id
+        ? { status: "resolved", customer: null }
+        : await resolveCustomerForBookingPayload(supabase, alias, payload);
+      if (customerResolution.status === "conflict") {
+        const bookingCustomer = buildBookingCustomerIdentityFromPayload(payload);
+        const reviewAppointmentId = externalAppointment?.id ?? (bookingId ? null : activeLink.booking_appointment_id);
+        if (reviewAppointmentId) {
+          await updateBookingAppointment(supabase, alias, {
+            appointmentId: reviewAppointmentId,
+            title,
+            startsAt,
+            endsAt,
+            status: "scheduled",
+            leadId: activeLink.lead_id,
+            postcodeStatus,
+            isTest: extractIsTestFromPayload(payload),
+          });
+        } else {
+          const appointmentId = await createAppointment(supabase, alias, {
+            link: { ...activeLink, customer_id: null, job_id: null },
+            type: "booking",
+            title,
+            startsAt,
+            endsAt,
+            postcodeStatus,
+            source: bookingId ? "platform" : "crm",
+            externalId: bookingId,
+          });
+          activeLink = await upsertPlatformConversationLink(supabase, alias, {
+            conversationId,
+            bookingAppointmentId: appointmentId,
+            latestEventAt: startsAt,
+          });
+        }
+        await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          bookingAppointmentId: reviewAppointmentId ?? activeLink.booking_appointment_id,
+          clearCustomerId: true,
+          clearJobId: true,
+          latestChannel: pickString(payload, ["channel", "response_channel"]),
+          identityPhone: pickString(payload, ["identity_phone", "customer_phone", "customerPhone", "from"]),
+          identityEmail: pickString(payload, ["identity_email", "customer_email", "customerEmail"]),
+          latestEventAt: startsAt,
+          metadata: buildBookingReviewMetadata({
+            bookingId,
+            externalLeadId: pickString(payload, ["lead_id", "platform_lead_id"]),
+            channel: pickString(payload, ["channel", "response_channel"]),
+            customer: bookingCustomer,
+            conflict: customerResolution.conflict,
+          }),
+        });
+        return;
+      }
+
+      if (customerResolution.customer) {
+        activeLink = await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          customerId: customerResolution.customer.id,
+          latestChannel: pickString(payload, ["channel", "response_channel"]),
+          identityPhone: pickString(payload, ["identity_phone", "customer_phone", "customerPhone", "from"]),
+          identityEmail: pickString(payload, ["identity_email", "customer_email", "customerEmail"]),
+          latestEventAt: startsAt,
+          metadata: {
+            needs_review: false,
+            review_reason: null,
+          },
+        });
+        if (activeLink.lead_id) {
+          await attachLeadToCustomer(supabase, alias, activeLink.lead_id, customerResolution.customer.id);
+        }
+      }
+
+      const linkedAppointmentId = externalAppointment?.id ?? (bookingId ? null : activeLink.booking_appointment_id);
+
+      if (!linkedAppointmentId) {
         const appointmentId = await createAppointment(supabase, alias, {
-          link,
+          link: activeLink,
           type: "booking",
-          title: buildBookingTitle(payload),
+          title,
           startsAt,
           endsAt,
           confirmationEmailSentAt: pickString(payload, ["confirmation_email_sent_at"]),
@@ -1481,14 +1804,20 @@ export async function executePlatformCommand(
           notificationStatus: pickString(payload, ["notification_status"]),
           notificationFailureReason: pickString(payload, ["notification_failure_reason"]),
           postcodeStatus: postcodeStatus,
+          source: bookingId ? "platform" : "crm",
+          externalId: bookingId,
         });
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,
           bookingAppointmentId: appointmentId,
           latestEventAt: startsAt,
           metadata: {
+            platform_booking_id: bookingId,
+            platform_lead_id: pickString(payload, ["lead_id", "platform_lead_id"]),
             booking_uid: pickString(payload, ["booking_uid", "calcom_booking_id"]),
             booking_slot_label: pickString(payload, ["booking_slot_label"]),
+            needs_review: false,
+            review_reason: null,
             ...buildConversationSessionMetadata(payload),
           },
         });
@@ -1505,40 +1834,29 @@ export async function executePlatformCommand(
             : incomingBookingStatus === "cancelled"
               ? "cancelled"
               : "scheduled";
-        const { data: updatedAppointment } = await supabase
-          .schema("crm")
-          .from("appointments")
-          .update({
-            title: buildBookingTitle(payload),
-            starts_at: startsAt,
-            ends_at: endsAt,
-            status: nextAppointmentStatus,
-            // Only overwrite postcode_status when we have new info
-            // (otherwise leave whatever a previous BookingConfirmed set).
-            ...(postcodeStatus ? { postcode_status: postcodeStatus } : {}),
-          })
-          .eq("id", link.booking_appointment_id)
-          .eq("tenant_id", alias.tenant_id)
-          .select("*")
-          .single<{
-            id: string;
-            tenant_id: string;
-            customer_id: string | null;
-            type: string;
-            title: string;
-            starts_at: string;
-            status: string;
-            is_test?: boolean | null;
-          }>();
-        if (updatedAppointment) {
-          await syncAppointmentReminder24h(supabase, alias.tenant_id, updatedAppointment);
-        }
+        await updateBookingAppointment(supabase, alias, {
+          appointmentId: linkedAppointmentId,
+          title,
+          startsAt,
+          endsAt,
+          status: nextAppointmentStatus,
+          customerId: activeLink.customer_id,
+          leadId: activeLink.lead_id,
+          jobId: activeLink.job_id,
+          postcodeStatus,
+          isTest: extractIsTestFromPayload(payload),
+        });
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,
+          bookingAppointmentId: linkedAppointmentId,
           latestEventAt: startsAt,
           metadata: {
+            platform_booking_id: bookingId,
+            platform_lead_id: pickString(payload, ["lead_id", "platform_lead_id"]),
             booking_uid: pickString(payload, ["booking_uid", "calcom_booking_id"]),
             booking_slot_label: pickString(payload, ["booking_slot_label"]),
+            needs_review: false,
+            review_reason: null,
             ...buildConversationSessionMetadata(payload),
           },
         });
@@ -1550,11 +1868,11 @@ export async function executePlatformCommand(
       // for any reason), try to resolve one here so a diary job can be created
       // on this pass instead of being dropped silently.
       if (refreshedLink && !refreshedLink.customer_id) {
-        const fallbackCustomer = await resolveCustomerForPayload(supabase, alias, payload);
-        if (fallbackCustomer) {
+        const fallbackResolution = await resolveCustomerForBookingPayload(supabase, alias, payload);
+        if (fallbackResolution.status === "resolved" && fallbackResolution.customer) {
           await upsertPlatformConversationLink(supabase, alias, {
             conversationId,
-            customerId: fallbackCustomer.id,
+            customerId: fallbackResolution.customer.id,
             latestEventAt: startsAt,
           });
           refreshedLink = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
@@ -1589,7 +1907,7 @@ export async function executePlatformCommand(
         const jobId = await createJobFromBooking(supabase, alias, {
           customerId: refreshedLink.customer_id,
           leadId: refreshedLink.lead_id,
-          title: buildBookingTitle(payload),
+          title,
           description: buildLeadNotes(payload) || null,
           startsAt,
           assignedEngineer,
@@ -1610,7 +1928,7 @@ export async function executePlatformCommand(
         // instead of the old one.
         await syncJobScheduleFromBooking(supabase, alias, {
           jobId: refreshedLink.job_id,
-          title: buildBookingTitle(payload),
+          title,
           description: buildLeadNotes(payload) || null,
           startsAt,
           assignedEngineer,
@@ -1653,8 +1971,32 @@ export async function executePlatformCommand(
         }
       }
 
+      const linkReason = pickString(payload, ["link_reason"]);
       if (link.customer_id === null) {
-        const customer = await resolveCustomerForPayload(supabase, alias, payload);
+        const bookingLink = linkReason === "booking_confirmed";
+        const customerResolution = bookingLink
+          ? await resolveCustomerForBookingPayload(supabase, alias, payload)
+          : { status: "resolved" as const, customer: await resolveCustomerForPayload(supabase, alias, payload) };
+        if (customerResolution.status === "conflict") {
+          await upsertPlatformConversationLink(supabase, alias, {
+            conversationId,
+            clearCustomerId: true,
+            clearJobId: true,
+            latestChannel: pickString(payload, ["channel", "response_channel"]),
+            identityPhone: pickString(payload, ["identity_phone", "customer_phone", "customerPhone", "from"]),
+            identityEmail: pickString(payload, ["identity_email", "customer_email", "customerEmail"]),
+            latestEventAt: occurredAt,
+            metadata: buildBookingReviewMetadata({
+              bookingId: pickString(payload, ["booking_id", "booking_uid", "calcom_booking_id"]),
+              externalLeadId: pickString(payload, ["lead_id", "platform_lead_id"]),
+              channel: pickString(payload, ["channel", "response_channel"]),
+              customer: buildBookingCustomerIdentityFromPayload(payload),
+              conflict: customerResolution.conflict,
+            }),
+          });
+          return;
+        }
+        const customer = customerResolution.customer;
         if (customer) {
           await upsertPlatformConversationLink(supabase, alias, {
             conversationId,
@@ -1736,4 +2078,48 @@ export async function executePlatformCommand(
     default:
       return;
   }
+}
+
+export type BookingRecoveryAction =
+  | { action: "create_new_customer_and_job" }
+  | { action: "link_existing_customer"; customerId: string }
+  | { action: "link_existing_job"; jobId: string };
+
+export async function recoverBookingConfirmedEvent(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  event: PlatformEventEnvelope,
+  recovery: BookingRecoveryAction,
+) {
+  const payload: Record<string, unknown> = {
+    booking_status: "confirmed",
+    recovery_action: recovery.action,
+    ...asRecord(event.payload),
+  };
+
+  if (recovery.action === "create_new_customer_and_job") {
+    payload.identity_resolution = "force_new_customer";
+  }
+  if (recovery.action === "link_existing_customer") {
+    payload.identity_resolution = "link_customer";
+    payload.recovery_customer_id = recovery.customerId;
+  }
+  if (recovery.action === "link_existing_job") {
+    payload.job_id = recovery.jobId;
+  }
+
+  await executePlatformCommand(supabase, alias, {
+    command_id: randomUUID(),
+    command_type: "CreateOrUpdateAppointment",
+    command_version: 1,
+    workspace_id: alias.workspace_id,
+    issued_at: new Date().toISOString(),
+    source_system: "crm",
+    target_system: "crm",
+    idempotency_key: `${event.event_id}:booking-recovery:${recovery.action}`,
+    correlation_id: event.correlation_id ?? event.event_id,
+    causation_id: event.event_id,
+    aggregate: event.aggregate,
+    payload,
+  });
 }

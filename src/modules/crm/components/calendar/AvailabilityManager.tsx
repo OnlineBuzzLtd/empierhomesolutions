@@ -281,11 +281,8 @@ export function AvailabilityManager({
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Native Calendar Control Plane</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              CustomerJourneys remains the source of truth for working hours, time off, holidays, and ICS
-              subscriptions. Changes here write through to the platform-native calendar.
-            </p>
+            <h2 className="text-lg font-semibold text-slate-900">Engineer Availability</h2>
+            <p className="mt-1 text-sm text-slate-500">Working hours, time off, holidays, and calendar feeds used for booking.</p>
           </div>
           <div className="flex items-center gap-3">
             <select
@@ -309,14 +306,14 @@ export function AvailabilityManager({
             </button>
           </div>
         </div>
-        {loading ? <p className="mt-4 text-sm text-slate-500">Loading native calendar state…</p> : null}
+        {loading ? <p className="mt-4 text-sm text-slate-500">Loading availability…</p> : null}
         {error ? <p className="mt-4 text-sm text-rose-700">{error}</p> : null}
         {success ? <p className="mt-4 text-sm text-emerald-700">{success}</p> : null}
       </div>
 
       {!selectedResource ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-          No platform booking resources are provisioned for this tenant yet.
+          No engineers are available for booking yet.
         </div>
       ) : (
         <>
@@ -429,7 +426,7 @@ export function AvailabilityManager({
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">Time Off</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Block one-off unavailability for this engineer or the whole tenant.
+                Block one-off unavailability for this engineer or everyone.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <label className="space-y-1 text-sm text-slate-700">
@@ -476,7 +473,7 @@ export function AvailabilityManager({
                       setTimeOffForm((current) => ({ ...current, appliesToAll: event.target.checked }))
                     }
                   />
-                  Apply to all resources
+                  Apply to all engineers
                 </label>
               </div>
               <div className="mt-4">
@@ -495,7 +492,7 @@ export function AvailabilityManager({
                   <div key={row.id} className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-slate-900">
-                        {row.resourceId ? selectedResource.displayName : "All resources"}
+                        {row.resourceId ? selectedResource.displayName : "All engineers"}
                       </p>
                       <p className="text-xs text-slate-500">
                         {formatDateTime(row.startAt)} → {formatDateTime(row.endAt)}
@@ -524,7 +521,7 @@ export function AvailabilityManager({
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">Holidays</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Add tenant-wide or engineer-specific holiday closures.
+                Add company-wide or engineer-specific holiday closures.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <label className="space-y-1 text-sm text-slate-700">

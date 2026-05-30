@@ -88,7 +88,7 @@ async function JobCreatePanel({
       : "";
 
   return (
-    <SectionCard title="Add Job">
+    <SectionCard title="New Job">
       <JobCreateForm
         customers={customers}
         services={services}
@@ -137,11 +137,11 @@ export default async function JobsPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Jobs</h1>
-        <p className="mt-1 text-sm text-slate-500">Jobs across all pipeline stages.</p>
+        <p className="mt-1 text-sm text-slate-500">Create work, assign engineers, and keep jobs moving.</p>
       </div>
 
       <div className={showCreatePanel ? "grid gap-6 xl:grid-cols-[1.4fr_0.9fr]" : "space-y-6"}>
-        <Suspense fallback={<SectionCard title="Job List"><p className="text-sm text-slate-500">Loading jobs...</p></SectionCard>}>
+        <Suspense fallback={<SectionCard title="Jobs"><p className="text-sm text-slate-500">Loading jobs...</p></SectionCard>}>
           <JobsClientPanel
             pagination={pagination}
             params={params}
@@ -151,7 +151,7 @@ export default async function JobsPage({
         </Suspense>
 
         {showCreatePanel ? (
-          <Suspense fallback={<SectionCard title="Add Job"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
+          <Suspense fallback={<SectionCard title="New Job"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
             <JobCreatePanel
               mode={demoState.mode}
               requestedCustomerId={requestedCustomerId}

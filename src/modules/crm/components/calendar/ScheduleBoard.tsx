@@ -97,11 +97,8 @@ export function ScheduleBoard({
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Dispatch Board</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Read-only booking board from the CustomerJourneys source of truth. Agent scheduling should follow
-              this platform calendar, not mirrored CRM appointments.
-            </p>
+            <h2 className="text-lg font-semibold text-slate-900">Schedule</h2>
+            <p className="mt-1 text-sm text-slate-500">Booked work by engineer, day, and availability.</p>
           </div>
           <div className="flex items-center gap-2">
             {[1, 3, 7].map((value) => (
@@ -126,7 +123,7 @@ export function ScheduleBoard({
 
       {resources.length === 0 && !loading ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-          No platform booking resources are provisioned for this tenant yet.
+          No engineers are available for booking yet.
         </div>
       ) : null}
 

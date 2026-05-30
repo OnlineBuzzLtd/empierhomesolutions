@@ -249,14 +249,18 @@ export function WeekTimeline({
                   if (heightPct === 0) return null;
                   const colour = TYPE_COLOURS[appt.type] ?? FALLBACK_COLOUR;
                   const cancelled = appt.status === "cancelled";
+                  const needsReview = appt.appointment_source === "platform" && (!appt.customer_id || !appt.lead_id || !appt.job_id);
                   const widthPct = 100 / colCount;
                   const leftPct = colIndex * widthPct;
-                  const Tag = appt.entity_link ? Link : "div";
+                  const reviewHref = needsReview ? "/ai-hub" : null;
+                  const Tag = appt.entity_link || reviewHref ? Link : "div";
                   return (
                     <Tag
                       key={`${appt.id}-${startMins}`}
-                      href={appt.entity_link ?? "#"}
-                      className={`absolute z-10 overflow-hidden rounded-md border px-1.5 py-1 text-[11px] leading-tight shadow-sm transition hover:z-30 hover:shadow-md ${colour.bg} ${colour.border} ${colour.text} ${
+                      href={appt.entity_link ?? reviewHref ?? "#"}
+                      className={`absolute z-10 overflow-hidden rounded-md border px-1.5 py-1 text-[11px] leading-tight shadow-sm transition hover:z-30 hover:shadow-md ${
+                        needsReview ? "border-amber-400 bg-amber-100 text-amber-950" : `${colour.bg} ${colour.border} ${colour.text}`
+                      } ${
                         cancelled ? "opacity-50 line-through" : ""
                       }`}
                       style={{
@@ -265,10 +269,11 @@ export function WeekTimeline({
                         left: `calc(${leftPct}% + 2px)`,
                         width: `calc(${widthPct}% - 4px)`,
                       }}
-                      title={`${appt.title} · ${appt.customer?.full_name ?? "No customer"}${
+                      title={`${needsReview ? "Needs review · " : ""}${appt.title} · ${appt.customer?.full_name ?? "No customer"}${
                         appt.owner?.full_name ? ` · ${appt.owner.full_name}` : ""
                       }`}
                     >
+                      {needsReview ? <div className="mb-0.5 truncate text-[9px] font-bold uppercase">Needs review</div> : null}
                       <div className="truncate font-semibold">{appt.title}</div>
                       {appt.customer?.full_name ? (
                         <div className="truncate text-[10px] opacity-80">{appt.customer.full_name}</div>

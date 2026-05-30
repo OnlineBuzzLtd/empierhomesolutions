@@ -93,6 +93,9 @@ export function deriveAppointmentEntityLink(appointment: {
 }
 
 const getCachedCrmDemoState = cache(getCrmDemoState);
+export const enquiryTodoStatuses = ["new", "contacted", "follow_up"] as const;
+export const enquiryDoneStatuses = ["booked", "quoted", "accepted", "completed", "lost"] as const;
+export type EnquiryTab = "todo" | "done" | "all";
 
 function emptyDashboard(): DashboardData {
   return {
@@ -100,6 +103,7 @@ function emptyDashboard(): DashboardData {
     todaysJobs: [],
     unpaidInvoicesTotal: 0,
     newLeadCount: 0,
+    aiReceptionistReviewCount: 0,
     recentCustomers: [],
     activeJobs: [],
   };
@@ -592,6 +596,7 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   if (summary) {
     return {
       ...summary,
+      aiReceptionistReviewCount: 0,
       todaysJobs,
       recentCustomers,
       activeJobs,
@@ -623,6 +628,7 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
       .filter((invoice) => invoice.status === "unpaid")
       .reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
     newLeadCount: leads.length,
+    aiReceptionistReviewCount: 0,
     recentCustomers,
     activeJobs,
   };
@@ -739,7 +745,42 @@ export async function getEngineerDashboardData(
   return summarizeEngineerDashboardJobs(enrichedJobs, todayDate);
 }
 
-export async function listLeads(mode?: CrmMode, pagination?: CrmPaginationInput) {
+function applyEnquiryTabFilter(query: { in: (column: string, values: readonly string[]) => unknown }, tab: EnquiryTab) {
+  if (tab === "todo") {
+    query.in("status", enquiryTodoStatuses);
+  }
+  if (tab === "done") {
+    query.in("status", enquiryDoneStatuses);
+  }
+}
+
+async function countEnquiriesByTab(mode: CrmMode, scenarioKey: typeof crmDemoScenarioKey, tab: EnquiryTab) {
+  const supabase = await createCrmServerClient();
+  const query = supabase.schema("crm").from("leads").select("id", { count: "exact", head: true });
+  filterByMode(query, mode, scenarioKey);
+  applyEnquiryTabFilter(query, tab);
+  const { count, error } = await measureCrmQuery(`countEnquiriesByTab.${tab}`, query);
+  if (error) {
+    return 0;
+  }
+  return count ?? 0;
+}
+
+export async function getEnquiryCounts(mode?: CrmMode) {
+  if (!getCrmEnv().enabled) {
+    return { todoCount: 0, doneCount: 0, allCount: 0 };
+  }
+
+  const context = await getCrmModeContext(mode);
+  const [todoCount, doneCount, allCount] = await Promise.all([
+    countEnquiriesByTab(context.mode, context.scenarioKey, "todo"),
+    countEnquiriesByTab(context.mode, context.scenarioKey, "done"),
+    countEnquiriesByTab(context.mode, context.scenarioKey, "all"),
+  ]);
+  return { todoCount, doneCount, allCount };
+}
+
+export async function listLeads(mode?: CrmMode, pagination?: CrmPaginationInput, tab: EnquiryTab = "all") {
   if (!getCrmEnv().enabled) {
     return [] as LeadWithRelations[];
   }
@@ -753,6 +794,7 @@ export async function listLeads(mode?: CrmMode, pagination?: CrmPaginationInput)
       "id, tenant_id, customer_id, possible_duplicate_customer_id, service_id, job_type_id, owner_user_id, status, source, source_enum, next_action_at, intake_source, dedupe_result, submission_count, customer_match_result, is_demo, demo_scenario_key, created_at, updated_at, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
+  applyEnquiryTabFilter(leadsQuery, tab);
   return runCrmList<LeadWithRelations>(
     "listLeads",
     applyCrmPagination(leadsQuery.order("created_at", { ascending: false }), pagination),
@@ -1227,6 +1269,7 @@ export async function listAppointmentsForCalendar(filters?: {
       items.push({
         ...occurrence,
         source: "appointment",
+        appointment_source: appointment.source ?? null,
         customer: appointment.customer ?? null,
         lead: appointment.lead ?? null,
         owner: owner ? { id: owner.id, full_name: owner.full_name, role: owner.role } : null,

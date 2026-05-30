@@ -11,7 +11,7 @@ export function AppointmentCreateForm({
   users: UserProfile[];
 }) {
   return (
-    <ApiForm endpoint="/api/crm/appointments" submitLabel="Add Calendar Item" className="grid gap-3 md:grid-cols-2">
+    <ApiForm endpoint="/api/crm/appointments" submitLabel="New Appointment" className="grid gap-3 md:grid-cols-2">
       <select name="type" defaultValue="call" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
         <option value="call">Call</option>
         <option value="follow_up">Follow Up</option>
@@ -30,10 +30,10 @@ export function AppointmentCreateForm({
         ))}
       </select>
       <select name="lead_id" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-        <option value="">No lead</option>
+        <option value="">No enquiry</option>
         {leads.map((lead) => (
           <option key={lead.id} value={lead.id}>
-            {lead.status} · {lead.source || "Lead"}
+            {lead.status} · {lead.source || "Enquiry"}
           </option>
         ))}
       </select>

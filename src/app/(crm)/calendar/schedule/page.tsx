@@ -14,7 +14,7 @@ export default async function CalendarSchedulePage() {
 
   const session = await requireCrmUser();
   if (!session.configured || !session.tenant) {
-    return <SetupNotice message="Sign in to view the dispatch board." />;
+    return <SetupNotice message="Sign in to view the schedule." />;
   }
 
   const supabase = createCrmServiceRoleClient();
@@ -27,10 +27,10 @@ export default async function CalendarSchedulePage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Schedule</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Read-only dispatch board from the CustomerJourneys platform booking source of truth.
+            See booked work by engineer and day.
           </p>
         </div>
-        <SetupNotice message={access.message ?? "Native booking schedule is not ready for this tenant yet."} />
+        <SetupNotice message={access.message ?? "Booking schedule is not ready yet."} />
       </div>
     );
   }
@@ -40,8 +40,7 @@ export default async function CalendarSchedulePage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Schedule</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Dispatch board from canonical platform bookings. CRM appointments remain mirrored operational records,
-          not the native booking source of truth.
+          See booked work by engineer and day.
         </p>
       </div>
       <ScheduleBoard platformTenantId={access.platformTenantId} />

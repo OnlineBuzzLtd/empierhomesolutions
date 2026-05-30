@@ -15,7 +15,7 @@ export function LeadCreateForm({
   customFields: CustomFieldDefinition[];
 }) {
   return (
-    <ApiForm endpoint="/api/crm/leads" submitLabel="Create Lead" className="space-y-3">
+    <ApiForm endpoint="/api/crm/leads" submitLabel="Create Enquiry" className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</span>

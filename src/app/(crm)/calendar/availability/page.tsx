@@ -26,13 +26,10 @@ export default async function CalendarAvailabilityPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Availability</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Manage working hours, time off, holidays, and ICS subscriptions through the CustomerJourneys
-            control plane.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Manage working hours, time off, holidays, and calendar feeds.</p>
         </div>
         <SetupNotice
-          message={access.message ?? "Native calendar availability is not ready for this tenant yet."}
+          message={access.message ?? "Calendar availability is not ready yet."}
         />
       </div>
     );
@@ -42,10 +39,7 @@ export default async function CalendarAvailabilityPage() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Availability</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          CustomerJourneys is the source of truth for native calendar administration. Changes here write
-          directly to platform working hours, time off, holidays, and ICS subscriptions.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">Manage working hours, time off, holidays, and calendar feeds.</p>
       </div>
       <AvailabilityManager platformTenantId={access.platformTenantId} />
     </div>

@@ -2,9 +2,14 @@ import { leadSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { jsonError, jsonSuccess, paginationFromRequestUrl, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
-import { listLeads } from "@/modules/crm/lib/data";
+import { getEnquiryCounts, listLeads, type EnquiryTab } from "@/modules/crm/lib/data";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { normalizeCrmPagination } from "@/modules/crm/lib/performance";
+import { listBookingRecoveryCases } from "@/modules/platform/lib/booking-recovery";
+
+function parseTab(value: string | null): EnquiryTab {
+  return value === "done" || value === "all" ? value : "todo";
+}
 
 export async function GET(request: Request) {
   const auth = await requireCrmApiUser();
@@ -13,9 +18,28 @@ export async function GET(request: Request) {
   }
 
   const pagination = paginationFromRequestUrl(request);
+  const searchParams = new URL(request.url).searchParams;
+  const tab = parseTab(searchParams.get("tab"));
   const demoState = await getCrmDemoState();
-  const items = await listLeads(demoState.mode, pagination);
-  return jsonSuccess({ items, pagination: normalizeCrmPagination(pagination) });
+  const [items, counts, recoveryCases] = await Promise.all([
+    listLeads(demoState.mode, pagination, tab),
+    getEnquiryCounts(demoState.mode),
+    demoState.mode === "live"
+      ? listBookingRecoveryCases(auth.session.supabase, auth.session.tenant.id).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+  const reviewCount = tab === "done" ? 0 : recoveryCases.length;
+  return jsonSuccess({
+    items,
+    recoveryCases: tab === "todo" || tab === "all" ? recoveryCases : [],
+    counts: {
+      todoCount: counts.todoCount + recoveryCases.length,
+      doneCount: counts.doneCount,
+      allCount: counts.allCount + recoveryCases.length,
+    },
+    pagination: normalizeCrmPagination(pagination),
+    visibleCount: items.length + reviewCount,
+  });
 }
 
 export async function POST(request: Request) {

@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-05-30 — CRM UX simplification, AI booking recovery, and production cleanup
+
+This release reworks the CRM around a simpler trade-business workflow while preserving the Commusoft-style engineer field experience. It also fixes the AI booking edge case where a confirmed AI/WhatsApp/voice booking could appear only as an unlinked Scheduler appointment.
+
+### Added — AI booking recovery
+
+- Recovery APIs:
+  - `GET /api/crm/ai-receptionist/recovery-cases`
+  - `POST /api/crm/ai-receptionist/recovery-cases/:id/resolve`
+- `AI Receptionist` now has a Needs review surface for orphan or failed AI bookings.
+- Scheduler orphan appointments show a `Needs review` badge and point back to the recovery case.
+- Booking recovery is idempotent: existing appointments are hydrated by external booking id instead of duplicated.
+- Identity conflict handling now routes phone/email matches with materially different name/postcode into `Needs review` instead of overwriting customer records.
+
+### Changed — admin and engineer UX
+
+- Admin navigation now follows the trade workflow: `Dashboard`, `Enquiries`, `Jobs`, `Scheduler`, `Customers`, `Quotes`, `Invoices`, `AI Receptionist`, `More`.
+- Secondary tools moved behind More or Settings/Advanced, while direct routes remain stable.
+- User-facing `Leads` terminology changed to `Enquiries`; `/leads` remains the route and `crm.leads` remains the table.
+- User-facing `Calendar` terminology changed to `Scheduler`; `/calendar` remains the route.
+- Quotes and Invoices remain separate worklists with clearer status tabs and primary actions.
+- Engineer users keep the Commusoft-style field app, with bottom navigation labels `Today`, `Diary`, `Jobs`, and `Profile`.
+
+### Fixed — Enquiries counts and meaning
+
+- Dashboard `New enquiries` became `Enquiries to do`.
+- `/api/crm/leads` now accepts `tab=todo|done|all`, defaults to `todo`, and returns `todoCount`, `doneCount`, and `allCount`.
+- Dashboard summary now uses the exact same To-do definition as `/api/crm/leads?tab=todo`.
+- Enquiries page now explains the product term: an enquiry is a customer request that still needs office action: call back, qualify, quote, or turn into a job.
+- Empty states are tab-specific and action-oriented.
+- Regression coverage prevents already-booked enquiries from inflating the dashboard To-do count unless they are unresolved recovery cases.
+
+### Operations — production CRM data cleanup
+
+- Removed fake/test customer records and their linked fake jobs, enquiries, appointments, notes, platform conversation links, and job checklist rows from the live Empire tenant.
+- Removed fake/orphan enquiries and AI booking recovery records that were still surfacing in the Enquiries To-do list.
+- Local JSON backups were written under `backups/` before deletion. `backups/` is gitignored because those files may contain live CRM PII and must not be committed.
+
+### Verified
+
+- `npm run typecheck` passed.
+- `npx vitest run tests/crm/enquiries-worklist.test.ts tests/crm/ux-navigation.test.ts` passed.
+- `npm run build` passed.
+- Production deployment is ready at `https://empire-home-solutions.vercel.app` with deployment id `dpl_Ge8YZoyWdLGngG66kZxwvVsZpKMu`.
+
 ## 2026-05-29 — CRM automation, tenant performance, and proof harness
 
 This release packages the recent tenantized CRM expansion, deployment hardening, and the first production-grade performance proof work. It is deployed, but the performance proof is intentionally honest: the database/query layer is much improved and some screens are faster, yet the CRM is **not proven super-fast across every screen**.

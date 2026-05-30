@@ -14,8 +14,6 @@ import {
 import {
   CrmMobileMenu,
   CrmSidebarNav,
-  type CrmNavGroup,
-  type CrmNavItem,
 } from "@/modules/crm/components/layout/CrmNav";
 import { getCrmSession, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -23,54 +21,24 @@ import { LogoutButton } from "@/modules/crm/components/layout/LogoutButton";
 import { TenantSwitcher } from "@/modules/crm/components/layout/TenantSwitcher";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { getUiPreference } from "@/app/actions/ui-preference";
+import { getAiReceptionistRedirect, getCrmNavGroups, getEngineerRedirect } from "@/modules/crm/lib/ux-navigation";
 
 export const metadata: Metadata = {
   title: "Field Service CRM",
   description: "Internal CRM workspace",
 };
 
-const operationsItems: CrmNavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/leads", label: "Leads", icon: "leads" },
-  { href: "/customers", label: "Customers", icon: "customers" },
-  { href: "/jobs", label: "Jobs", icon: "jobs" },
-  { href: "/calendar", label: "Calendar", icon: "calendar" },
-  { href: "/quotes", label: "Quotes", icon: "quotes" },
-  { href: "/invoices", label: "Invoices", icon: "invoices" },
-  { href: "/staff", label: "Staff", icon: "staff" },
-];
-
-const aiItems: CrmNavItem[] = [
-  { href: "/inbox", label: "Inbox", icon: "inbox" },
-  { href: "/calls", label: "Calls", icon: "calls" },
-  { href: "/automations", label: "Automations", icon: "automations" },
-  { href: "/ai-settings", label: "AI Settings", icon: "ai-settings" },
-  { href: "/ai-hub", label: "AI Hub", icon: "ai-hub" },
-];
-
-const adminItems: CrmNavItem[] = [
-  { href: "/reports", label: "Reports", icon: "reports" },
-  { href: "/settings", label: "Settings", icon: "settings" },
-];
-
-const engineerItems: CrmNavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/calendar/today", label: "Today", icon: "calendar" },
-  { href: "/jobs", label: "Jobs", icon: "jobs" },
-  { href: "/calendar", label: "Calendar", icon: "calendar" },
-];
-
 function getCommsoftBottomNavActive(pathname: string): CommsoftBottomNavActive {
   if (pathname.startsWith("/diary")) {
     return "diary";
   }
   if (pathname.startsWith("/jobs")) {
-    return "search";
+    return "jobs";
   }
   if (pathname.startsWith("/preferences")) {
-    return "view";
+    return "profile";
   }
-  return "home";
+  return "today";
 }
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
@@ -79,8 +47,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const session = await getCrmSession();
   const demoState = await getCrmDemoState();
   const setup = getCrmSetupState();
+  const canManageSettings = userCanManageSettings(session.profile?.role);
   const canManageDemo =
-    userCanManageSettings(session.profile?.role) &&
+    canManageSettings &&
     !session.profile?.is_demo &&
     session.settings?.demo_mode_enabled !== false;
   const isEngineer = session.profile?.role === "engineer";
@@ -94,25 +63,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   // is. The chrome bypass is purely presentation.
   const isDemoRunMode = pathname.startsWith("/demo/run");
 
-  // Demo Console item is conditional — only appears for tenants with the
-  // demo_console_enabled flag, and only for manager/admin roles. See
-  // src/modules/crm/demo-console/README.md.
-  const adminItemsWithDemo: CrmNavItem[] = session.settings?.demo_console_enabled
-    ? [...adminItems, { href: "/demo", label: "Demo", icon: "demo" }]
-    : adminItems;
-
-  const groups: CrmNavGroup[] = isEngineer
-    ? [{ label: "Field", items: engineerItems }]
-    : userCanManageSettings(session.profile?.role)
-      ? [
-          { label: "Operations", items: operationsItems },
-          { label: "AI", items: aiItems },
-          { label: "Admin", items: adminItemsWithDemo },
-        ]
-      : [
-          { label: "Operations", items: operationsItems },
-          { label: "AI", items: aiItems },
-        ];
+  const groups = getCrmNavGroups(canManageSettings, isEngineer, Boolean(session.settings?.demo_console_enabled));
   const modeBadgeClassName = demoState.active ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
   const modeBadgeLabel = demoState.locked ? "Demo Account" : demoState.active ? "Demo Data" : "Live Data";
   const crmDisplayName =
@@ -135,6 +86,16 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   if (!session.user) {
     return <div className="min-h-screen bg-slate-950 text-slate-100">{children}</div>;
+  }
+
+  const engineerRedirect = isEngineer ? getEngineerRedirect(pathname) : null;
+  if (engineerRedirect) {
+    redirect(engineerRedirect);
+  }
+
+  const aiReceptionistRedirect = !isEngineer ? getAiReceptionistRedirect(pathname) : null;
+  if (aiReceptionistRedirect) {
+    redirect(aiReceptionistRedirect);
   }
 
   if (isDemoRunMode && session.user) {
@@ -251,7 +212,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                   {session.tenant && tenantOptions.length > 1 ? (
                     <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} />
                   ) : null}
-                  {userCanManageSettings(session.profile?.role) ? <CrmMobileMenu groups={groups} /> : null}
+                  <CrmMobileMenu groups={groups} />
                   {isEngineer && !isCommsoftMode ? (
                     <CrmInstantLink
                       href="/preferences"
@@ -284,18 +245,18 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             )}
             {isEngineer && !isCommsoftMode ? (
               <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-                <div className="grid grid-cols-5 gap-2 text-center text-xs font-semibold">
+                <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold">
                   <CrmInstantLink
                     href="/dashboard"
                     className={`rounded-full px-3 py-2 ${pathname === "/dashboard" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
-                    Dashboard
+                    Today
                   </CrmInstantLink>
                   <CrmInstantLink
-                    href="/calendar/today"
-                    className={`rounded-full px-3 py-2 ${pathname === "/calendar/today" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
+                    href="/diary"
+                    className={`rounded-full px-3 py-2 ${pathname.startsWith("/diary") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
-                    Today
+                    Diary
                   </CrmInstantLink>
                   <CrmInstantLink
                     href="/jobs"
@@ -304,16 +265,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                     Jobs
                   </CrmInstantLink>
                   <CrmInstantLink
-                    href="/calendar"
-                    className={`rounded-full px-3 py-2 ${pathname.startsWith("/calendar") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
-                  >
-                    Calendar
-                  </CrmInstantLink>
-                  <CrmInstantLink
                     href="/preferences"
                     className={`rounded-full px-3 py-2 ${pathname.startsWith("/preferences") ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-700"}`}
                   >
-                    View
+                    Profile
                   </CrmInstantLink>
                 </div>
               </nav>

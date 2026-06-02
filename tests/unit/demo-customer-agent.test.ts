@@ -118,6 +118,45 @@ describe("demo customer agent guardrails", () => {
     });
   });
 
+  it("accepts boiler install survey slots before asking the platform AI", async () => {
+    const providerGenerateTurn = vi.fn().mockResolvedValue({
+      status: "blocked",
+      stopCode: "unsafe_llm_output",
+      message: null,
+      reason: "Customer requested tomorrow morning but offered slots are afternoon.",
+    });
+
+    const turn = await generateDemoCustomerTurn(
+      {
+        ...baseInput,
+        scenarioKey: "boiler_install_survey",
+        prospectName: "mike",
+        transcript: [
+          {
+            id: "m1",
+            direction: "inbound",
+            body: "Hi, I need to book a boiler install survey for a new combi boiler. Tomorrow morning would work best for me if that's possible.",
+          },
+          { id: "m2", direction: "outbound", body: "What date and time would you like?" },
+          { id: "m3", direction: "inbound", body: "Tomorrow morning if available." },
+          {
+            id: "m4",
+            direction: "outbound",
+            body: "I can do Wed 3 Jun, 12:00 pm to 1:00 pm, Wed 3 Jun, 12:30 pm to 1:30 pm, Wed 3 Jun, 1:00 pm to 2:00 pm. Which works best?",
+          },
+        ],
+      },
+      { providerGenerateTurn },
+    );
+
+    expect(turn).toMatchObject({
+      status: "message",
+      stopCode: "next_message",
+      message: "The 12:00 pm to 1:00 pm slot works. Please book that.",
+    });
+    expect(providerGenerateTurn).not.toHaveBeenCalled();
+  });
+
   it("sends literal YES when the booking AI explicitly asks for YES confirmation", async () => {
     await expect(
       generateDemoCustomerTurn(

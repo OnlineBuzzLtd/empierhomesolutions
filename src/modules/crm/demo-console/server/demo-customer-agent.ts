@@ -125,6 +125,20 @@ export function demoCustomerReplyLooksComplete(text: string) {
   );
 }
 
+function buildOfferedSlotReply(text: string) {
+  const offeredSlot = extractOfferedSlot(text);
+  if (!offeredSlot) return null;
+  if (
+    /\b(which works best|which would you like|which works|would .*work for you|slot work|reply yes|send yes)\b/i.test(
+      text,
+    ) ||
+    /\b(?:can do|available|offer|earliest|next)\b/i.test(text)
+  ) {
+    return `The ${offeredSlot} slot works. Please book that.`;
+  }
+  return null;
+}
+
 function makeTurn(
   status: DemoCustomerTurnStatus,
   stopCode: DemoCustomerTurn["stopCode"],
@@ -306,9 +320,6 @@ export function resolveDeterministicDemoCustomerTurn(
     return makeTurn("complete", "booking_confirmed", "The AI confirmed the booking or survey.");
   }
 
-  const latestQuestion = classifyDemoCustomerQuestion(latestReply.body);
-  if (!latestQuestion) return null;
-
   if (requiresLiteralYesConfirmation(latestReply.body)) {
     return makeTurn(
       "message",
@@ -318,20 +329,18 @@ export function resolveDeterministicDemoCustomerTurn(
     );
   }
 
-  const offeredSlot = extractOfferedSlot(latestReply.body);
-  if (
-    offeredSlot &&
-    (latestQuestion === "time" ||
-      latestQuestion === "confirmation" ||
-      /\b(which works best|would .*work for you|slot work)\b/i.test(latestReply.body))
-  ) {
+  const offeredSlotReply = buildOfferedSlotReply(latestReply.body);
+  if (offeredSlotReply) {
     return makeTurn(
       "message",
       "next_message",
       "Accepting one of the AI's offered appointment slots.",
-      `The ${offeredSlot} slot works. Please book that.`,
+      offeredSlotReply,
     );
   }
+
+  const latestQuestion = classifyDemoCustomerQuestion(latestReply.body);
+  if (!latestQuestion) return null;
 
   const firstPassReply = buildFirstPassDeterministicReply(
     input,

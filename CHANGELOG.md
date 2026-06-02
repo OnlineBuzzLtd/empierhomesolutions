@@ -26,6 +26,14 @@ This release extends the live CRM around enquiry-to-job conversion, install quot
 - Customer Journeys owns the paid AI provider call and uses the same production stack as the real agent: Anthropic first, OpenAI fallback.
 - If platform AI is unavailable, the CRM demo falls back to deterministic scenario facts where safe, then fixed-script mode.
 
+### Fixed — demo booking materialisation
+
+- Trusted `/demo/run` webchat bookings now pass through the normal authenticated `/api/platform/events` ingestion path as `is_test=true` CRM records.
+- Synthetic/test phone numbers remain blocked for normal platform events, but are allowed for authenticated demo webchat `BookingConfirmed` events with `source=demo_console_webchat`.
+- Demo `BookingConfirmed` events still create the real CRM trail: customer, enquiry, booked/survey job, appointment, and platform conversation link.
+- Test/demo metadata is preserved so cleanup can remove demo-created rows without touching live customer records.
+- Customer-facing outbound channels stay disabled for demo webchat bookings; the CRM receives the booking, but no SMS, WhatsApp, voice, Stripe, or email send is triggered by the demo.
+
 ### Operations
 
 - Added Supabase Disk IO audit tooling and tenant-scoped IO indexes for the CRM hot paths identified during the Supabase Disk IO warning response.
@@ -40,6 +48,7 @@ This release extends the live CRM around enquiry-to-job conversion, install quot
 - `npm run lint` passed with warnings only.
 - `npm run build` passed.
 - Customer Journeys platform-api typecheck/lint/build passed.
+- Repeated materialisation checks passed locally: Empire platform-event tests 5/5, platform publish/payload tests 5/5, Empire demo-customer/outcome tests 5/5, platform internal demo-customer route tests 5/5.
 - Live platform internal endpoint smoke returned safe demo-customer turns for emergency repair and boiler install survey without sending SMS, WhatsApp, voice, Stripe, or email.
 
 ## 2026-05-30 — CRM UX simplification, AI booking recovery, and production cleanup

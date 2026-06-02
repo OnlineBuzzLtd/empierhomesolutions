@@ -71,6 +71,22 @@ type DemoCustomerTurnResponse = {
   };
 };
 
+type DemoScenarioOutcomeResponse = {
+  ok?: boolean;
+  error?: string;
+  outcome?: {
+    complete: boolean;
+    summary: string;
+    missing: string[];
+    counts: {
+      customers: number;
+      leads: number;
+      jobs: number;
+      appointments: number;
+    };
+  };
+};
+
 type ScenarioRunOutcome =
   | { status: "completed"; message: string }
   | { status: "blocked"; message: string };
@@ -163,6 +179,43 @@ export function OperatorPanel({
     return body.turn;
   }
 
+  async function getScenarioOutcome(scenarioKey: DemoWebchatScenarioKey) {
+    const res = await fetch("/api/crm/demo/webchat/outcome", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scenarioKey }),
+    });
+    const body = (await res.json().catch(() => ({}))) as DemoScenarioOutcomeResponse;
+    if (!res.ok || body.ok !== true || !body.outcome) {
+      throw new Error(body.error ?? `Demo outcome HTTP ${res.status}`);
+    }
+    return body.outcome;
+  }
+
+  async function waitForScenarioOutcome(input: {
+    scenarioKey: DemoWebchatScenarioKey;
+    runId: number;
+    attempts?: number;
+  }) {
+    const attempts = input.attempts ?? 8;
+    let lastSummary = "Waiting for CRM records.";
+    for (let index = 0; index < attempts; index += 1) {
+      if (autopilotStoppedRef.current || autopilotRunIdRef.current !== input.runId) {
+        return { complete: false, summary: "Scenario stopped.", missing: ["stopped"] };
+      }
+      dispatchAutopilot({
+        type: "line",
+        lineIndex: index,
+        message: "Checking the CRM booking trail.",
+      });
+      const outcome = await getScenarioOutcome(input.scenarioKey);
+      lastSummary = outcome.summary;
+      if (outcome.complete) return outcome;
+      await waitWithControls(750);
+    }
+    return { complete: false, summary: lastSummary, missing: ["CRM booking trail"] };
+  }
+
   async function runFixedScriptScenario(input: {
     scenarioKey: DemoWebchatScenarioKey;
     speed: DemoWebchatSpeed;
@@ -191,9 +244,24 @@ export function OperatorPanel({
         conversationId,
       });
       conversationId = sent.conversationId;
+      const outcome = await waitForScenarioOutcome({
+        scenarioKey: input.scenarioKey,
+        runId: input.runId,
+        attempts: 2,
+      });
+      if (outcome.complete) {
+        return { status: "completed", message: outcome.summary };
+      }
       await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
     }
-    return { status: "completed", message: `${scenario.label} completed.` };
+    const finalOutcome = await waitForScenarioOutcome({
+      scenarioKey: input.scenarioKey,
+      runId: input.runId,
+      attempts: 8,
+    });
+    return finalOutcome.complete
+      ? { status: "completed", message: finalOutcome.summary }
+      : { status: "blocked", message: finalOutcome.summary };
   }
 
   async function runAiCustomerScenario(input: {
@@ -249,7 +317,17 @@ export function OperatorPanel({
         turnIndex,
       });
       if (nextTurn.status === "complete") {
-        return { status: "completed", message: nextTurn.reason ?? `${scenario.label} completed.` };
+        const outcome = await waitForScenarioOutcome({
+          scenarioKey: input.scenarioKey,
+          runId: input.runId,
+          attempts: 8,
+        });
+        return outcome.complete
+          ? { status: "completed", message: outcome.summary }
+          : {
+              status: "blocked",
+              message: `${nextTurn.reason ?? `${scenario.label} completed.`} ${outcome.summary}`,
+            };
       }
       if (nextTurn.status !== "message" || !nextTurn.message) {
         return {
@@ -269,6 +347,14 @@ export function OperatorPanel({
       });
       conversationId = sent.conversationId;
       transcript = appendTranscriptMessages(transcript, sent.messages);
+      const outcome = await waitForScenarioOutcome({
+        scenarioKey: input.scenarioKey,
+        runId: input.runId,
+        attempts: 2,
+      });
+      if (outcome.complete) {
+        return { status: "completed", message: outcome.summary };
+      }
       await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
     }
 

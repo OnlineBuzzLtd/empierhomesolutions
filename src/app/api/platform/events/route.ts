@@ -90,6 +90,25 @@ function authenticateRequest(request: Request, rawBody: string, configuredSecret
   return { ok: true, method: "shared_secret" };
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function isTruthyTestFlag(value: unknown) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function isTrustedDemoWebchatEvent(parsedEvent: { payload: Record<string, unknown> }) {
+  const payload = parsedEvent.payload;
+  const metadata = asRecord(payload.metadata);
+  const source = payload.source ?? metadata.source;
+  return (
+    payload.channel === "webchat" &&
+    source === "demo_console_webchat" &&
+    (isTruthyTestFlag(payload.is_test) || isTruthyTestFlag(metadata.is_test))
+  );
+}
+
 export async function POST(request: Request) {
   const env = getCrmEnv();
   const configuredSecret = env.platformSharedSecret;
@@ -124,9 +143,10 @@ export async function POST(request: Request) {
   // fingerprints). DEMO_CONSOLE_ALLOWLIST overrides; Twilio Magic Numbers
   // always pass. See synthetic-number-guard.ts for the full rationale.
   const phones = collectPhonesFromPayload(parsed.data);
+  const allowSyntheticDemoPhones = isTrustedDemoWebchatEvent(parsed.data);
   for (const { field, value } of phones) {
     const decision = evaluatePhoneNumber(value, { allowlist: env.demoConsoleAllowlist });
-    if (!decision.ok) {
+    if (!decision.ok && !allowSyntheticDemoPhones) {
       return NextResponse.json(
         { code: "synthetic_number_blocked", pattern: decision.pattern, field },
         { status: 422 },

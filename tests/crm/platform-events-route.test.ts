@@ -181,6 +181,142 @@ describe("platform events route", () => {
     expect(body.error).toBe("Unauthorized.");
   });
 
+  it("blocks synthetic phone numbers on normal platform events", async () => {
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({
+        platformSharedSecret: "test-secret",
+        demoConsoleAllowlist: [],
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn(),
+    }));
+
+    const route = await import("@/app/api/platform/events/route");
+    const response = await route.POST(
+      new Request("http://localhost/api/platform/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-platform-shared-secret": "test-secret",
+        },
+        body: JSON.stringify({
+          event_id: "aaaaaaaa-1111-4111-8111-111111111111",
+          event_type: "BookingConfirmed",
+          event_version: 1,
+          workspace_id: "22222222-2222-4222-8222-222222222222",
+          occurred_at: "2026-04-07T10:00:00.000Z",
+          source_system: "agentic_runtime",
+          idempotency_key: "scenario:synthetic-blocked",
+          correlation_id: null,
+          causation_id: null,
+          aggregate: {
+            type: "conversation",
+            id: "bbbbbbbb-2222-4222-8222-222222222222",
+          },
+          payload: {
+            channel: "webchat",
+            customer_phone: "+447700900101",
+          },
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toMatchObject({
+      code: "synthetic_number_blocked",
+      pattern: "known_synthetic_prefix:+447700900",
+      field: "payload.customer_phone",
+    });
+  });
+
+  it("allows synthetic phone numbers for trusted demo webchat booking events", async () => {
+    const alias = {
+      workspace_id: "22222222-2222-4222-8222-222222222222",
+      tenant_id: "11111111-1111-4111-8111-111111111111",
+      created_at: "2026-04-07T10:00:00.000Z",
+      updated_at: "2026-04-07T10:00:00.000Z",
+    };
+    const recordPlatformEvent = vi.fn().mockResolvedValue(undefined);
+    const resolveWorkspaceAliasForIncomingWorkspaceId = vi.fn().mockResolvedValue(alias);
+    const updatePlatformCommandStatus = vi.fn().mockResolvedValue(undefined);
+    const updatePlatformEventStatus = vi.fn().mockResolvedValue(undefined);
+    const executePlatformCommand = vi.fn().mockResolvedValue(undefined);
+    const enqueuePlatformCommand = vi.fn().mockImplementation(async (_supabase, _alias, envelope) => ({
+      tenant_id: alias.tenant_id,
+      delivery_status: "pending",
+      requested_by_user_id: null,
+      sent_at: null,
+      acknowledged_at: null,
+      last_error: null,
+      attempt_count: 0,
+      envelope,
+    }));
+
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({
+        platformSharedSecret: "test-secret",
+        demoConsoleAllowlist: [],
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue({}),
+    }));
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      enqueuePlatformCommand,
+      resolveWorkspaceAliasForIncomingWorkspaceId,
+      recordPlatformEvent,
+      updatePlatformCommandStatus,
+      updatePlatformEventStatus,
+    }));
+    vi.doMock("@/modules/platform/lib/command-executor", () => ({
+      executePlatformCommand,
+    }));
+
+    const route = await import("@/app/api/platform/events/route");
+    const response = await route.POST(
+      new Request("http://localhost/api/platform/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-platform-shared-secret": "test-secret",
+        },
+        body: JSON.stringify({
+          event_id: "aaaaaaaa-1111-4111-8111-111111111111",
+          event_type: "BookingConfirmed",
+          event_version: 1,
+          workspace_id: alias.workspace_id,
+          occurred_at: "2026-04-07T10:00:00.000Z",
+          source_system: "agentic_runtime",
+          idempotency_key: "scenario:trusted-demo",
+          correlation_id: null,
+          causation_id: null,
+          aggregate: {
+            type: "conversation",
+            id: "bbbbbbbb-2222-4222-8222-222222222222",
+          },
+          payload: {
+            channel: "webchat",
+            source: "demo_console_webchat",
+            is_test: true,
+            customer_phone: "+447700900101",
+            booking_id: "booking-demo-1",
+            booking_start_at: "2026-04-07T11:00:00.000Z",
+            booking_end_at: "2026-04-07T12:00:00.000Z",
+          },
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(enqueuePlatformCommand.mock.calls.map(([, , envelope]) => envelope.command_type)).toEqual(
+      expect.arrayContaining(["LinkConversationToCustomerOrJob", "CreateOrUpdateAppointment"]),
+    );
+  });
+
   it("accepts requests signed with the HMAC headers without the legacy shared secret header", async () => {
     const alias = {
       workspace_id: "22222222-2222-4222-8222-222222222222",

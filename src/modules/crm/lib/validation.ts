@@ -6,6 +6,8 @@ import {
   customFieldTypes,
   engineerAiAssistActions,
   expenseCategories,
+  commercialStages,
+  invoiceKinds,
   invoiceStatuses,
   jobCertificateStatuses,
   jobChecklistStatuses,
@@ -23,6 +25,7 @@ import {
   supplierReconciliationStatuses,
   supportedEntityTypes,
   tradeVerticals,
+  visitClassifications,
 } from "@/modules/crm/types";
 
 const emptyStringToNull = (v: unknown) => (v === "" ? null : v);
@@ -75,30 +78,59 @@ export const packageItemSchema = z.object({
   sort_order: z.coerce.number().int().nonnegative().default(0),
 });
 
-export const packageSchema = z.object({
-  service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
-  name: z.string().min(2),
-  description: z.string().optional().nullable(),
-  default_markup_percent: z
-    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable())
-    .optional(),
-  is_active: z.coerce.boolean().default(true),
-  // Restrict to https/http only at the boundary — keeps stored URLs safe to
-  // drop into <img src=…> without protocol-relative or javascript: tricks.
-  image_url: z
-    .preprocess((v) => (v === "" || v === undefined ? null : v), z.string().url().nullable())
-    .refine((v) => v === null || /^https?:\/\//i.test(v), { message: "image_url must be http(s)" })
-    .optional(),
-  ai_visible: z.coerce.boolean().default(true),
-  ai_bookable: z.coerce.boolean().default(false),
-  ai_price_enabled: z.coerce.boolean().default(false),
-  ai_requires_office_quote: z.coerce.boolean().default(true),
-  ai_default_duration_minutes: z
-    .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().int().positive().nullable())
-    .optional(),
-  ai_price_disclaimer: z.string().optional().nullable(),
-  items: z.array(packageItemSchema).default([]),
-});
+export const packageSchema = z
+  .object({
+    service_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    job_type_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    name: z.string().min(2),
+    description: z.string().optional().nullable(),
+    default_markup_percent: z
+      .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().nullable())
+      .optional(),
+    is_active: z.coerce.boolean().default(true),
+    // Restrict to https/http only at the boundary — keeps stored URLs safe to
+    // drop into <img src=…> without protocol-relative or javascript: tricks.
+    image_url: z
+      .preprocess((v) => (v === "" || v === undefined ? null : v), z.string().url().nullable())
+      .refine((v) => v === null || /^https?:\/\//i.test(v), { message: "image_url must be http(s)" })
+      .optional(),
+    ai_visible: z.coerce.boolean().default(true),
+    ai_bookable: z.coerce.boolean().default(false),
+    ai_price_enabled: z.coerce.boolean().default(false),
+    ai_requires_office_quote: z.coerce.boolean().default(true),
+    ai_default_duration_minutes: z
+      .preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().int().positive().nullable())
+      .optional(),
+    ai_price_disclaimer: z.string().optional().nullable(),
+    ai_pricing_style: z.enum(["from", "fixed"]).default("from"),
+    items: z.array(packageItemSchema).default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.job_type_id && !value.service_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["job_type_id"],
+        message: "Select a service before selecting a job type.",
+      });
+    }
+    if (value.ai_price_enabled) {
+      if (!value.service_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["service_id"],
+          message: "Select a service before enabling AI pricing.",
+        });
+      }
+      const publicPrice = value.items.reduce((sum, item) => sum + Number(item.qty) * Number(item.unit_price), 0);
+      if (publicPrice <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["items"],
+          message: "Add a public package price before enabling AI pricing.",
+        });
+      }
+    }
+  });
 
 export const paymentPlanSchema = z
   .object({
@@ -224,6 +256,8 @@ export const jobSchema = z.object({
   scheduled_time: z.string().optional().nullable(),
   duration_hours: z.coerce.number().nonnegative().optional().nullable(),
   status: z.enum(jobStatuses),
+  visit_classification: z.enum(visitClassifications).default("standard"),
+  commercial_stage: z.enum(commercialStages).default("booked"),
   assigned_engineer: z.string().optional().nullable(),
   assigned_engineer_ids: z.preprocess(parseCheckboxIdList, z.array(z.string().uuid())).optional().default([]),
 });
@@ -262,6 +296,44 @@ export const jobChecklistSchema = z.object({
   is_mandatory: z.coerce.boolean().default(false),
 });
 
+export const jobSurveyAssessmentSchema = z.object({
+  boiler_type: z.string().optional().nullable(),
+  boiler_model: z.string().optional().nullable(),
+  flue_route: z.string().optional().nullable(),
+  gas_pipe_notes: z.string().optional().nullable(),
+  condensate_notes: z.string().optional().nullable(),
+  water_pressure_notes: z.string().optional().nullable(),
+  radiator_notes: z.string().optional().nullable(),
+  controls_notes: z.string().optional().nullable(),
+  access_notes: z.string().optional().nullable(),
+  parts_notes: z.string().optional().nullable(),
+  risk_notes: z.string().optional().nullable(),
+  engineer_notes: z.string().optional().nullable(),
+  status: z.enum(["draft", "completed"]).default("draft"),
+});
+
+export const jobCoolingOffConsentSchema = z.object({
+  applies: z.coerce.boolean().default(false),
+  contract_channel: z.string().optional().nullable(),
+  expires_at: z.string().optional().nullable(),
+  early_start_consent_at: z.string().optional().nullable(),
+  consent_method: z.string().optional().nullable(),
+  evidence_url: z.string().url().optional().or(z.literal("")).nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export const jobComplianceCloseoutSchema = z.object({
+  commissioning_complete: z.coerce.boolean().default(false),
+  controls_handover_complete: z.coerce.boolean().default(false),
+  building_regs_notification_due_at: z.string().optional().nullable(),
+  building_regs_notified_at: z.string().optional().nullable(),
+  gas_safe_reference: z.string().optional().nullable(),
+  certificate_received_at: z.string().optional().nullable(),
+  certificate_sent_at: z.string().optional().nullable(),
+  evidence_url: z.string().url().optional().or(z.literal("")).nullable(),
+  notes: z.string().optional().nullable(),
+});
+
 export const jobCertificateSchema = z.object({
   title: z.string().min(2),
   certificate_number: z.string().optional().nullable(),
@@ -281,6 +353,9 @@ export const quoteSchema = z.object({
   line_items: z.array(lineItemSchema).min(1),
   vat_rate: z.coerce.number().min(0).max(1),
   vat_category: z.string().default("standard_20"),
+  install_scope: z.record(z.string(), z.unknown()).optional().default({}),
+  payment_terms: z.record(z.string(), z.unknown()).optional().default({}),
+  agent_autonomy: z.record(z.string(), z.unknown()).optional().default({}),
   status: z.enum(quoteStatuses).default("draft"),
   valid_until: z.preprocess(emptyStringToNull, z.string().nullable()).optional(),
 });
@@ -289,6 +364,9 @@ export const quoteAcceptanceSchema = z.object({
   accepted_by_name: z.string().min(2),
   accepted_by_email: z.string().email().optional().or(z.literal("")).nullable(),
   acceptance_method: z.string().min(2),
+  acceptance_channel: z.string().optional().nullable(),
+  evidence_url: z.string().url().optional().or(z.literal("")).nullable(),
+  evidence_attachment_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   notes: z.string().optional().nullable(),
 });
 
@@ -304,6 +382,9 @@ export const invoiceSchema = z.object({
   quote_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   job_id: z.string().uuid(),
   customer_id: z.string().uuid(),
+  invoice_kind: z.enum(invoiceKinds).default("standard"),
+  invoice_schedule_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+  balance_of_quote_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
   line_items: z.array(lineItemSchema).min(1),
   vat_rate: z.coerce.number().min(0).max(1),
   vat_category: z.string().default("standard_20"),

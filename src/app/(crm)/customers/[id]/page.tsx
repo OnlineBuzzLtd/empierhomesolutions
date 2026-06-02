@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
+import { DeleteTrailButton } from "@/modules/crm/components/client/DeleteTrailButton";
 import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
 import { SiteContactCreateForm } from "@/modules/crm/components/forms/SiteContactCreateForm";
@@ -288,6 +289,20 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </div>
         </SectionCard>
       </div>
+
+      {userCanManageSettings(session.profile?.role) ? (
+        <SectionCard title="Danger Zone">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Delete customer trail</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Removes operational records tied to this customer and redacts retained financial history.
+              </p>
+            </div>
+            <DeleteTrailButton rootType="customer" rootId={customer.id} />
+          </div>
+        </SectionCard>
+      ) : null}
     </div>
   );
 }

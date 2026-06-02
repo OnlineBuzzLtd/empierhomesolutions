@@ -108,6 +108,23 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
           </table>
         </div>
 
+        {quote.install_scope && Object.values(quote.install_scope).some(Boolean) ? (
+          <div className="mt-6 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-2">
+            {"boiler_model" in quote.install_scope && quote.install_scope.boiler_model ? (
+              <p><span className="font-semibold text-slate-900">Boiler:</span> {String(quote.install_scope.boiler_model)}</p>
+            ) : null}
+            {"warranty" in quote.install_scope && quote.install_scope.warranty ? (
+              <p><span className="font-semibold text-slate-900">Warranty:</span> {String(quote.install_scope.warranty)}</p>
+            ) : null}
+            {"scope_summary" in quote.install_scope && quote.install_scope.scope_summary ? (
+              <p className="md:col-span-2"><span className="font-semibold text-slate-900">Scope:</span> {String(quote.install_scope.scope_summary)}</p>
+            ) : null}
+            {"exclusions" in quote.install_scope && quote.install_scope.exclusions ? (
+              <p className="md:col-span-2"><span className="font-semibold text-slate-900">Exclusions:</span> {String(quote.install_scope.exclusions)}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="mt-6 max-w-xs space-y-2 border-t border-slate-100 pt-4 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-500">Subtotal</span>
@@ -163,9 +180,15 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                 <p className="font-semibold text-emerald-800">Accepted by {quote.acceptance.accepted_by_name}</p>
                 <p className="mt-1 text-slate-600">
                   {quote.acceptance.acceptance_method}
+                  {quote.acceptance.acceptance_channel ? ` · ${quote.acceptance.acceptance_channel}` : ""}
                   {quote.acceptance.accepted_by_email ? ` · ${quote.acceptance.accepted_by_email}` : ""}
                 </p>
                 <p className="mt-1 text-slate-600">Accepted {formatDateTime(quote.acceptance.accepted_at)}</p>
+                {quote.acceptance.evidence_url ? (
+                  <a href={quote.acceptance.evidence_url} className="mt-2 inline-flex text-xs font-semibold text-blue-700 hover:text-blue-900">
+                    Open acceptance evidence
+                  </a>
+                ) : null}
                 {quote.acceptance.notes ? <p className="mt-2 text-slate-700">{quote.acceptance.notes}</p> : null}
               </div>
             ) : (
@@ -173,6 +196,15 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                 <input name="accepted_by_name" required placeholder="Accepted by" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                 <input name="accepted_by_email" type="email" placeholder="Email (optional)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                 <input name="acceptance_method" defaultValue="Phone confirmation" placeholder="Acceptance method" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                <select name="acceptance_channel" defaultValue="phone" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                  <option value="phone">Phone</option>
+                  <option value="email">Email</option>
+                  <option value="online">Online acceptance</option>
+                  <option value="signed_quote">Signed quote</option>
+                  <option value="deposit_payment">Deposit payment</option>
+                  <option value="manual">Manual</option>
+                </select>
+                <input name="evidence_url" type="url" placeholder="Evidence URL (optional)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                 <textarea name="notes" placeholder="Notes" className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
               </ApiForm>
             )}

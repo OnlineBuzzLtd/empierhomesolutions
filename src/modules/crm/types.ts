@@ -60,6 +60,34 @@ export type QuoteDocumentType = (typeof quoteDocumentTypes)[number];
 export const invoiceStatuses = ["unpaid", "paid", "overdue", "void"] as const;
 export type InvoiceStatus = (typeof invoiceStatuses)[number];
 
+export const invoiceKinds = ["standard", "deposit", "pro_forma", "stage", "final"] as const;
+export type InvoiceKind = (typeof invoiceKinds)[number];
+
+export const visitClassifications = [
+  "standard",
+  "survey_assessment",
+  "install_work",
+  "powerflush_work",
+  "repair",
+  "follow_up",
+] as const;
+export type VisitClassification = (typeof visitClassifications)[number];
+
+export const commercialStages = [
+  "booked",
+  "survey_booked",
+  "survey_done",
+  "quote_draft",
+  "quote_sent",
+  "accepted",
+  "deposit_due",
+  "deposit_paid",
+  "install_ready",
+  "final_invoice_due",
+  "closed",
+] as const;
+export type CommercialStage = (typeof commercialStages)[number];
+
 export const paymentStatuses = ["requested", "received", "failed", "refunded"] as const;
 export type PaymentStatus = (typeof paymentStatuses)[number];
 
@@ -217,6 +245,8 @@ export type TenantSettings = {
   ai_catalog_emergency_escalation_text: string;
   ai_catalog_gas_safety_text: string | null;
   ai_catalog_electrical_safety_text: string | null;
+  ai_quote_drafting_enabled?: boolean;
+  ai_quote_drafting_mode?: "off" | "draft_after_survey" | "draft_after_booking_and_survey";
   created_at: string;
   updated_at: string;
 };
@@ -432,6 +462,8 @@ export type Job = {
   scheduled_time: string | null;
   duration_hours: number | null;
   status: JobStatus;
+  visit_classification?: VisitClassification;
+  commercial_stage?: CommercialStage;
   assigned_engineer: string | null;
   started_at?: string | null;
   created_by: string | null;
@@ -503,6 +535,64 @@ export type JobChecklist = {
   updated_at: string;
 };
 
+export type JobSurveyAssessment = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  boiler_type: string | null;
+  boiler_model: string | null;
+  flue_route: string | null;
+  gas_pipe_notes: string | null;
+  condensate_notes: string | null;
+  water_pressure_notes: string | null;
+  radiator_notes: string | null;
+  controls_notes: string | null;
+  access_notes: string | null;
+  parts_notes: string | null;
+  risk_notes: string | null;
+  engineer_notes: string | null;
+  status: "draft" | "completed";
+  completed_at: string | null;
+  created_by: string | null;
+  is_test?: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobCoolingOffConsent = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  applies: boolean;
+  contract_channel: string | null;
+  expires_at: string | null;
+  early_start_consent_at: string | null;
+  consent_method: string | null;
+  evidence_url: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobComplianceCloseout = {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  commissioning_complete: boolean;
+  controls_handover_complete: boolean;
+  building_regs_notification_due_at: string | null;
+  building_regs_notified_at: string | null;
+  gas_safe_reference: string | null;
+  certificate_received_at: string | null;
+  certificate_sent_at: string | null;
+  evidence_url: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type JobCertificate = {
   id: string;
   tenant_id: string;
@@ -523,6 +613,7 @@ export type Note = {
   body: string;
   created_by: string | null;
   is_demo?: boolean;
+  is_test?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
@@ -575,6 +666,7 @@ export type Package = {
   id: string;
   tenant_id: string;
   service_id: string | null;
+  job_type_id: string | null;
   name: string;
   description: string | null;
   default_markup_percent: number | null;
@@ -586,6 +678,7 @@ export type Package = {
   ai_requires_office_quote: boolean;
   ai_default_duration_minutes: number | null;
   ai_price_disclaimer: string | null;
+  ai_pricing_style: "from" | "fixed";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -657,6 +750,9 @@ export type Quote = {
   total_cost?: number | null;
   total_profit?: number | null;
   total_margin_percent?: number | null;
+  install_scope?: Record<string, unknown>;
+  payment_terms?: Record<string, unknown>;
+  agent_autonomy?: Record<string, unknown>;
   status: QuoteStatus;
   valid_until: string | null;
   public_token?: string | null;
@@ -679,10 +775,14 @@ export type QuoteVersion = {
   vat_rate: number;
   vat_category: string;
   total: number;
+  install_scope?: Record<string, unknown>;
+  payment_terms?: Record<string, unknown>;
+  agent_autonomy?: Record<string, unknown>;
   valid_until: string | null;
   status: QuoteStatus;
   change_summary: string | null;
   created_by: string | null;
+  is_test?: boolean;
   created_at: string;
 };
 
@@ -693,8 +793,12 @@ export type QuoteAcceptance = {
   accepted_by_name: string;
   accepted_by_email: string | null;
   acceptance_method: string;
+  acceptance_channel?: string | null;
+  evidence_url?: string | null;
+  evidence_attachment_id?: string | null;
   notes: string | null;
   accepted_at: string;
+  is_test?: boolean;
   created_at: string;
 };
 
@@ -704,6 +808,9 @@ export type Invoice = {
   job_id: string;
   customer_id: string;
   invoice_number: string;
+  invoice_kind?: InvoiceKind;
+  invoice_schedule_id?: string | null;
+  balance_of_quote_id?: string | null;
   line_items: LineItem[];
   subtotal: number;
   vat_rate: number;
@@ -713,6 +820,7 @@ export type Invoice = {
   due_date: string | null;
   paid_at: string | null;
   is_demo?: boolean;
+  is_test?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
@@ -735,6 +843,7 @@ export type Payment = {
   provider_status?: string | null;
   provider_metadata?: Record<string, unknown>;
   is_demo?: boolean;
+  is_test?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
   created_at: string;
 };
@@ -750,6 +859,7 @@ export type InvoiceSchedule = {
   due_offset_days: number;
   status: InvoiceScheduleStatus;
   invoice_id: string | null;
+  is_test?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -1055,6 +1165,9 @@ export type JobWithRelations = Job & {
   certificates?: JobCertificate[];
   purchaseOrders?: PurchaseOrder[];
   supplierReconciliation?: SupplierReconciliation[];
+  surveyAssessment?: JobSurveyAssessment | null;
+  coolingOffConsent?: JobCoolingOffConsent | null;
+  complianceCloseout?: JobComplianceCloseout | null;
 };
 
 export type QuoteWithRelations = Quote & {

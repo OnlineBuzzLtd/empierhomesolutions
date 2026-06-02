@@ -10,10 +10,14 @@ type QuoteSnapshotInput = {
   vatRate: number;
   vatCategory: string;
   total: number;
+  installScope?: Record<string, unknown>;
+  paymentTerms?: Record<string, unknown>;
+  agentAutonomy?: Record<string, unknown>;
   validUntil: string | null;
   status: QuoteStatus;
   changeSummary?: string | null;
   createdBy?: string | null;
+  isTest?: boolean;
 };
 
 export async function snapshotQuoteVersion(
@@ -30,10 +34,14 @@ export async function snapshotQuoteVersion(
     vat_rate: input.vatRate,
     vat_category: input.vatCategory,
     total: input.total,
+    install_scope: input.installScope ?? {},
+    payment_terms: input.paymentTerms ?? {},
+    agent_autonomy: input.agentAutonomy ?? {},
     valid_until: input.validUntil,
     status: input.status,
     change_summary: input.changeSummary ?? null,
     created_by: input.createdBy ?? null,
+    is_test: input.isTest === true,
   })) as { error: { message?: string } | null };
 
   const error = result.error;

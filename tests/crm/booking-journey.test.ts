@@ -186,9 +186,12 @@ describe("listJobs ordering", () => {
   });
 
   it("orders by created_at DESC first so the page reflects submission order", async () => {
-    const order2 = vi.fn().mockResolvedValue({ data: [], error: null });
+    const range = vi.fn().mockResolvedValue({ data: [], error: null });
+    const order2 = vi.fn().mockReturnValue({ range });
     const order1 = vi.fn().mockReturnValue({ order: order2 });
-    const select = vi.fn().mockReturnValue({ order: order1 });
+    const query = { is: vi.fn(), order: order1 };
+    query.is.mockReturnValue(query);
+    const select = vi.fn().mockReturnValue(query);
     const from = vi.fn().mockReturnValue({ select });
 
     vi.doMock("@/modules/crm/lib/env", () => ({

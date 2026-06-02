@@ -2,7 +2,15 @@ import { leadSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { jsonError, jsonSuccess, paginationFromRequestUrl, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
-import { getEnquiryCounts, listLeads, type EnquiryTab } from "@/modules/crm/lib/data";
+import {
+  getEnquiryCounts,
+  listCustomers,
+  listJobTypes,
+  listLeads,
+  listServices,
+  listUserProfiles,
+  type EnquiryTab,
+} from "@/modules/crm/lib/data";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { normalizeCrmPagination } from "@/modules/crm/lib/performance";
 import { listBookingRecoveryCases } from "@/modules/platform/lib/booking-recovery";
@@ -21,12 +29,16 @@ export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
   const tab = parseTab(searchParams.get("tab"));
   const demoState = await getCrmDemoState();
-  const [items, counts, recoveryCases] = await Promise.all([
+  const [items, counts, recoveryCases, customers, services, jobTypes, users] = await Promise.all([
     listLeads(demoState.mode, pagination, tab),
     getEnquiryCounts(demoState.mode),
     demoState.mode === "live"
       ? listBookingRecoveryCases(auth.session.supabase, auth.session.tenant.id).catch(() => [])
       : Promise.resolve([]),
+    listCustomers(demoState.mode, { pageSize: 250 }),
+    listServices(),
+    listJobTypes(),
+    listUserProfiles(demoState.mode),
   ]);
   const reviewCount = tab === "done" ? 0 : recoveryCases.length;
   return jsonSuccess({
@@ -36,6 +48,12 @@ export async function GET(request: Request) {
       todoCount: counts.todoCount + recoveryCases.length,
       doneCount: counts.doneCount,
       allCount: counts.allCount + recoveryCases.length,
+    },
+    lookups: {
+      customers,
+      services,
+      jobTypes,
+      engineers: users.filter((user) => user.active !== false && user.role === "engineer"),
     },
     pagination: normalizeCrmPagination(pagination),
     visibleCount: items.length + reviewCount,

@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-06-02 — CRM commercial workflow, demo autopilot, and shared platform AI customer
+
+This release extends the live CRM around enquiry-to-job conversion, install quoting/invoicing, commercial demo storytelling, and the `/demo/run` autopilot. The final demo-customer implementation now reuses the Customer Journeys platform AI stack instead of requiring a separate Gemini/OpenAI key in Empire.
+
+### Added — enquiry, quote, invoice, and deletion workflows
+
+- Added guided enquiry confirmation so office users can review a customer request, choose the customer/service/date/time/engineer, create a booked job + appointment, and move the enquiry out of To-do.
+- Added manager-only record-trail deletion planning/execution for customers, jobs, enquiries, appointments, and AI recovery cases, with operational deletes, financial/audit redaction, audit rows, and retryable storage cleanup tasks.
+- Added the boiler install quoting/invoicing PRD and additive CRM support for survey classification, survey assessment, quote scope/payment terms, acceptance evidence, deposit/pro-forma invoice stages, cooling-off consent, final balance invoicing, and compliance closeout.
+- Added shared AI quote-drafting automation for demo/live CRM surfaces. Quote drafts are created only when tenant settings, catalogue pricing, survey state, and office-quote rules allow it.
+- Added demo/live commercial record support for quotes, invoice schedules, invoices, payments, survey assessments, quote acceptances, and expandable Live CRM record detail.
+
+### Added — Demo Console webchat autopilot
+
+- Added operator-controlled webchat scenarios for emergency repair booking, boiler install survey, and fixed-price service quote.
+- Added adaptive “AI customer” mode: deterministic replies handle common booking prompts, and harder turns are delegated to the linked Customer Journeys platform runtime.
+- Added pause/resume/stop, speed controls, stale-run protection, row tagging, cleanup coverage, and deterministic/fixed-script fallback.
+- Added `/api/crm/demo/webchat/next-customer-turn` as the CRM-side route that keeps the real webchat AI under test while only simulating the customer side.
+
+### Changed — demo customer provider ownership
+
+- Removed the Gemini/Google-AI default path for the fake demo customer.
+- Empire now calls the tenant's `customerjourneys_runtime_links.platform_api_base_url` with `CUSTOMERJOURNEYS_INTERNAL_API_TOKEN`.
+- Customer Journeys owns the paid AI provider call and uses the same production stack as the real agent: Anthropic first, OpenAI fallback.
+- If platform AI is unavailable, the CRM demo falls back to deterministic scenario facts where safe, then fixed-script mode.
+
+### Operations
+
+- Added Supabase Disk IO audit tooling and tenant-scoped IO indexes for the CRM hot paths identified during the Supabase Disk IO warning response.
+- Deployed Customer Journeys Cloud Run from the linked platform repo, then deployed Empire CRM to Vercel production.
+- Production Empire deployment is aliased at `https://empire-home-solutions.vercel.app`.
+
+### Verified
+
+- CRM focused tests: `npx vitest run tests/unit/demo-customer-agent.test.ts tests/unit/customerjourneys-demo-customer-turn.test.ts tests/crm/demo-webchat-routes.test.ts --coverage=false` — 32/32 passing.
+- Customer Journeys focused tests: `pnpm exec vitest run services/platform-api/src/routes/internal-demo.test.ts --coverage=false` — 5/5 passing.
+- `npm run typecheck` passed.
+- `npm run lint` passed with warnings only.
+- `npm run build` passed.
+- Customer Journeys platform-api typecheck/lint/build passed.
+- Live platform internal endpoint smoke returned safe demo-customer turns for emergency repair and boiler install survey without sending SMS, WhatsApp, voice, Stripe, or email.
+
 ## 2026-05-30 — CRM UX simplification, AI booking recovery, and production cleanup
 
 This release reworks the CRM around a simpler trade-business workflow while preserving the Commusoft-style engineer field experience. It also fixes the AI booking edge case where a confirmed AI/WhatsApp/voice booking could appear only as an unlinked Scheduler appointment.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildScheduleRows } from "@/modules/crm/lib/payment-plan";
+import { calculateInvoiceScheduleAmount } from "@/modules/crm/lib/quotes";
 
 describe("buildScheduleRows", () => {
   it("emits deposit + stages + final that sum to the quote total", () => {
@@ -71,5 +72,28 @@ describe("buildScheduleRows", () => {
       return sum + (r.fixed_amount ?? 0);
     }, 0);
     expect(totalAllocated).toBeCloseTo(1000, 2);
+  });
+
+  it("reconciles deposit and final to the VAT-inclusive quote total through invoice generation", () => {
+    const rows = buildScheduleRows(
+      {
+        deposit_percent: 25,
+        stages: [],
+        final: { label: "Final", due_offset_days: 30 },
+      },
+      1000,
+    );
+
+    const invoiceTotals = rows.map((row) =>
+      calculateInvoiceScheduleAmount({
+        subtotal: 1000,
+        vatRate: 0.2,
+        percentage: row.percentage,
+        fixedAmount: row.fixed_amount,
+      }).total,
+    );
+
+    expect(invoiceTotals).toEqual([300, 900]);
+    expect(invoiceTotals.reduce((sum, total) => sum + total, 0)).toBe(1200);
   });
 });

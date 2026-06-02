@@ -59,6 +59,7 @@ const catalog: AiCatalogResponse = {
     emergency_duration_minutes: 120,
     can_quote_prices_in_chat: true,
     requires_office_quote_for_installations: true,
+    survey_first_for_installations_and_powerflush: true,
   },
   pricing_policy: {
     can_give_fixed_prices: false,

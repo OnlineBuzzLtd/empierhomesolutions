@@ -6,9 +6,9 @@
 //   (c) carries a `created_at timestamptz` column.
 //
 // The cleanup endpoint deletes rows scoped to all three of those plus
-// the active session window. Tables that CASCADE from crm.customers
-// (customer_assets, quotes, invoices, payments, sites) are NOT in this
-// list — they're cleaned implicitly when the customer row is deleted.
+// the active session window. Commercial demo tables are listed explicitly
+// now that AQD adds is_test to them; this keeps cleanup counts visible and
+// prevents quote/invoice rows created by a demo action from accumulating.
 //
 // This module is the single source of truth for "what cleanup touches".
 // A regression in which a table is added here without also adding the
@@ -22,6 +22,13 @@
 // require tests for DB-referencing API routes.
 
 export const CLEANUP_TABLES = [
+  "payments",
+  "invoices",
+  "invoice_schedules",
+  "quote_acceptances",
+  "quote_versions",
+  "quotes",
+  "job_survey_assessments",
   // SET NULL FK to customers — must be explicitly deleted; cascade
   // would only NULL the FK, not delete the row.
   "appointments",
@@ -38,12 +45,20 @@ export const CLEANUP_TABLES = [
 // Kept in sync with the migrations:
 //   - 202605130001_crm_appointments_is_test.sql (appointments)
 //   - 202605180001_is_test_on_customers_leads_jobs.sql (customers/leads/jobs)
+//   - 202606010003_crm_ai_quote_drafting_demo.sql (commercial demo tables)
 // Add to this set whenever a future migration extends is_test elsewhere.
 export const IS_TEST_BEARING_TABLES: ReadonlySet<string> = new Set([
   "appointments",
   "customers",
   "leads",
   "jobs",
+  "payments",
+  "invoices",
+  "invoice_schedules",
+  "quote_acceptances",
+  "quote_versions",
+  "quotes",
+  "job_survey_assessments",
 ]);
 
 export type CleanupTable = (typeof CLEANUP_TABLES)[number];

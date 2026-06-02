@@ -18,8 +18,11 @@ import type {
   JobAssignee,
   JobCertificate,
   JobChecklist,
+  JobComplianceCloseout,
+  JobCoolingOffConsent,
   JobHazard,
   JobPhase,
+  JobSurveyAssessment,
   JobType,
   JobVariation,
   JobWithRelations,
@@ -568,6 +571,7 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
       "*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(todaysJobsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(todaysJobsQuery);
   const activeJobsQuery = supabase
     .schema("crm")
     .from("jobs")
@@ -575,6 +579,7 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
       "*, customer:customers(id, full_name, phone, address_line1, postcode), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(activeJobsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(activeJobsQuery);
   const recentCustomersQuery = supabase.schema("crm").from("customers").select("*");
   filterByMode(recentCustomersQuery, context.mode, context.scenarioKey);
 
@@ -607,8 +612,10 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
   const leadsQuery = supabase.schema("crm").from("leads").select("id, status");
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(leadsQuery);
   const activeJobCountQuery = supabase.schema("crm").from("jobs").select("id", { count: "exact", head: true });
   filterByMode(activeJobCountQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(activeJobCountQuery);
   const [invoiceRows, leads, activeJobCountResponse] = await Promise.all([
     runCrmList<{ total: number | string | null; status: string }>("getDashboardData.invoicesFallback", invoicesQuery),
     runCrmList<{ id: string; status: string }>(
@@ -655,6 +662,7 @@ export async function getEngineerDashboardData(
       "id, tenant_id, customer_id, site_id, site_contact_id, service_id, job_type_id, lead_id, title, description, scheduled_date, scheduled_time, duration_hours, status, assigned_engineer, created_by, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name, phone, email, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(jobsQuery);
   const { data: jobs } = await jobsQuery
     .eq("assigned_engineer", engineerName.trim())
     .gte("scheduled_date", windowStartDate)
@@ -754,10 +762,15 @@ function applyEnquiryTabFilter(query: { in: (column: string, values: readonly st
   }
 }
 
+function hideDeletedRecords<T extends { is: (column: string, value: null) => T }>(query: T) {
+  return query.is("record_deleted_at", null);
+}
+
 async function countEnquiriesByTab(mode: CrmMode, scenarioKey: typeof crmDemoScenarioKey, tab: EnquiryTab) {
   const supabase = await createCrmServerClient();
   const query = supabase.schema("crm").from("leads").select("id", { count: "exact", head: true });
   filterByMode(query, mode, scenarioKey);
+  hideDeletedRecords(query);
   applyEnquiryTabFilter(query, tab);
   const { count, error } = await measureCrmQuery(`countEnquiriesByTab.${tab}`, query);
   if (error) {
@@ -791,9 +804,10 @@ export async function listLeads(mode?: CrmMode, pagination?: CrmPaginationInput,
     .schema("crm")
     .from("leads")
     .select(
-      "id, tenant_id, customer_id, possible_duplicate_customer_id, service_id, job_type_id, owner_user_id, status, source, source_enum, next_action_at, intake_source, dedupe_result, submission_count, customer_match_result, is_demo, demo_scenario_key, created_at, updated_at, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
+      "id, tenant_id, customer_id, possible_duplicate_customer_id, service_id, job_type_id, owner_user_id, status, source, source_enum, next_action_at, notes, problem_description, affected_area, urgency_level, preferred_date_text, preferred_time_window, intake_source, dedupe_result, submission_count, customer_match_result, is_demo, demo_scenario_key, created_at, updated_at, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(leadsQuery);
   applyEnquiryTabFilter(leadsQuery, tab);
   return runCrmList<LeadWithRelations>(
     "listLeads",
@@ -824,7 +838,7 @@ export async function listCustomers(mode?: CrmMode, pagination?: CrmPaginationIn
     filterByMode(jobsQuery, context.mode, context.scenarioKey);
     jobs = await runCrmList<{ customer_id: string; status: string }>(
       "listCustomers.jobs",
-      jobsQuery.in("customer_id", customerIds),
+      hideDeletedRecords(jobsQuery).in("customer_id", customerIds),
     );
   }
 
@@ -890,6 +904,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   const supabase = await createCrmServerClient();
   const customerQuery = supabase.schema("crm").from("customers").select("*");
   filterByMode(customerQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(customerQuery);
   const jobsQuery = supabase
     .schema("crm")
     .from("jobs")
@@ -897,6 +912,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
       "*, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(jobsQuery);
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);
   const assetsQuery = supabase.schema("crm").from("customer_assets").select("*");
@@ -981,6 +997,7 @@ export async function listJobs(mode?: CrmMode, pagination?: CrmPaginationInput) 
       "id, tenant_id, customer_id, site_id, site_contact_id, service_id, job_type_id, lead_id, title, scheduled_date, scheduled_time, status, assigned_engineer, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name, phone, address_line1, postcode), site:sites(id, label), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(jobsQuery);
   // Jobs behave like an inbox: the top of the list should be the most recently
   // submitted booking, not "what's next on the diary" (that's the Calendar
   // page's job). Tie-break on scheduled_date so two jobs created in the same
@@ -1016,6 +1033,7 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
       "*, customer:customers(id, full_name, phone, email, address_line1, postcode), site:sites(id, label, address_line1, postcode, city, access_notes, parking_notes), site_contact:site_contacts(id, full_name, phone, email, role_label), service:services(id, name), job_type:job_types(id, name)",
     );
   filterByMode(jobQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(jobQuery);
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);
   const expensesQuery = supabase.schema("crm").from("expenses").select("*");
@@ -1026,6 +1044,9 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   filterByMode(quoteQuery, context.mode, context.scenarioKey);
   const invoiceQuery = supabase.schema("crm").from("invoices").select("*");
   filterByMode(invoiceQuery, context.mode, context.scenarioKey);
+  const surveyAssessmentQuery = supabase.schema("crm").from("job_survey_assessments").select("*");
+  const coolingOffQuery = supabase.schema("crm").from("job_cooling_off_consents").select("*");
+  const complianceCloseoutQuery = supabase.schema("crm").from("job_compliance_closeouts").select("*");
   const [
     { data: job },
     { data: notes },
@@ -1033,6 +1054,9 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
     { data: attachments },
     { data: quote },
     { data: invoice },
+    { data: surveyAssessment },
+    { data: coolingOffConsent },
+    { data: complianceCloseout },
   ] = await Promise.all([
     jobQuery.eq("id", id).maybeSingle(),
     notesQuery.eq("entity_type", "job").eq("entity_id", id).order("created_at", { ascending: false }),
@@ -1040,6 +1064,9 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
     attachmentsQuery.eq("entity_type", "job").eq("entity_id", id).order("created_at", { ascending: false }),
     quoteQuery.eq("job_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     invoiceQuery.eq("job_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    surveyAssessmentQuery.eq("job_id", id).maybeSingle(),
+    coolingOffQuery.eq("job_id", id).maybeSingle(),
+    complianceCloseoutQuery.eq("job_id", id).maybeSingle(),
   ]);
 
   if (!job) {
@@ -1083,6 +1110,9 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
       certificates: certificatesByJobId.get(id) ?? [],
       purchaseOrders: purchaseOrdersByJobId.get(id) ?? [],
       supplierReconciliation: supplierReconciliationByJobId.get(id) ?? [],
+      surveyAssessment: (surveyAssessment ?? null) as JobSurveyAssessment | null,
+      coolingOffConsent: (coolingOffConsent ?? null) as JobCoolingOffConsent | null,
+      complianceCloseout: (complianceCloseout ?? null) as JobComplianceCloseout | null,
     },
     notes: (notes ?? []) as Note[],
     expenses: (expenses ?? []) as Expense[],
@@ -1150,7 +1180,7 @@ export async function listInvoices(mode?: CrmMode, pagination?: CrmPaginationInp
   const invoicesQuery = supabase
     .schema("crm")
     .from("invoices")
-    .select("id, tenant_id, quote_id, job_id, customer_id, invoice_number, status, total, due_date, paid_at, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name), job:jobs(id, title)");
+    .select("id, tenant_id, quote_id, job_id, customer_id, invoice_number, invoice_kind, status, total, due_date, paid_at, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name), job:jobs(id, title)");
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
   return runCrmList<InvoiceWithRelations>(
     "listInvoices",
@@ -1395,8 +1425,10 @@ export async function getReportsSummary(mode?: CrmMode) {
   filterByMode(invoicesQuery, context.mode, context.scenarioKey);
   const leadsQuery = supabase.schema("crm").from("leads").select("status");
   filterByMode(leadsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(leadsQuery);
   const jobsQuery = supabase.schema("crm").from("jobs").select("status, assigned_engineer");
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(jobsQuery);
   const expensesQuery = supabase.schema("crm").from("expenses").select("amount");
   filterByMode(expensesQuery, context.mode, context.scenarioKey);
   const [{ data: invoices }, { data: leads }, { data: jobs }, { data: expenses }] = await Promise.all([

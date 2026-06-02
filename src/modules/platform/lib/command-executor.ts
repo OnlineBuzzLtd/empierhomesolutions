@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppointmentStatus, AppointmentType, LeadStatus } from "@/modules/crm/types";
 import { syncAppointmentReminder24h } from "@/modules/crm/notifications/appointment-reminders";
+import { draftQuoteForJob } from "@/modules/crm/lib/quote-automation";
 import type { PlatformCommandEnvelope } from "@/modules/platform/contracts";
 import type { PlatformEventEnvelope } from "@/modules/platform/contracts";
 import {
@@ -41,6 +42,34 @@ type JobMatchRow = {
 };
 
 export type PlatformJobMatchCandidate = JobMatchRow;
+
+type ServiceMatchRow = {
+  id: string;
+  tenant_id: string | null;
+  slug: string | null;
+  name: string;
+  active?: boolean | null;
+  ai_visible?: boolean | null;
+};
+
+type JobTypeMatchRow = {
+  id: string;
+  tenant_id: string | null;
+  service_id: string;
+  slug: string | null;
+  name: string;
+  active?: boolean | null;
+  ai_visible?: boolean | null;
+};
+
+type BookingClassification = {
+  serviceId: string | null;
+  serviceName: string | null;
+  jobTypeId: string | null;
+  jobTypeName: string | null;
+  needsReview: boolean;
+  reviewReason: string | null;
+};
 
 // Extract an is_test flag from a platform event payload. Accepts either
 // a top-level `is_test` field or `metadata.is_test`, in any of the common
@@ -100,6 +129,56 @@ function addMinutes(iso: string, minutes: number) {
   return new Date(new Date(iso).getTime() + minutes * 60_000).toISOString();
 }
 
+function isValidTimeZone(value: string | null) {
+  if (!value) {
+    return false;
+  }
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: value }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveBookingTimeZone(payload: Record<string, unknown>) {
+  const candidate = pickString(payload, [
+    "timezone",
+    "time_zone",
+    "booking_timezone",
+    "display_timezone",
+    "displayTimezone",
+  ]);
+  return isValidTimeZone(candidate) ? candidate! : "Europe/London";
+}
+
+export function bookingInstantToTenantSchedule(iso: string, timeZone = "Europe/London") {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return {
+      scheduledDate: iso.slice(0, 10),
+      scheduledTime: `${iso.slice(11, 16)}:00`,
+    };
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: isValidTimeZone(timeZone) ? timeZone : "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(parsed).map((part) => [part.type, part.value]));
+  return {
+    scheduledDate: `${parts.year}-${parts.month}-${parts.day}`,
+    scheduledTime: `${parts.hour}:${parts.minute}:${parts.second}`,
+  };
+}
+
 function normalizePhone(value: string | null) {
   if (!value) {
     return null;
@@ -118,15 +197,6 @@ function normalizeEmail(value: string | null) {
   return normalized.length > 0 ? normalized : null;
 }
 
-function normalizePostcode(value: string | null) {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = value.replace(/\s+/g, "").toUpperCase();
-  return normalized.length > 0 ? normalized : null;
-}
-
 function normalizeComparableText(value: string | null) {
   if (!value) {
     return null;
@@ -140,6 +210,29 @@ function normalizeComparableText(value: string | null) {
     .trim();
 
   return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeCatalogToken(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function collectPayloadStrings(payload: Record<string, unknown>, keys: string[]) {
+  const metadata = asRecord(payload.metadata);
+  return keys
+    .flatMap((key) => {
+      const values = [payload[key], metadata[key]];
+      return values.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    })
+    .map((value) => value.trim());
 }
 
 function formatPhoneForDisplay(phone: string) {
@@ -769,6 +862,224 @@ async function attachAppointmentToJob(
   }
 }
 
+async function listActiveServices(supabase: SupabaseClient, tenantId: string) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("services")
+    .select("id, tenant_id, slug, name, active, ai_visible")
+    .eq("tenant_id", tenantId)
+    .returns<ServiceMatchRow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as ServiceMatchRow[]).filter((service) => service.active !== false && service.ai_visible !== false);
+}
+
+async function listActiveJobTypes(supabase: SupabaseClient, tenantId: string, serviceId: string) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("job_types")
+    .select("id, tenant_id, service_id, slug, name, active, ai_visible")
+    .eq("tenant_id", tenantId)
+    .eq("service_id", serviceId)
+    .returns<JobTypeMatchRow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as JobTypeMatchRow[]).filter((jobType) => jobType.active !== false && jobType.ai_visible !== false);
+}
+
+function resolveServiceFromPayload(services: ServiceMatchRow[], payload: Record<string, unknown>) {
+  const explicitServiceId = pickString(payload, ["service_id"]);
+  if (explicitServiceId) {
+    const match = services.find((service) => service.id === explicitServiceId);
+    if (match) return match;
+  }
+
+  const serviceHints = collectPayloadStrings(payload, [
+    "service_key",
+    "service_slug",
+    "service_name",
+    "serviceCategory",
+    "treatmentType",
+    "booking_title",
+    "job_title",
+    "title",
+  ]);
+  const hintTokens = serviceHints.map((hint) => normalizeCatalogToken(hint)).filter((hint): hint is string => hint !== null);
+  const hintNames = serviceHints.map((hint) => normalizeComparableText(hint)).filter((hint): hint is string => hint !== null);
+
+  const tokenMatch = services.find((service) => {
+    const serviceTokens = [normalizeCatalogToken(service.slug), normalizeCatalogToken(service.name)].filter(
+      (value): value is string => value !== null,
+    );
+    return serviceTokens.some((token) => hintTokens.includes(token));
+  });
+  if (tokenMatch) return tokenMatch;
+
+  return (
+    services.find((service) => {
+      const serviceName = normalizeComparableText(service.name);
+      if (!serviceName) {
+        return false;
+      }
+      if (hintNames.includes(serviceName)) {
+        return true;
+      }
+      const serviceStem = serviceName.endsWith("s") ? serviceName.slice(0, -1) : serviceName;
+      return serviceStem.length >= 4 && hintNames.some((hint) => hint.includes(serviceStem));
+    }) ?? null
+  );
+}
+
+function resolveJobTypeFromPayload(jobTypes: JobTypeMatchRow[], payload: Record<string, unknown>) {
+  const explicitJobTypeId = pickString(payload, ["job_type_id"]);
+  if (explicitJobTypeId) {
+    const match = jobTypes.find((jobType) => jobType.id === explicitJobTypeId);
+    if (match) return match;
+  }
+
+  const jobTypeHints = collectPayloadStrings(payload, [
+    "job_type_key",
+    "job_type_slug",
+    "job_type_name",
+    "issue_description",
+    "problem_description",
+    "message_summary",
+    "booking_title",
+    "job_title",
+    "title",
+    "service_name",
+    "serviceCategory",
+    "treatmentType",
+  ]);
+  const hintTokens = jobTypeHints.map((hint) => normalizeCatalogToken(hint)).filter((hint): hint is string => hint !== null);
+  const hintText = jobTypeHints.map((hint) => normalizeComparableText(hint)).filter(Boolean).join(" ");
+
+  const exactMatches = jobTypes.filter((jobType) => {
+    const tokens = [normalizeCatalogToken(jobType.slug), normalizeCatalogToken(jobType.name)].filter(
+      (value): value is string => value !== null,
+    );
+    const name = normalizeComparableText(jobType.name);
+    return tokens.some((token) => hintTokens.includes(token)) || Boolean(name && hintText.includes(name));
+  });
+  if (exactMatches.length === 1) {
+    return exactMatches[0];
+  }
+
+  const keywordGroups = [
+    { tokens: ["service", "servicing", "check", "annual service"], labels: ["service"] },
+    { tokens: ["repair", "fix", "fault", "not working", "no heating", "no hot water"], labels: ["repair", "fault"] },
+    { tokens: ["install", "installation", "replace", "replacement", "new boiler"], labels: ["install", "installation"] },
+  ];
+
+  const scored = jobTypes
+    .map((jobType) => {
+      const normalizedName = normalizeComparableText(jobType.name) ?? "";
+      let score = 0;
+      for (const group of keywordGroups) {
+        const hasPayloadKeyword = group.tokens.some((token) => hintText.includes(token));
+        const hasJobTypeLabel = group.labels.some((label) => normalizedName.includes(label));
+        if (hasPayloadKeyword && hasJobTypeLabel) {
+          score += 10;
+        }
+      }
+      return { jobType, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score);
+
+  if (scored.length === 1 || (scored[0] && scored[1] && scored[0].score > scored[1].score)) {
+    return scored[0]?.jobType ?? null;
+  }
+
+  return null;
+}
+
+async function resolveBookingClassification(
+  supabase: SupabaseClient,
+  alias: WorkspaceAlias,
+  payload: Record<string, unknown>,
+): Promise<BookingClassification> {
+  const services = await listActiveServices(supabase, alias.tenant_id);
+  const service = resolveServiceFromPayload(services, payload);
+  if (!service) {
+    return {
+      serviceId: null,
+      serviceName: null,
+      jobTypeId: null,
+      jobTypeName: null,
+      needsReview: true,
+      reviewReason: "Service could not be matched from the AI booking.",
+    };
+  }
+
+  const jobTypes = await listActiveJobTypes(supabase, alias.tenant_id, service.id);
+  const jobType = resolveJobTypeFromPayload(jobTypes, payload);
+  const needsJobTypeReview = jobTypes.length > 0 && !jobType;
+  return {
+    serviceId: service.id,
+    serviceName: service.name,
+    jobTypeId: jobType?.id ?? null,
+    jobTypeName: jobType?.name ?? null,
+    needsReview: needsJobTypeReview,
+    reviewReason: needsJobTypeReview ? "Job type needs review before the office relies on this booking." : null,
+  };
+}
+
+function buildClassificationReviewMetadata(classification: BookingClassification) {
+  return {
+    needs_review: classification.needsReview,
+    review_reason: classification.reviewReason,
+    service_id_candidate: classification.serviceId,
+    service_name_candidate: classification.serviceName,
+    job_type_id_candidate: classification.jobTypeId,
+    job_type_name_candidate: classification.jobTypeName,
+  };
+}
+
+function inferVisitClassification(classification: BookingClassification): "standard" | "survey_assessment" {
+  const haystack = [classification.serviceName, classification.jobTypeName]
+    .map((value) => normalizeComparableText(value))
+    .filter(Boolean)
+    .join(" ");
+
+  if (
+    /\binstall(ation)?\b/.test(haystack) ||
+    /\breplacement\b/.test(haystack) ||
+    /\bpower\s*flush\b/.test(haystack) ||
+    /\bpowerflush\b/.test(haystack)
+  ) {
+    return "survey_assessment";
+  }
+
+  return "standard";
+}
+
+function appointmentTypeForBookingClassification(classification: BookingClassification): AppointmentType {
+  return inferVisitClassification(classification) === "survey_assessment" ? "survey" : "booking";
+}
+
+async function findJobClassification(supabase: SupabaseClient, tenantId: string, jobId: string) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("jobs")
+    .select("id, service_id, job_type_id")
+    .eq("tenant_id", tenantId)
+    .eq("id", jobId)
+    .maybeSingle<{ id: string; service_id: string | null; job_type_id: string | null }>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
 async function syncJobScheduleFromBooking(
   supabase: SupabaseClient,
   alias: WorkspaceAlias,
@@ -777,23 +1088,43 @@ async function syncJobScheduleFromBooking(
     title: string;
     description: string | null;
     startsAt: string;
+    timeZone: string;
     assignedEngineer: string | null;
+    classification: BookingClassification;
   },
-): Promise<void> {
-  const scheduledDate = input.startsAt.slice(0, 10);
-  const scheduledTime = input.startsAt.slice(11, 16);
+): Promise<string | null> {
+  const { scheduledDate, scheduledTime } = bookingInstantToTenantSchedule(input.startsAt, input.timeZone);
 
   const updatePayload: Record<string, unknown> = {
     title: input.title,
     scheduled_date: scheduledDate,
     scheduled_time: scheduledTime,
     status: "booked",
+    visit_classification: inferVisitClassification(input.classification),
+    commercial_stage: inferVisitClassification(input.classification) === "survey_assessment" ? "survey_booked" : "booked",
   };
   if (input.description) {
     updatePayload.description = input.description;
   }
   if (input.assignedEngineer) {
     updatePayload.assigned_engineer = input.assignedEngineer;
+  }
+
+  const existing = await findJobClassification(supabase, alias.tenant_id, input.jobId);
+  let reviewReason: string | null = null;
+  if (input.classification.serviceId) {
+    if (!existing?.service_id) {
+      updatePayload.service_id = input.classification.serviceId;
+    } else if (existing.service_id !== input.classification.serviceId) {
+      reviewReason = "Existing job service differs from the AI booking service.";
+    }
+  }
+  if (input.classification.jobTypeId) {
+    if (!existing?.job_type_id) {
+      updatePayload.job_type_id = input.classification.jobTypeId;
+    } else if (existing.job_type_id !== input.classification.jobTypeId) {
+      reviewReason = "Existing job type differs from the AI booking job type.";
+    }
   }
 
   const { error } = await supabase
@@ -806,6 +1137,8 @@ async function syncJobScheduleFromBooking(
   if (error) {
     throw error;
   }
+
+  return reviewReason;
 }
 
 async function createJobFromBooking(
@@ -817,12 +1150,13 @@ async function createJobFromBooking(
     title: string;
     description: string | null;
     startsAt: string;
+    timeZone: string;
     assignedEngineer: string | null;
+    classification: BookingClassification;
     isTest?: boolean;
   },
 ): Promise<string> {
-  const scheduledDate = input.startsAt.slice(0, 10);
-  const scheduledTime = input.startsAt.slice(11, 16);
+  const { scheduledDate, scheduledTime } = bookingInstantToTenantSchedule(input.startsAt, input.timeZone);
 
   const { data, error } = await supabase
     .schema("crm")
@@ -834,6 +1168,10 @@ async function createJobFromBooking(
       title: input.title,
       description: input.description ?? null,
       status: "booked",
+      visit_classification: inferVisitClassification(input.classification),
+      commercial_stage: inferVisitClassification(input.classification) === "survey_assessment" ? "survey_booked" : "booked",
+      service_id: input.classification.serviceId,
+      job_type_id: input.classification.jobTypeId,
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
       assigned_engineer: input.assignedEngineer ?? null,
@@ -887,6 +1225,7 @@ async function createAppointment(
     notificationStatus?: string | null;
     notificationFailureReason?: string | null;
     postcodeStatus?: string | null;
+    visitClassification?: "standard" | "survey_assessment";
     source?: string | null;
     externalId?: string | null;
   },
@@ -905,6 +1244,7 @@ async function createAppointment(
       starts_at: input.startsAt,
       ends_at: input.endsAt,
       status: input.status ?? "scheduled",
+      visit_classification: input.visitClassification ?? "standard",
       confirmation_email_sent_at: input.confirmationEmailSentAt ?? null,
       confirmation_sms_sent_at: input.confirmationSmsSentAt ?? null,
       notification_status: input.notificationStatus ?? null,
@@ -959,6 +1299,8 @@ async function updateBookingAppointment(
     leadId?: string | null;
     jobId?: string | null;
     postcodeStatus?: string | null;
+    visitClassification?: "standard" | "survey_assessment";
+    appointmentType?: AppointmentType;
     isTest?: boolean;
   },
 ) {
@@ -969,6 +1311,12 @@ async function updateBookingAppointment(
     ends_at: input.endsAt,
     status: input.status,
   };
+  if (input.visitClassification) {
+    patch.visit_classification = input.visitClassification;
+  }
+  if (input.appointmentType) {
+    patch.type = input.appointmentType;
+  }
   if (input.customerId) {
     patch.customer_id = input.customerId;
   }
@@ -1674,6 +2022,10 @@ export async function executePlatformCommand(
       const bookingId = pickString(payload, ["booking_id", "booking_uid", "calcom_booking_id"]);
       const externalAppointment = bookingId ? await findAppointmentByExternalId(supabase, alias.tenant_id, bookingId) : null;
       const title = buildBookingTitle(payload);
+      const bookingTimeZone = resolveBookingTimeZone(payload);
+      const bookingClassification = await resolveBookingClassification(supabase, alias, payload);
+      const visitClassification = inferVisitClassification(bookingClassification);
+      const bookingAppointmentType = appointmentTypeForBookingClassification(bookingClassification);
 
       // EHS-V-001: derive postcode_status so the engineer diary shows a
       // "needs verification" badge when a voice booking confirmed without a
@@ -1695,7 +2047,14 @@ export async function executePlatformCommand(
           : null;
 
       if (link.lead_id) {
-        await updateLeadStatus(supabase, alias, link.lead_id, "booked", buildLeadNotes(payload) || null, payload);
+        await updateLeadStatus(
+          supabase,
+          alias,
+          link.lead_id,
+          visitClassification === "survey_assessment" ? "survey_booked" : "booked",
+          buildLeadNotes(payload) || null,
+          payload,
+        );
         if (link.customer_id) {
           await attachLeadToCustomer(supabase, alias, link.lead_id, link.customer_id);
         }
@@ -1733,16 +2092,19 @@ export async function executePlatformCommand(
             status: "scheduled",
             leadId: activeLink.lead_id,
             postcodeStatus,
+            visitClassification,
+            appointmentType: bookingAppointmentType,
             isTest: extractIsTestFromPayload(payload),
           });
         } else {
           const appointmentId = await createAppointment(supabase, alias, {
             link: { ...activeLink, customer_id: null, job_id: null },
-            type: "booking",
+            type: bookingAppointmentType,
             title,
             startsAt,
             endsAt,
             postcodeStatus,
+            visitClassification,
             source: bookingId ? "platform" : "crm",
             externalId: bookingId,
           });
@@ -1781,8 +2143,7 @@ export async function executePlatformCommand(
           identityEmail: pickString(payload, ["identity_email", "customer_email", "customerEmail"]),
           latestEventAt: startsAt,
           metadata: {
-            needs_review: false,
-            review_reason: null,
+            ...buildClassificationReviewMetadata(bookingClassification),
           },
         });
         if (activeLink.lead_id) {
@@ -1795,7 +2156,7 @@ export async function executePlatformCommand(
       if (!linkedAppointmentId) {
         const appointmentId = await createAppointment(supabase, alias, {
           link: activeLink,
-          type: "booking",
+          type: bookingAppointmentType,
           title,
           startsAt,
           endsAt,
@@ -1804,6 +2165,7 @@ export async function executePlatformCommand(
           notificationStatus: pickString(payload, ["notification_status"]),
           notificationFailureReason: pickString(payload, ["notification_failure_reason"]),
           postcodeStatus: postcodeStatus,
+          visitClassification,
           source: bookingId ? "platform" : "crm",
           externalId: bookingId,
         });
@@ -1816,8 +2178,7 @@ export async function executePlatformCommand(
             platform_lead_id: pickString(payload, ["lead_id", "platform_lead_id"]),
             booking_uid: pickString(payload, ["booking_uid", "calcom_booking_id"]),
             booking_slot_label: pickString(payload, ["booking_slot_label"]),
-            needs_review: false,
-            review_reason: null,
+            ...buildClassificationReviewMetadata(bookingClassification),
             ...buildConversationSessionMetadata(payload),
           },
         });
@@ -1844,6 +2205,8 @@ export async function executePlatformCommand(
           leadId: activeLink.lead_id,
           jobId: activeLink.job_id,
           postcodeStatus,
+          visitClassification,
+          appointmentType: bookingAppointmentType,
           isTest: extractIsTestFromPayload(payload),
         });
         await upsertPlatformConversationLink(supabase, alias, {
@@ -1855,8 +2218,7 @@ export async function executePlatformCommand(
             platform_lead_id: pickString(payload, ["lead_id", "platform_lead_id"]),
             booking_uid: pickString(payload, ["booking_uid", "calcom_booking_id"]),
             booking_slot_label: pickString(payload, ["booking_slot_label"]),
-            needs_review: false,
-            review_reason: null,
+            ...buildClassificationReviewMetadata(bookingClassification),
             ...buildConversationSessionMetadata(payload),
           },
         });
@@ -1903,6 +2265,7 @@ export async function executePlatformCommand(
 
       // Auto-create a job so it appears in the engineer diary.
       // Only create when a customer is known and no job has been linked yet.
+      let quoteAutomationJobId: string | null = null;
       if (refreshedLink?.customer_id && !refreshedLink.job_id) {
         const jobId = await createJobFromBooking(supabase, alias, {
           customerId: refreshedLink.customer_id,
@@ -1910,31 +2273,67 @@ export async function executePlatformCommand(
           title,
           description: buildLeadNotes(payload) || null,
           startsAt,
+          timeZone: bookingTimeZone,
           assignedEngineer,
+          classification: bookingClassification,
           isTest: extractIsTestFromPayload(payload),
         });
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,
           jobId,
           latestEventAt: startsAt,
+          metadata: buildClassificationReviewMetadata(bookingClassification),
         });
         if (refreshedLink.booking_appointment_id) {
           await attachAppointmentToJob(supabase, alias, refreshedLink.booking_appointment_id, jobId);
         }
+        quoteAutomationJobId = jobId;
       } else if (refreshedLink?.job_id) {
         // A job was already linked (e.g. merged onto an existing one during
         // LinkConversationToCustomerOrJob). Refresh its schedule + title +
         // status from the incoming booking so the diary reflects the new slot
         // instead of the old one.
-        await syncJobScheduleFromBooking(supabase, alias, {
+        const classificationConflictReason = await syncJobScheduleFromBooking(supabase, alias, {
           jobId: refreshedLink.job_id,
           title,
           description: buildLeadNotes(payload) || null,
           startsAt,
+          timeZone: bookingTimeZone,
           assignedEngineer,
+          classification: bookingClassification,
+        });
+        await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          latestEventAt: startsAt,
+          metadata: {
+            ...buildClassificationReviewMetadata(bookingClassification),
+            ...(classificationConflictReason
+              ? { needs_review: true, review_reason: classificationConflictReason }
+              : {}),
+          },
         });
         if (refreshedLink.booking_appointment_id) {
           await attachAppointmentToJob(supabase, alias, refreshedLink.booking_appointment_id, refreshedLink.job_id);
+        }
+        quoteAutomationJobId = refreshedLink.job_id;
+      }
+
+      if (quoteAutomationJobId) {
+        try {
+          await draftQuoteForJob({
+            supabase,
+            tenantId: alias.tenant_id,
+            jobId: quoteAutomationJobId,
+            actorId: null,
+            triggerSource: "booking_created",
+          });
+        } catch (error) {
+          console.error("[platform.command_executor] quote automation failed", {
+            tenant_id: alias.tenant_id,
+            job_id: quoteAutomationJobId,
+            conversation_id: conversationId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 

@@ -11,6 +11,12 @@ import {
 } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
 import { hasReceiptAttachment, materialsAnswerRequiresReceipt } from "@/modules/crm/lib/materials";
+import {
+  buildFinalBalanceLineItem,
+  calculateFinalBalanceAmount,
+  isProgressInvoiceKind,
+  shouldSkipFinalInvoiceForExistingInvoice,
+} from "@/modules/crm/lib/invoicing";
 import { scheduleReviewRequestsForCompletedJob } from "@/modules/crm/notifications/review-requests";
 import { scheduleInvoiceChaseSequence } from "@/modules/crm/notifications/invoice-chase";
 
@@ -138,16 +144,15 @@ async function autoInvoiceCompletedJob(
   supabase: Awaited<ReturnType<typeof import("@/modules/crm/lib/supabase-server").createCrmServerClient>>,
   input: { tenantId: string; jobId: string },
 ) {
-  const { data: existingInvoice, error: existingError } = await supabase
+  const { data: existingInvoices, error: existingError } = await supabase
     .schema("crm")
     .from("invoices")
-    .select("id")
+    .select("id, invoice_kind, status, total")
     .eq("tenant_id", input.tenantId)
-    .eq("job_id", input.jobId)
-    .limit(1);
+    .eq("job_id", input.jobId);
   if (existingError) throw existingError;
-  if ((existingInvoice ?? []).length > 0) {
-    return { created: false, skipped: "invoice_exists" };
+  if ((existingInvoices ?? []).some(shouldSkipFinalInvoiceForExistingInvoice)) {
+    return { created: false, skipped: "final_invoice_exists" };
   }
 
   const { data: quote, error: quoteError } = await supabase
@@ -165,17 +170,42 @@ async function autoInvoiceCompletedJob(
     return { created: false, skipped: "accepted_quote_not_found" };
   }
 
+  const openProgressInvoice = (existingInvoices ?? []).find(
+    (invoice) => isProgressInvoiceKind(invoice.invoice_kind) && invoice.status !== "paid" && invoice.status !== "void",
+  );
+  if (openProgressInvoice) {
+    return { created: false, skipped: "progress_invoice_unpaid", invoiceId: openProgressInvoice.id };
+  }
+
+  const paidProgressTotal = (existingInvoices ?? [])
+    .filter((invoice) => invoice.status === "paid" && isProgressInvoiceKind(invoice.invoice_kind))
+    .reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0);
+  const finalBalanceTotal = calculateFinalBalanceAmount({
+    quoteTotal: Number(quote.total),
+    paidProgressTotal,
+  });
+  if (finalBalanceTotal <= 0) {
+    return { created: false, skipped: "quote_already_paid_by_progress_invoices" };
+  }
+
+  const finalSubtotal = Number((finalBalanceTotal / (1 + Number(quote.vat_rate))).toFixed(2));
+  const finalLineItems = buildFinalBalanceLineItem({
+    amountExVat: finalSubtotal,
+    paidProgressTotal,
+  });
   const invoicePayload = {
     tenant_id: input.tenantId,
     quote_id: quote.id,
+    balance_of_quote_id: quote.id,
     job_id: quote.job_id,
     customer_id: quote.customer_id,
     invoice_number: await nextInvoiceNumber(),
-    line_items: quote.line_items,
-    subtotal: quote.subtotal,
+    invoice_kind: "final",
+    line_items: finalLineItems,
+    subtotal: finalSubtotal,
     vat_rate: quote.vat_rate,
     vat_category: quote.vat_category,
-    total: quote.total,
+    total: finalBalanceTotal,
     status: "unpaid",
     due_date: dueDateFromNow(14),
   };

@@ -7,19 +7,31 @@ import { cancelQuoteChaseSequence } from "@/modules/crm/notifications/quote-chas
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const body = normalizeBlankFields(await request.json(), ["accepted_by_email", "notes"]);
+    const body = normalizeBlankFields(await request.json(), [
+      "accepted_by_email",
+      "acceptance_channel",
+      "evidence_url",
+      "evidence_attachment_id",
+      "notes",
+    ]);
     const parsed = quoteAcceptanceSchema.safeParse(body);
     if (!parsed.success) {
       return jsonError(parsed.error.issues[0]?.message ?? "Invalid acceptance payload.");
     }
 
-    const auth = await requireCrmApiUser();
+    const auth = await requireCrmApiUser(["management", "admin", "sales", "accounts"]);
     if ("error" in auth) {
       return auth.error;
     }
 
     const { supabase, tenant, user } = auth.session;
-    const { data: existing, error: existingError } = await supabase.schema("crm").from("quotes").select("*").eq("id", id).single();
+    const { data: existing, error: existingError } = await supabase
+      .schema("crm")
+      .from("quotes")
+      .select("*")
+      .eq("tenant_id", tenant.id)
+      .eq("id", id)
+      .single();
     if (existingError || !existing) {
       return jsonError(existingError?.message ?? "Quote not found.", 404);
     }
@@ -31,6 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .schema("crm")
         .from("quotes")
         .update({ status: "accepted", current_version_number: nextVersionNumber })
+        .eq("tenant_id", tenant.id)
         .eq("id", id)
         .select("*")
         .single(),
@@ -43,8 +56,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           accepted_by_name: parsed.data.accepted_by_name,
           accepted_by_email: parsed.data.accepted_by_email ?? null,
           acceptance_method: parsed.data.acceptance_method,
+          acceptance_channel: parsed.data.acceptance_channel ?? null,
+          evidence_url: parsed.data.evidence_url || null,
+          evidence_attachment_id: parsed.data.evidence_attachment_id ?? null,
           notes: parsed.data.notes ?? null,
           accepted_at: acceptedAt,
+          is_test: existing.is_test === true,
         }, { onConflict: "quote_id" })
         .select("*")
         .single(),
@@ -66,10 +83,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       vatRate: Number(quote.vat_rate),
       vatCategory: quote.vat_category,
       total: Number(quote.total),
+      installScope: quote.install_scope ?? {},
+      paymentTerms: quote.payment_terms ?? {},
+      agentAutonomy: quote.agent_autonomy ?? {},
       validUntil: quote.valid_until,
       status: "accepted",
       changeSummary: "Customer accepted quote",
       createdBy: resolveCreatedByUserId(user),
+      isTest: quote.is_test === true,
     });
 
     await enqueueCrmPlatformEvent(supabase, {
@@ -88,6 +109,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         accepted_by_name: acceptance.accepted_by_name,
         accepted_by_email: acceptance.accepted_by_email,
         acceptance_method: acceptance.acceptance_method,
+        acceptance_channel: acceptance.acceptance_channel,
+        evidence_url: acceptance.evidence_url,
       },
     });
     await publishPendingPlatformOutboxEvents(supabase);

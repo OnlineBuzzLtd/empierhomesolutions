@@ -5,7 +5,7 @@ import { buildScheduleRows } from "@/modules/crm/lib/payment-plan";
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const auth = await requireCrmApiUser();
+    const auth = await requireCrmApiUser(["management", "admin", "sales", "accounts"]);
     if ("error" in auth) {
       return auth.error;
     }
@@ -20,21 +20,23 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { data: quote, error: quoteErr } = await supabase
       .schema("crm")
       .from("quotes")
-      .select("id, total")
+      .select("id, subtotal, total, is_test")
+      .eq("tenant_id", tenant.id)
       .eq("id", id)
       .maybeSingle();
     if (quoteErr || !quote) {
       return jsonError(quoteErr?.message ?? "Quote not found.", 404);
     }
 
-    const totalAmount = Number(quote.total ?? 0);
-    const rows = buildScheduleRows(parsed.data, totalAmount);
+    const quoteSubtotal = Number(quote.subtotal ?? 0);
+    const rows = buildScheduleRows(parsed.data, quoteSubtotal);
 
     // Idempotent: replace draft schedules only. Never touch invoiced/paid rows.
     const { error: delErr } = await supabase
       .schema("crm")
       .from("invoice_schedules")
       .delete()
+      .eq("tenant_id", tenant.id)
       .eq("quote_id", id)
       .eq("status", "planned");
     if (delErr) {
@@ -49,9 +51,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         payment_type: row.payment_type,
         percentage: row.percentage,
         fixed_amount: row.fixed_amount,
-        due_offset_days: row.due_offset_days,
-        status: "planned",
-      }));
+          due_offset_days: row.due_offset_days,
+          status: "planned",
+          is_test: quote.is_test === true,
+        }));
       const { error: insErr } = await supabase.schema("crm").from("invoice_schedules").insert(insertPayload);
       if (insErr) {
         return jsonError(insErr.message, 500);
@@ -62,6 +65,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .schema("crm")
       .from("invoice_schedules")
       .select("*")
+      .eq("tenant_id", tenant.id)
       .eq("quote_id", id)
       .order("created_at", { ascending: true });
 

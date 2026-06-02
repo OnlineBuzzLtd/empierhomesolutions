@@ -1,20 +1,22 @@
 import { addDays } from "date-fns";
 import { jsonError, jsonSuccess, nextInvoiceNumber, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { invoiceKindForPaymentType } from "@/modules/crm/lib/invoicing";
 import { buildInvoiceScheduleLineItem, calculateInvoiceScheduleAmount } from "@/modules/crm/lib/quotes";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const auth = await requireCrmApiUser();
+    const auth = await requireCrmApiUser(["management", "admin", "sales", "accounts"]);
     if ("error" in auth) {
       return auth.error;
     }
 
-    const { supabase } = auth.session;
+    const { supabase, tenant } = auth.session;
     const { data: schedule, error: scheduleError } = await supabase
       .schema("crm")
       .from("invoice_schedules")
       .select("*, quote:quotes(*)")
+      .eq("tenant_id", tenant.id)
       .eq("id", id)
       .single();
     if (scheduleError || !schedule || !schedule.quote) {
@@ -32,6 +34,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       subtotal: number | string;
       vat_rate: number | string;
       vat_category: string;
+      is_test?: boolean | null;
     };
 
     const computed = calculateInvoiceScheduleAmount({
@@ -50,10 +53,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       .schema("crm")
       .from("invoices")
       .insert({
+        tenant_id: tenant.id,
         quote_id: quote.id,
         job_id: quote.job_id,
         customer_id: quote.customer_id,
         invoice_number: await nextInvoiceNumber(),
+        invoice_kind: invoiceKindForPaymentType(schedule.payment_type),
+        invoice_schedule_id: schedule.id,
+        balance_of_quote_id: schedule.payment_type === "final" ? quote.id : null,
         line_items: lineItems,
         subtotal: computed.subtotal,
         vat_rate: Number(quote.vat_rate),
@@ -61,6 +68,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         total: computed.total,
         status: "unpaid",
         due_date: addDays(new Date(), Number(schedule.due_offset_days ?? 14)).toISOString().slice(0, 10),
+        is_test: schedule.is_test === true || quote.is_test === true,
       })
       .select("*")
       .single();
@@ -72,6 +80,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       .schema("crm")
       .from("invoice_schedules")
       .update({ invoice_id: invoice.id, status: "invoiced" })
+      .eq("tenant_id", tenant.id)
       .eq("id", id)
       .select("*")
       .single();

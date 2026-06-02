@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { Package, PackageItem, Product } from "@/modules/crm/types";
+import type { JobType, Package, PackageItem, Product, Service } from "@/modules/crm/types";
 import { formatCurrency } from "@/modules/crm/lib/format";
 
 // priceManuallyEdited is client-side state, never persisted. Tracks whether
@@ -15,6 +15,8 @@ type EditableItem = Omit<PackageItem, "id" | "tenant_id" | "package_id"> & {
 
 type EditableState = {
   name: string;
+  service_id: string;
+  job_type_id: string;
   description: string;
   default_markup_percent: string;
   is_active: boolean;
@@ -25,6 +27,7 @@ type EditableState = {
   ai_requires_office_quote: boolean;
   ai_default_duration_minutes: string;
   ai_price_disclaimer: string;
+  ai_pricing_style: "from" | "fixed";
   items: EditableItem[];
 };
 
@@ -59,6 +62,8 @@ function blankItem(sortOrder: number): EditableItem {
 function blankState(): EditableState {
   return {
     name: "",
+    service_id: "",
+    job_type_id: "",
     description: "",
     default_markup_percent: "",
     is_active: true,
@@ -69,6 +74,7 @@ function blankState(): EditableState {
     ai_requires_office_quote: true,
     ai_default_duration_minutes: "",
     ai_price_disclaimer: "",
+    ai_pricing_style: "from",
     items: [blankItem(0)],
   };
 }
@@ -76,6 +82,8 @@ function blankState(): EditableState {
 function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
   return {
     name: pkg.name,
+    service_id: pkg.service_id ?? "",
+    job_type_id: pkg.job_type_id ?? "",
     description: pkg.description ?? "",
     default_markup_percent: pkg.default_markup_percent === null || pkg.default_markup_percent === undefined ? "" : String(pkg.default_markup_percent),
     is_active: pkg.is_active,
@@ -89,6 +97,7 @@ function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
         ? ""
         : String(pkg.ai_default_duration_minutes),
     ai_price_disclaimer: pkg.ai_price_disclaimer ?? "",
+    ai_pricing_style: pkg.ai_pricing_style ?? "from",
     items: (pkg.items ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -109,9 +118,13 @@ function fromPackage(pkg: Package & { items?: PackageItem[] }): EditableState {
 export function PackageManagerForm({
   packages,
   products,
+  services,
+  jobTypes,
 }: {
   packages: Array<Package & { items?: PackageItem[] }>;
   products: Product[];
+  services: Service[];
+  jobTypes: JobType[];
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -129,6 +142,13 @@ export function PackageManagerForm({
     setEditingId(pkg.id);
     setState(fromPackage(pkg));
     setError(null);
+  }
+
+  function setServiceId(serviceId: string) {
+    const nextJobTypeId = jobTypes.some((jobType) => jobType.id === state.job_type_id && jobType.service_id === serviceId)
+      ? state.job_type_id
+      : "";
+    setState({ ...state, service_id: serviceId, job_type_id: nextJobTypeId });
   }
 
   function patchItem(i: number, p: Partial<EditableItem>) {
@@ -215,6 +235,8 @@ export function PackageManagerForm({
     setError(null);
     const body = {
       name: state.name,
+      service_id: state.service_id || null,
+      job_type_id: state.job_type_id || null,
       description: state.description || null,
       default_markup_percent: state.default_markup_percent === "" ? null : Number(state.default_markup_percent),
       is_active: state.is_active,
@@ -226,6 +248,7 @@ export function PackageManagerForm({
       ai_default_duration_minutes:
         state.ai_default_duration_minutes.trim() === "" ? null : Number(state.ai_default_duration_minutes),
       ai_price_disclaimer: state.ai_price_disclaimer.trim() === "" ? null : state.ai_price_disclaimer.trim(),
+      ai_pricing_style: state.ai_pricing_style,
       items: state.items.map((it, idx) => ({
         product_id: it.product_id ?? null,
         description: it.description,
@@ -266,6 +289,7 @@ export function PackageManagerForm({
 
   const itemsTotal = state.items.reduce((sum, it) => sum + Number(it.qty) * Number(it.unit_price), 0);
   const itemsCost = state.items.reduce((sum, it) => sum + Number(it.qty) * Number(it.unit_cost ?? 0), 0);
+  const filteredJobTypes = state.service_id ? jobTypes.filter((jobType) => jobType.service_id === state.service_id) : jobTypes;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[0.6fr_1fr]">
@@ -285,7 +309,11 @@ export function PackageManagerForm({
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-semibold">{pkg.name}</p>
-                    <p className="text-xs text-slate-500">{pkg.items?.length ?? 0} items{pkg.is_active ? "" : " · inactive"}</p>
+                    <p className="text-xs text-slate-500">
+                      {pkg.items?.length ?? 0} items ·{" "}
+                      {pkg.ai_price_enabled ? `AI price ${formatCurrency((pkg.items ?? []).reduce((sum, it) => sum + Number(it.qty) * Number(it.unit_price), 0))}` : "AI price off"}
+                      {pkg.is_active ? "" : " · inactive"}
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => startEdit(pkg)} className="text-xs text-blue-700 hover:underline">
@@ -311,6 +339,31 @@ export function PackageManagerForm({
             placeholder="Package name"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
+          <select
+            value={state.service_id}
+            onChange={(e) => setServiceId(e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">No linked service</option>
+            {services.map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={state.job_type_id}
+            onChange={(e) => setState({ ...state, job_type_id: e.target.value })}
+            disabled={!state.service_id}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">No linked job type</option>
+            {filteredJobTypes.map((jobType) => (
+              <option key={jobType.id} value={jobType.id}>
+                {jobType.name}
+              </option>
+            ))}
+          </select>
           <input
             value={state.default_markup_percent}
             onChange={(e) => setMarkupPercent(e.target.value)}
@@ -372,6 +425,14 @@ export function PackageManagerForm({
             />
             Office confirms final quote
           </label>
+          <select
+            value={state.ai_pricing_style}
+            onChange={(e) => setState({ ...state, ai_pricing_style: e.target.value as "from" | "fixed" })}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="from">AI says “starts from”</option>
+            <option value="fixed">AI may say exact price when office confirmation is off</option>
+          </select>
           <input
             value={state.ai_default_duration_minutes}
             onChange={(e) => setState({ ...state, ai_default_duration_minutes: e.target.value })}

@@ -32,6 +32,13 @@ import {
   listUserProfiles,
 } from "@/modules/crm/lib/data";
 
+function formatPrice(value: number | null) {
+  if (typeof value !== "number") {
+    return "Not set";
+  }
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(value);
+}
+
 function SettingsHub() {
   const cards = [
     {
@@ -373,6 +380,29 @@ export default async function SettingsPage({
                 placeholder="Electrical safety wording"
                 className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 md:col-span-2">
+                <input
+                  type="checkbox"
+                  name="ai_quote_drafting_enabled"
+                  defaultChecked={Boolean(tenantSettings?.ai_quote_drafting_enabled)}
+                  className="h-4 w-4"
+                />
+                <span>
+                  Let AI draft CRM quotes after safe booking or survey triggers. Drafts stay internal until an
+                  authorised user sends them.
+                </span>
+              </label>
+              <select
+                name="ai_quote_drafting_mode"
+                defaultValue={String(tenantSettings?.ai_quote_drafting_mode ?? "off")}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+              >
+                <option value="off">AI quote drafting off</option>
+                <option value="draft_after_survey">Draft after completed surveys only</option>
+                <option value="draft_after_booking_and_survey">
+                  Draft after fixed-price bookings and completed surveys
+                </option>
+              </select>
             </ApiForm>
             <p className="mt-3 text-xs text-slate-500">
               These settings are owned by the current tenant and replace hardcoded Empire branding in the CRM
@@ -448,6 +478,59 @@ export default async function SettingsPage({
                           </p>
                         </div>
                       ))
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">AI pricing</h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Package prices the AI may mention to customers. Prices are treated as starts-from unless exact pricing is explicitly enabled.
+                        </p>
+                      </div>
+                      <Link
+                        href="/settings/packages"
+                        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                      >
+                        Add AI price
+                      </Link>
+                    </div>
+                    {aiCatalog.packages.filter((pkg) => pkg.price_enabled).length === 0 ? (
+                      <div className="p-4">
+                        <EmptyState message="No AI prices set yet. Create a package price so the AI can answer customer pricing questions safely." />
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                            <tr>
+                              <th className="px-4 py-3 font-semibold">Package</th>
+                              <th className="px-4 py-3 font-semibold">Service</th>
+                              <th className="px-4 py-3 font-semibold">Job type</th>
+                              <th className="px-4 py-3 font-semibold">AI can price</th>
+                              <th className="px-4 py-3 font-semibold">Public price</th>
+                              <th className="px-4 py-3 font-semibold">Office confirms</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {aiCatalog.packages
+                              .filter((pkg) => pkg.price_enabled)
+                              .map((pkg) => (
+                                <tr key={pkg.id}>
+                                  <td className="px-4 py-3 font-medium text-slate-900">{pkg.name}</td>
+                                  <td className="px-4 py-3 text-slate-600">{pkg.service_name ?? "Any service"}</td>
+                                  <td className="px-4 py-3 text-slate-600">{pkg.job_type_name ?? "Any job type"}</td>
+                                  <td className="px-4 py-3 text-slate-600">{pkg.price_enabled ? "Yes" : "No"}</td>
+                                  <td className="px-4 py-3 text-slate-600">
+                                    {pkg.pricing_style === "from" && typeof pkg.display_price === "number" ? "From " : ""}
+                                    {formatPrice(pkg.display_price)}
+                                  </td>
+                                  <td className="px-4 py-3 text-slate-600">{pkg.requires_office_quote ? "Yes" : "No"}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 </>

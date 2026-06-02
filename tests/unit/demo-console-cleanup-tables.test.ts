@@ -72,16 +72,13 @@ describe("Demo Console cleanup tables contract", () => {
     expect((CLEANUP_TABLES as readonly string[]).includes("customers")).toBe(true);
   });
 
-  it("CLEANUP_TABLES does NOT include tables that cascade from customers", () => {
+  it("CLEANUP_TABLES does NOT include cascade tables without explicit is_test support", () => {
     // These tables cascade from crm.customers (see
-    // 202603120001_crm_foundation.sql). They must NOT be in
-    // CLEANUP_TABLES because the explicit DELETE would reference a
-    // non-existent is_test column — the exact bug that prompted this test.
+    // 202603120001_crm_foundation.sql). They must NOT be in CLEANUP_TABLES
+    // unless a later migration adds is_test. Commercial tables used by the
+    // AQD demo flow now have that column and are allowed above.
     const cascadeChildren = [
       "customer_assets",
-      "quotes",
-      "invoices",
-      "payments",
       "sites",
     ];
     for (const table of cascadeChildren) {

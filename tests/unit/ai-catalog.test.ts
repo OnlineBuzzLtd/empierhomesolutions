@@ -58,22 +58,90 @@ describe("AI catalogue projection", () => {
           ai_price_enabled: true,
           ai_requires_office_quote: false,
           service_id: "s1",
+          job_type_id: "j1",
           items: [
             { id: "i1", qty: 1, unit_price: 95 },
             { id: "i2", qty: 2, unit_price: 10 },
           ],
         },
       ],
+      services: [{ id: "s1", slug: "boilers", name: "Boilers", active: true, ai_visible: true }],
+      jobTypes: [{ id: "j1", service_id: "s1", slug: "boiler-service", name: "Boiler Service", active: true, ai_visible: true }],
       generatedAt: "2026-05-30T11:00:00.000Z",
     });
 
     expect(catalog.packages[0]).toMatchObject({
+      service_slug: "boilers",
+      job_type_slug: "boiler-service",
       display_price: 115,
+      pricing_style: "from",
       bookable: true,
       price_enabled: true,
     });
     expect(assertAiCatalogIsRedacted(catalog)).toEqual([]);
     expect(JSON.stringify(catalog)).not.toContain("unit_cost");
+  });
+
+  it("excludes packages linked to hidden services or hidden job types", () => {
+    const catalog = projectAiCatalog({
+      tenant,
+      services: [
+        { id: "visible-service", slug: "boilers", name: "Boilers", active: true, ai_visible: true },
+        { id: "hidden-service", slug: "hidden", name: "Hidden", active: true, ai_visible: false },
+      ],
+      jobTypes: [
+        {
+          id: "visible-job-type",
+          service_id: "visible-service",
+          slug: "boiler-service",
+          name: "Boiler Service",
+          active: true,
+          ai_visible: true,
+        },
+        {
+          id: "hidden-job-type",
+          service_id: "visible-service",
+          slug: "hidden",
+          name: "Hidden",
+          active: true,
+          ai_visible: false,
+        },
+      ],
+      packages: [
+        {
+          id: "pkg-visible",
+          name: "Visible price",
+          is_active: true,
+          ai_visible: true,
+          ai_price_enabled: true,
+          service_id: "visible-service",
+          job_type_id: "visible-job-type",
+          items: [{ id: "i1", qty: 1, unit_price: 95 }],
+        },
+        {
+          id: "pkg-hidden-service",
+          name: "Hidden service price",
+          is_active: true,
+          ai_visible: true,
+          ai_price_enabled: true,
+          service_id: "hidden-service",
+          items: [{ id: "i2", qty: 1, unit_price: 120 }],
+        },
+        {
+          id: "pkg-hidden-job-type",
+          name: "Hidden job type price",
+          is_active: true,
+          ai_visible: true,
+          ai_price_enabled: true,
+          service_id: "visible-service",
+          job_type_id: "hidden-job-type",
+          items: [{ id: "i3", qty: 1, unit_price: 150 }],
+        },
+      ],
+      generatedAt: "2026-05-30T11:00:00.000Z",
+    });
+
+    expect(catalog.packages.map((pkg) => pkg.id)).toEqual(["pkg-visible"]);
   });
 
   it("redacts accidental PII from AI-visible catalogue text", () => {
@@ -162,5 +230,18 @@ describe("AI catalogue projection", () => {
     });
 
     expect(catalog.tenant.trade_vertical).toBe("general_trades");
+  });
+
+  it("exposes survey-first booking guidance for install and powerflush work", () => {
+    const catalog = projectAiCatalog({
+      tenant,
+      settings: { trade_vertical: "heating" },
+      generatedAt: "2026-06-01T11:00:00.000Z",
+    });
+
+    expect(catalog.booking_rules).toMatchObject({
+      requires_office_quote_for_installations: true,
+      survey_first_for_installations_and_powerflush: true,
+    });
   });
 });

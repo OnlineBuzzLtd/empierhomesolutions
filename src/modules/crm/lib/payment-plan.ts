@@ -2,9 +2,9 @@
 //
 // Decision (locked): the FINAL stage absorbs any rounding residual.
 // We compute deposit + each named stage from the percentage in pence,
-// then the final row is fixed_amount = total - sum(others). This means
+// then the final row is fixed_amount = quote subtotal - sum(others). This means
 // deposit + stages + final always reconcile exactly to the quote total
-// to the penny, regardless of fractional percentages.
+// to the penny after the invoice generator applies the quote VAT rate.
 
 import type { PaymentPlan } from "@/modules/crm/types";
 
@@ -24,9 +24,9 @@ function fromPence(p: number): number {
   return Math.round(p) / 100;
 }
 
-export function buildScheduleRows(plan: PaymentPlan, totalAmount: number): ScheduleRowDraft[] {
+export function buildScheduleRows(plan: PaymentPlan, quoteSubtotal: number): ScheduleRowDraft[] {
   const rows: ScheduleRowDraft[] = [];
-  const totalPence = pence(totalAmount);
+  const totalPence = pence(quoteSubtotal);
   let consumedPence = 0;
 
   if (plan.deposit_percent > 0) {

@@ -8,6 +8,7 @@ import { WebchatTile } from "@/modules/crm/demo-console/tiles/WebchatTile";
 import { VoiceTile } from "@/modules/crm/demo-console/tiles/VoiceTile";
 import { MessagingTile } from "@/modules/crm/demo-console/tiles/MessagingTile";
 import { InboundLeadTile } from "@/modules/crm/demo-console/tiles/InboundLeadTile";
+import { useDemoWebchat } from "@/modules/crm/demo-console/use-demo-webchat";
 import {
   OperatorPanel,
   type ActiveDemoSession,
@@ -47,6 +48,7 @@ export function DemoRunStage({
   const [killSwitchAt, setKillSwitchAt] = useState<Date | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [operatorPanelOpen, setOperatorPanelOpen] = useState(false);
+  const webchat = useDemoWebchat();
 
   // On mount: hydrate session + kill switch state from the server so
   // a refresh / second tab / cleared local state doesn't desync from
@@ -104,7 +106,6 @@ export function DemoRunStage({
   // Session timer tick.
   useEffect(() => {
     if (!activeSession) {
-      setElapsedSec(0);
       return;
     }
     const tick = () => setElapsedSec(Math.floor((Date.now() - activeSession.startedAt.getTime()) / 1000));
@@ -114,11 +115,13 @@ export function DemoRunStage({
   }, [activeSession]);
 
   const onSessionStarted = useCallback((s: ActiveDemoSession) => {
+    webchat.reset();
     setActiveSession(s);
-  }, []);
+  }, [webchat]);
   const onSessionEnded = useCallback(() => {
+    webchat.reset();
     setActiveSession(null);
-  }, []);
+  }, [webchat]);
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">
@@ -181,10 +184,7 @@ export function DemoRunStage({
       */}
       <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-2">
         <div className="grid min-h-0 grid-cols-1 grid-rows-4 gap-3 md:grid-cols-2 md:grid-rows-2">
-          <WebchatTile
-            prospectName={activeSession?.prospectName}
-            prospectPhone={activeSession?.prospectPhone}
-          />
+          <WebchatTile webchat={webchat} />
           <VoiceTile voiceNumber={voiceNumber} />
           <MessagingTile smsNumber={smsNumber} whatsappNumber={whatsappNumber} />
           <div className="grid min-h-0 grid-rows-2 gap-3">
@@ -206,6 +206,7 @@ export function DemoRunStage({
           onSessionStarted={onSessionStarted}
           onSessionEnded={onSessionEnded}
           onKillSwitchToggled={setKillSwitchAt}
+          webchat={webchat}
         />
       ) : (
         <p className="fixed bottom-3 right-4 z-20 rounded-full bg-slate-900/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">

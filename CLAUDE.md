@@ -89,6 +89,16 @@ Supabase CRM is the source of truth for AI-visible services, job types, packages
 - Every new AI channel or booking path should attach the catalogue version to safe conversation or booking metadata where possible.
 - New tenant defaults must be trade-vertical driven and cautious by default; never clone Empire-specific pricing into a new tenant unless the user explicitly asks for a clone.
 
+### Demo customer AI provider ownership
+
+The `/demo/run` fake customer is not a second booking agent. The real CRM/webchat agent remains the system under test, and the demo customer only supplies customer-side replies for scripted scenarios.
+
+- Do not add CRM-side standalone LLM provider secrets for the demo customer (`GOOGLE_AI_API_KEY`, direct OpenAI keys, Gemini SDKs, etc.) unless the user explicitly asks for a new provider architecture.
+- The default provider path is Customer Journeys platform API `POST /v1/internal/demo/customer-turn`, reached through the tenant's `crm.customerjourneys_runtime_links.platform_api_base_url` and `CUSTOMERJOURNEYS_INTERNAL_API_TOKEN`.
+- Customer Journeys owns Anthropic/OpenAI provider credentials and fallback ordering. Empire owns deterministic scenario facts, guardrails, row tagging, cleanup, and operator UI state.
+- Deterministic replies should handle obvious booking prompts before spending provider tokens. Provider failures should fall back to deterministic/fixed-script mode where safe, not block the whole demo immediately.
+- The demo customer must never invent prices, email addresses, payment/card details, or extra PII. It may only use scenario facts and the active demo session's consented name/phone.
+
 ## Live testing against paid third-party providers
 > This section is non-negotiable. There have been TWO Twilio compliance incidents in May 2026 driven by automated testing:
 > 1. **May 12** — a live channel-test pass fired ~150–200 invalid-destination SMS through the production Twilio number (synthetic numbers in valid UK mobile format, all bounced with **error 21211**). That damaged sender reputation, cost real money, and risked compliance throttling.

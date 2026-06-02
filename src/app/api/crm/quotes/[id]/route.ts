@@ -14,7 +14,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return jsonError(parsed.error.issues[0]?.message ?? "Invalid quote payload.");
     }
 
-    const auth = await requireCrmApiUser();
+    const auth = await requireCrmApiUser(["management", "admin", "sales", "accounts"]);
     if ("error" in auth) {
       return auth.error;
     }
@@ -23,7 +23,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { data: existing, error: existingError } = await supabase
       .schema("crm")
       .from("quotes")
-      .select("id, current_version_number")
+      .select("id, current_version_number, is_test")
+      .eq("tenant_id", tenant.id)
       .eq("id", id)
       .single();
     if (existingError || !existing) {
@@ -44,6 +45,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         total_margin_percent: financials.total_margin_percent,
         current_version_number: nextVersionNumber,
       })
+      .eq("tenant_id", tenant.id)
       .eq("id", id)
       .select("*")
       .single();
@@ -61,10 +63,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       vatRate: parsed.data.vat_rate,
       vatCategory: parsed.data.vat_category,
       total: financials.total,
+      installScope: parsed.data.install_scope,
+      paymentTerms: parsed.data.payment_terms,
+      agentAutonomy: parsed.data.agent_autonomy,
       validUntil: parsed.data.valid_until ?? null,
       status: parsed.data.status,
       changeSummary: typeof body.change_summary === "string" ? body.change_summary : null,
       createdBy: resolveCreatedByUserId(user),
+      isTest: existing.is_test === true,
     });
 
     return jsonSuccess({ quote: data });

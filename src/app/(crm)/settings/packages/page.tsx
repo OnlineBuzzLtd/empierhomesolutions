@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { PackageManagerForm } from "@/modules/crm/components/forms/PackageManagerForm";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { requireSettingsAccess } from "@/modules/crm/lib/auth";
-import { listProducts } from "@/modules/crm/lib/data";
+import { listJobTypes, listProducts, listServices } from "@/modules/crm/lib/data";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import type { Package, PackageItem } from "@/modules/crm/types";
 
@@ -13,13 +13,15 @@ export default async function PackagesSettingsPage() {
   }
 
   const supabase = await createCrmServerClient();
-  const [{ data: pkgRows }, products] = await Promise.all([
+  const [{ data: pkgRows }, products, services, jobTypes] = await Promise.all([
     supabase
       .schema("crm")
       .from("packages")
       .select("*, items:package_items(*)")
       .order("name", { ascending: true }),
     listProducts(),
+    listServices(),
+    listJobTypes(),
   ]);
 
   const packages = (pkgRows ?? []) as Array<Package & { items?: PackageItem[] }>;
@@ -31,7 +33,7 @@ export default async function PackagesSettingsPage() {
           Reusable bundles your team can drop into a quote as a single composite line. Cost and price are copied at insert
           time, so editing a package later doesn&apos;t mutate quotes already sent.
         </p>
-        <PackageManagerForm packages={packages} products={products} />
+        <PackageManagerForm packages={packages} products={products} services={services} jobTypes={jobTypes} />
       </SectionCard>
     </div>
   );

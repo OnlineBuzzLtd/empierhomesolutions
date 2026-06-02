@@ -10,7 +10,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return jsonError(parsed.error.issues[0]?.message ?? "Invalid invoice schedule payload.");
     }
 
-    const auth = await requireCrmApiUser();
+    const auth = await requireCrmApiUser(["management", "admin", "sales", "accounts"]);
     if ("error" in auth) {
       return auth.error;
     }

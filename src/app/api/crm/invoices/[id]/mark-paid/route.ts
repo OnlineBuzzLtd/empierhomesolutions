@@ -3,7 +3,7 @@ import { cancelInvoiceChaseSequence } from "@/modules/crm/notifications/invoice-
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const auth = await requireCrmApiUser();
+  const auth = await requireCrmApiUser(["management", "admin", "accounts"]);
   if ("error" in auth) {
     return auth.error;
   }
@@ -13,6 +13,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     .schema("crm")
     .from("invoices")
     .update({ status: "paid", paid_at: new Date().toISOString() })
+    .eq("tenant_id", tenant.id)
     .eq("id", id)
     .select("*")
     .single();
@@ -21,7 +22,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return jsonError(error.message, 500);
   }
 
-  await supabase.schema("crm").from("invoice_schedules").update({ status: "paid" }).eq("invoice_id", id);
+  await supabase
+    .schema("crm")
+    .from("invoice_schedules")
+    .update({ status: "paid" })
+    .eq("tenant_id", tenant.id)
+    .eq("invoice_id", id);
   const tenantId = tenant?.id ?? (typeof data?.tenant_id === "string" ? data.tenant_id : null);
   if (tenantId) {
     await cancelInvoiceChaseSequence(supabase, { tenantId, invoiceId: id });

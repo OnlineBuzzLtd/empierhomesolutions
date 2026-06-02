@@ -36,6 +36,14 @@ export function QuoteBuilder({
   const [vatCategory, setVatCategory] = useState<string>(initialQuote?.vat_category ?? "standard_20");
   const [status, setStatus] = useState<string>(initialQuote?.status ?? "draft");
   const [validUntil, setValidUntil] = useState<string>(initialQuote?.valid_until ?? "");
+  const initialInstallScope = (initialQuote?.install_scope ?? {}) as Record<string, unknown>;
+  const initialPaymentTerms = (initialQuote?.payment_terms ?? {}) as Record<string, unknown>;
+  const [boilerModel, setBoilerModel] = useState<string>(String(initialInstallScope.boiler_model ?? ""));
+  const [scopeSummary, setScopeSummary] = useState<string>(String(initialInstallScope.scope_summary ?? ""));
+  const [warranty, setWarranty] = useState<string>(String(initialInstallScope.warranty ?? ""));
+  const [exclusions, setExclusions] = useState<string>(String(initialInstallScope.exclusions ?? ""));
+  const [depositTerms, setDepositTerms] = useState<string>(String(initialPaymentTerms.deposit_terms ?? ""));
+  const [paymentTerms, setPaymentTerms] = useState<string>(String(initialPaymentTerms.balance_terms ?? ""));
   const [changeSummary, setChangeSummary] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -55,6 +63,17 @@ export function QuoteBuilder({
       vat_category: vatCategory,
       status,
       valid_until: validUntil || null,
+      install_scope: {
+        boiler_model: boilerModel || null,
+        scope_summary: scopeSummary || null,
+        warranty: warranty || null,
+        exclusions: exclusions || null,
+      },
+      payment_terms: {
+        deposit_terms: depositTerms || null,
+        balance_terms: paymentTerms || null,
+      },
+      agent_autonomy: initialQuote?.agent_autonomy ?? {},
       change_summary: changeSummary || null,
       line_items: items,
     };
@@ -134,6 +153,44 @@ export function QuoteBuilder({
           showPerPackageVat={showPerPackageVat}
           onChange={setItems}
         />
+        <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+          <input
+            value={boilerModel}
+            onChange={(e) => setBoilerModel(e.target.value)}
+            placeholder="Boiler model / package"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            value={warranty}
+            onChange={(e) => setWarranty(e.target.value)}
+            placeholder="Warranty"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <textarea
+            value={scopeSummary}
+            onChange={(e) => setScopeSummary(e.target.value)}
+            placeholder="Install scope"
+            className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+          />
+          <textarea
+            value={exclusions}
+            onChange={(e) => setExclusions(e.target.value)}
+            placeholder="Exclusions"
+            className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+          />
+          <input
+            value={depositTerms}
+            onChange={(e) => setDepositTerms(e.target.value)}
+            placeholder="Deposit terms"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            value={paymentTerms}
+            onChange={(e) => setPaymentTerms(e.target.value)}
+            placeholder="Balance payment terms"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
       </div>
       <aside className="space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

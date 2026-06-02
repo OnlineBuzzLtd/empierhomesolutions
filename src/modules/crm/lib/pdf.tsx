@@ -47,6 +47,8 @@ type PdfTenantContext = {
 function QuotePdfDocument({ quote, context }: { quote: QuoteWithRelations; context: PdfTenantContext }) {
   const businessName = context.branding?.business_name ?? "CRM Workspace";
   const documentTitle = quote.document_type === "estimate" ? "Estimate" : "Quote";
+  const installScope = quote.install_scope ?? {};
+  const paymentTerms = quote.payment_terms ?? {};
 
   return (
     <Document>
@@ -79,6 +81,17 @@ function QuotePdfDocument({ quote, context }: { quote: QuoteWithRelations; conte
             <Text style={styles.cellSmall}>{formatCurrency(item.qty * item.unit_price)}</Text>
           </View>
         ))}
+        {Object.values(installScope).some(Boolean) ? (
+          <View style={{ marginTop: 16 }}>
+            <Text style={styles.subheading}>Scope and terms</Text>
+            {installScope.boiler_model ? <Text>Boiler/model: {String(installScope.boiler_model)}</Text> : null}
+            {installScope.scope_summary ? <Text>Scope: {String(installScope.scope_summary)}</Text> : null}
+            {installScope.warranty ? <Text>Warranty: {String(installScope.warranty)}</Text> : null}
+            {installScope.exclusions ? <Text>Exclusions: {String(installScope.exclusions)}</Text> : null}
+            {paymentTerms.deposit_terms ? <Text>Deposit: {String(paymentTerms.deposit_terms)}</Text> : null}
+            {paymentTerms.balance_terms ? <Text>Payment terms: {String(paymentTerms.balance_terms)}</Text> : null}
+          </View>
+        ) : null}
         <View style={{ marginTop: 16 }}>
           <View style={styles.row}>
             <Text>Subtotal</Text>
@@ -101,11 +114,12 @@ function QuotePdfDocument({ quote, context }: { quote: QuoteWithRelations; conte
 
 function InvoicePdfDocument({ invoice, context }: { invoice: InvoiceWithRelations; context: PdfTenantContext }) {
   const businessName = context.branding?.business_name ?? "CRM Workspace";
+  const invoiceKind = invoice.invoice_kind === "final" ? "Final Balance Invoice" : invoice.invoice_kind === "deposit" ? "Deposit Invoice" : "Invoice";
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.heading}>{businessName} Invoice</Text>
+        <Text style={styles.heading}>{businessName} {invoiceKind}</Text>
         <View style={styles.row}>
           <View>
             <Text style={styles.subheading}>{invoice.invoice_number}</Text>

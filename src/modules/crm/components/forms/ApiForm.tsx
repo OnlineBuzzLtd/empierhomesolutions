@@ -7,7 +7,7 @@ import { useCrmDemoMode } from "@/modules/crm/components/demo/DemoModeProvider";
 
 type ApiFormProps = {
   endpoint: string;
-  method?: "POST" | "PATCH" | "DELETE";
+  method?: "POST" | "PUT" | "PATCH" | "DELETE";
   submitLabel: string;
   className?: string;
   onSuccess?: (result: Record<string, unknown>) => void;

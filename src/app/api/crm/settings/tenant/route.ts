@@ -41,6 +41,10 @@ const tenantSettingsSchema = z.object({
   ai_catalog_emergency_escalation_text: z.string().min(10),
   ai_catalog_gas_safety_text: z.string().optional().nullable(),
   ai_catalog_electrical_safety_text: z.string().optional().nullable(),
+  ai_quote_drafting_enabled: checkboxBoolean.optional(),
+  ai_quote_drafting_mode: z
+    .enum(["off", "draft_after_survey", "draft_after_booking_and_survey"])
+    .default("off"),
 });
 
 export async function POST(request: Request) {
@@ -87,6 +91,10 @@ export async function POST(request: Request) {
       ai_catalog_emergency_escalation_text: parsed.data.ai_catalog_emergency_escalation_text,
       ai_catalog_gas_safety_text: parsed.data.ai_catalog_gas_safety_text || null,
       ai_catalog_electrical_safety_text: parsed.data.ai_catalog_electrical_safety_text || null,
+      ai_quote_drafting_enabled: parsed.data.ai_quote_drafting_enabled ?? false,
+      ai_quote_drafting_mode: parsed.data.ai_quote_drafting_enabled
+        ? parsed.data.ai_quote_drafting_mode
+        : "off",
     };
 
     const [{ data: branding, error: brandingError }, { data: settings, error: settingsError }] =

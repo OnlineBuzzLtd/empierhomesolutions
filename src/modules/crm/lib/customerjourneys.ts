@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Tenant } from "@/modules/crm/types";
+import type {
+  DemoCustomerTurn,
+  DemoCustomerTurnInput,
+} from "@/modules/crm/demo-console/server/demo-customer-agent";
+import {
+  getDemoWebchatScenario,
+  renderDemoWebchatScenarioFacts,
+} from "@/modules/crm/demo-console/webchat-scenarios";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { buildPlatformE2eInboxFixtures } from "@/modules/platform/lib/e2e-fixtures";
 import { listPlatformConversationRecords, type PlatformConversationRecord } from "@/modules/platform/lib/repository";
@@ -1126,6 +1134,7 @@ export async function createCustomerJourneysWebchatSession(
     email?: string;
     openingMessage: string;
     source?: string;
+    metadata?: Record<string, unknown>;
   },
 ) {
   if (getCrmEnv().crmE2ePlatformFixturesEnabled) {
@@ -1143,6 +1152,7 @@ export async function createCustomerJourneysWebchatSession(
       fullName: input.fullName,
       email: input.email,
       openingMessage: input.openingMessage,
+      metadata: input.metadata ?? {},
       ...(input.source ? { source: input.source } : {}),
     },
     buildRuntimeHeaders(link),
@@ -1179,6 +1189,55 @@ export async function appendCustomerJourneysWebchatMessage(
     },
     buildRuntimeHeaders(link),
   );
+}
+
+export async function generateCustomerJourneysDemoCustomerTurn(
+  link: CustomerJourneysRuntimeLink | null,
+  input: DemoCustomerTurnInput,
+): Promise<DemoCustomerTurn | null> {
+  if (getCrmEnv().crmE2ePlatformFixturesEnabled) {
+    return null;
+  }
+
+  requireRuntimeLink(link);
+  const baseUrl = getRuntimeBaseUrl(link)!;
+  const scenario = getDemoWebchatScenario(input.scenarioKey);
+  const facts = renderDemoWebchatScenarioFacts(scenario, {
+    prospectName: input.prospectName,
+    prospectPhone: input.prospectPhone,
+  });
+
+  const payload = await postJson<{ ok: boolean; turn: DemoCustomerTurn }>(
+    `${baseUrl}/v1/internal/demo/customer-turn`,
+    {
+      tenantId: link.customerjourneys_tenant_id,
+      scenarioKey: input.scenarioKey,
+      prospectName: input.prospectName,
+      prospectPhone: input.prospectPhone,
+      turnIndex: input.turnIndex,
+      scenarioFacts: {
+        label: scenario.label,
+        service: facts.service,
+        problem: facts.problem,
+        addressLine: facts.addressLine,
+        postcode: facts.postcode,
+        propertyNotes: facts.propertyNotes,
+        preferredTime: facts.preferredTime,
+        acceptancePhrase: facts.acceptancePhrase,
+        openingMessage: facts.openingMessage,
+        consolidatedDetailsMessage: facts.consolidatedDetailsMessage,
+        prospectName: facts.prospectName,
+        prospectPhone: facts.prospectPhone,
+      },
+      transcript: input.transcript.slice(-30).map((message) => ({
+        direction: message.direction,
+        body: message.body,
+      })),
+    },
+    buildRuntimeHeaders(link),
+  );
+
+  return payload.turn;
 }
 
 export async function postCustomerJourneysInboundTurn(

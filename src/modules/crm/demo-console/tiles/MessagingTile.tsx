@@ -44,7 +44,7 @@ export function MessagingTile({ smsNumber, whatsappNumber }: MessagingTileProps)
       </div>
 
       <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-        You'll get a real text back after the booking confirms. Make sure your number is on
+        You&apos;ll get a real text back after the booking confirms. Make sure your number is on
         <code className="mx-1">DEMO_CONSOLE_ALLOWLIST</code>or the outbound is blocked.
       </p>
     </section>

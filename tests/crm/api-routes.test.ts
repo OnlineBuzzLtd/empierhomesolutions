@@ -721,10 +721,12 @@ describe("crm api routes", () => {
     const invoiceInsert = vi
       .fn()
       .mockReturnValue({ select: vi.fn().mockReturnValue({ single: invoiceSingle }) });
-    const quoteUpdateEq = vi.fn().mockResolvedValue({ data: null, error: null });
-    const quoteUpdate = vi.fn().mockReturnValue({ eq: quoteUpdateEq });
-    const quoteSelectEq = vi.fn().mockReturnValue({ single: quoteSingle });
-    const quoteSelect = vi.fn().mockReturnValue({ eq: quoteSelectEq });
+    const quoteUpdateEq2 = vi.fn().mockResolvedValue({ data: null, error: null });
+    const quoteUpdateEq1 = vi.fn().mockReturnValue({ eq: quoteUpdateEq2 });
+    const quoteUpdate = vi.fn().mockReturnValue({ eq: quoteUpdateEq1 });
+    const quoteSelectEq2 = vi.fn().mockReturnValue({ single: quoteSingle });
+    const quoteSelectEq1 = vi.fn().mockReturnValue({ eq: quoteSelectEq2 });
+    const quoteSelect = vi.fn().mockReturnValue({ eq: quoteSelectEq1 });
     const from = vi.fn((table: string) => {
       if (table === "quotes") {
         return { select: quoteSelect, update: quoteUpdate };
@@ -742,7 +744,7 @@ describe("crm api routes", () => {
       jsonSuccess,
       normalizeBlankFields,
       nextInvoiceNumber: vi.fn().mockResolvedValue("INV-2026-0001"),
-      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase } }),
+      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
     }));
 
     const route = await import("@/app/api/crm/quotes/[id]/convert/route");
@@ -760,8 +762,9 @@ describe("crm api routes", () => {
   it("marks an invoice as paid", async () => {
     const single = vi.fn().mockResolvedValue({ data: { id: "inv-1", status: "paid" }, error: null });
     const select = vi.fn().mockReturnValue({ single });
-    const eq = vi.fn().mockReturnValue({ select });
-    const update = vi.fn().mockReturnValue({ eq });
+    const eq2 = vi.fn().mockReturnValue({ select });
+    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+    const update = vi.fn().mockReturnValue({ eq: eq1 });
     const from = vi.fn().mockReturnValue({ update });
     const schema = vi.fn().mockReturnValue({ from });
     const supabase = { schema };
@@ -837,6 +840,7 @@ describe("crm api routes", () => {
           supabase: {
             schema: vi.fn(),
           },
+          tenant: { id: "tenant-1" },
         },
       }),
     }));
@@ -1089,18 +1093,20 @@ describe("crm api routes", () => {
       error: null,
     });
     const acceptanceSingle = vi.fn().mockResolvedValue({ data: { id: "accept-1" }, error: null });
-    const quoteUpdateEq = vi
+    const quoteUpdateEq2 = vi
       .fn()
       .mockReturnValue({ select: vi.fn().mockReturnValue({ single: quoteUpdateSingle }) });
-    const quoteSelectEq = vi.fn().mockReturnValue({ single: quoteSingle });
+    const quoteUpdateEq1 = vi.fn().mockReturnValue({ eq: quoteUpdateEq2 });
+    const quoteSelectEq2 = vi.fn().mockReturnValue({ single: quoteSingle });
+    const quoteSelectEq1 = vi.fn().mockReturnValue({ eq: quoteSelectEq2 });
     const acceptanceUpsert = vi
       .fn()
       .mockReturnValue({ select: vi.fn().mockReturnValue({ single: acceptanceSingle }) });
     const from = vi.fn((table: string) => {
       if (table === "quotes") {
         return {
-          select: vi.fn().mockReturnValue({ eq: quoteSelectEq }),
-          update: vi.fn().mockReturnValue({ eq: quoteUpdateEq }),
+          select: vi.fn().mockReturnValue({ eq: quoteSelectEq1 }),
+          update: vi.fn().mockReturnValue({ eq: quoteUpdateEq1 }),
         };
       }
       if (table === "quote_acceptances") {
@@ -1178,15 +1184,17 @@ describe("crm api routes", () => {
     const scheduleUpdateSingle = vi
       .fn()
       .mockResolvedValue({ data: { id: "sched-1", invoice_id: "inv-1", status: "invoiced" }, error: null });
+    const scheduleSelectEq2 = vi.fn().mockReturnValue({ single: scheduleSingle });
+    const scheduleSelectEq1 = vi.fn().mockReturnValue({ eq: scheduleSelectEq2 });
+    const scheduleUpdateEq2 = vi
+      .fn()
+      .mockReturnValue({ select: vi.fn().mockReturnValue({ single: scheduleUpdateSingle }) });
+    const scheduleUpdateEq1 = vi.fn().mockReturnValue({ eq: scheduleUpdateEq2 });
     const from = vi.fn((table: string) => {
       if (table === "invoice_schedules") {
         return {
-          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: scheduleSingle }) }),
-          update: vi.fn().mockReturnValue({
-            eq: vi
-              .fn()
-              .mockReturnValue({ select: vi.fn().mockReturnValue({ single: scheduleUpdateSingle }) }),
-          }),
+          select: vi.fn().mockReturnValue({ eq: scheduleSelectEq1 }),
+          update: vi.fn().mockReturnValue({ eq: scheduleUpdateEq1 }),
         };
       }
       if (table === "invoices") {
@@ -1203,7 +1211,7 @@ describe("crm api routes", () => {
       jsonError,
       jsonSuccess,
       nextInvoiceNumber: vi.fn().mockResolvedValue("INV-2026-0002"),
-      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase } }),
+      requireCrmApiUser: vi.fn().mockResolvedValue({ session: { supabase, tenant: { id: "tenant-1" } } }),
     }));
     vi.doMock("@/modules/crm/lib/quotes", () => ({
       calculateInvoiceScheduleAmount: vi.fn().mockReturnValue({ subtotal: 250, total: 300 }),
@@ -2039,5 +2047,106 @@ describe("crm api routes", () => {
       }),
     );
     expect(body.ok).toBe(true);
+  });
+
+  it("previews a manager-only deletion trail", async () => {
+    const supabase = {};
+    const plan = {
+      root: { type: "customer", id: "cust-1", label: "Hannah Mercer" },
+      planHash: "hash-1",
+      blockers: [],
+    };
+    const buildDeleteTrailPlan = vi.fn().mockResolvedValue(plan);
+
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: { supabase, tenant: { id: "tenant-1" } },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/delete-trail", () => ({
+      deleteTrailRootTypes: ["customer", "job", "lead", "appointment", "ai_recovery_case"],
+      buildDeleteTrailPlan,
+    }));
+
+    const route = await import("@/app/api/crm/deletion/preview/route");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ root_type: "customer", root_id: "cust-1" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.plan).toEqual(plan);
+    expect(buildDeleteTrailPlan).toHaveBeenCalledWith({
+      supabase,
+      tenantId: "tenant-1",
+      rootType: "customer",
+      rootId: "cust-1",
+    });
+  });
+
+  it("executes a deletion trail with the service role client", async () => {
+    const sessionSupabase = {};
+    const adminSupabase = {};
+    const executeDeleteTrailPlan = vi.fn().mockResolvedValue({
+      deletionRequest: { id: "del-1", status: "completed" },
+      storageWarning: null,
+    });
+
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({ adminEnabled: true }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient: vi.fn().mockReturnValue(adminSupabase),
+    }));
+    vi.doMock("@/modules/crm/lib/api", () => ({
+      jsonError,
+      jsonSuccess,
+      requireCrmApiUser: vi.fn().mockResolvedValue({
+        session: {
+          supabase: sessionSupabase,
+          tenant: { id: "tenant-1" },
+          user: { id: "user-1" },
+        },
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/delete-trail", () => ({
+      deleteTrailRootTypes: ["customer", "job", "lead", "appointment", "ai_recovery_case"],
+      executeDeleteTrailPlan,
+    }));
+
+    const route = await import("@/app/api/crm/deletion/execute/route");
+    const response = (await route.POST!(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({
+          root_type: "customer",
+          root_id: "cust-1",
+          reason: "Customer requested deletion",
+          plan_hash: "0123456789abcdef",
+          confirmation_phrase: "DELETE CUSTOMER",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.deletionRequest.status).toBe("completed");
+    expect(executeDeleteTrailPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        supabase: adminSupabase,
+        storageSupabase: adminSupabase,
+        tenantId: "tenant-1",
+        actorId: "user-1",
+        rootType: "customer",
+        rootId: "cust-1",
+      }),
+    );
   });
 });

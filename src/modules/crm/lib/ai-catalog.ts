@@ -28,10 +28,16 @@ export type AiCatalogServiceItem = {
 export type AiCatalogPackageItem = {
   id: string;
   service_id: string | null;
+  job_type_id: string | null;
+  service_slug: string | null;
+  service_name: string | null;
+  job_type_slug: string | null;
+  job_type_name: string | null;
   name: string;
   description: string | null;
   display_price: number | null;
   vat_category: string | null;
+  pricing_style: "from" | "fixed";
   price_disclaimer: string;
   bookable: boolean;
   price_enabled: boolean;
@@ -59,6 +65,7 @@ export type AiCatalogResponse = {
     emergency_duration_minutes: number;
     can_quote_prices_in_chat: boolean;
     requires_office_quote_for_installations: boolean;
+    survey_first_for_installations_and_powerflush: boolean;
   };
   pricing_policy: {
     can_give_fixed_prices: boolean;
@@ -132,6 +139,7 @@ type PackageRow = {
   id: string;
   tenant_id?: string | null;
   service_id?: string | null;
+  job_type_id?: string | null;
   name: string;
   description?: string | null;
   is_active?: boolean | null;
@@ -141,6 +149,7 @@ type PackageRow = {
   ai_requires_office_quote?: boolean | null;
   ai_default_duration_minutes?: number | string | null;
   ai_price_disclaimer?: string | null;
+  ai_pricing_style?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   items?: PackageItemRow[] | null;
@@ -284,19 +293,48 @@ export function projectAiCatalog(input: AiCatalogProjectionInput): AiCatalogResp
   const packages = (input.packages ?? [])
     .filter((pkg) => pkg.is_active !== false)
     .filter((pkg) => pkg.ai_visible !== false)
+    .filter((pkg) => !pkg.service_id || services.some((service) => service.id === pkg.service_id))
+    .filter(
+      (pkg) =>
+        !pkg.job_type_id ||
+        (input.jobTypes ?? []).some(
+          (jobType) =>
+            jobType.id === pkg.job_type_id &&
+            jobType.active !== false &&
+            jobType.ai_visible !== false &&
+            (!pkg.service_id || jobType.service_id === pkg.service_id),
+        ),
+    )
     .map((pkg) => {
+      const linkedService = services.find((service) => service.id === pkg.service_id) ?? null;
+      const linkedJobType =
+        (input.jobTypes ?? [])
+          .filter((jobType) => jobType.active !== false)
+          .filter((jobType) => jobType.ai_visible !== false)
+          .find((jobType) => jobType.id === pkg.job_type_id && (!pkg.service_id || jobType.service_id === pkg.service_id)) ?? null;
       const total = (pkg.items ?? []).reduce(
         (sum, item) => sum + asMoney(item.qty ?? 1) * asMoney(item.unit_price),
         0,
       );
       const priceEnabled = pkg.ai_price_enabled === true;
+      const requestedStyle = pkg.ai_pricing_style === "fixed" ? "fixed" : "from";
+      const pricingStyle: "from" | "fixed" =
+        requestedStyle === "fixed" && pkg.ai_requires_office_quote === false && asBool(settings?.ai_catalog_can_give_fixed_prices, false)
+          ? "fixed"
+          : "from";
       return {
         id: pkg.id,
         service_id: pkg.service_id ?? null,
+        job_type_id: linkedJobType?.id ?? null,
+        service_slug: linkedService?.slug ?? null,
+        service_name: linkedService?.name ?? null,
+        job_type_slug: linkedJobType?.slug ?? null,
+        job_type_name: linkedJobType?.name ?? null,
         name: pkg.name,
         description: sanitizeAiCatalogText(pkg.description),
         display_price: priceEnabled ? round2(total) : null,
         vat_category: null,
+        pricing_style: pricingStyle,
         price_disclaimer: sanitizeAiCatalogText(pkg.ai_price_disclaimer) || priceFallback,
         bookable: pkg.ai_bookable === true,
         price_enabled: priceEnabled,
@@ -335,6 +373,7 @@ export function projectAiCatalog(input: AiCatalogProjectionInput): AiCatalogResp
         settings?.ai_catalog_requires_office_quote_for_installations,
         true,
       ),
+      survey_first_for_installations_and_powerflush: true,
     },
     pricing_policy: {
       can_give_fixed_prices: asBool(settings?.ai_catalog_can_give_fixed_prices, false),

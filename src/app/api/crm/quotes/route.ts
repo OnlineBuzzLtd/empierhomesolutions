@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const auth = await requireCrmApiUser();
+    const auth = await requireCrmApiUser(["management", "admin", "sales", "accounts"]);
     if ("error" in auth) {
       return auth.error;
     }
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     const { supabase, tenant, user } = auth.session;
     const payload = {
       ...parsed.data,
+      tenant_id: tenant.id,
       subtotal: financials.subtotal,
       total: financials.total,
       total_cost: financials.total_cost,
@@ -60,6 +61,9 @@ export async function POST(request: Request) {
       vatRate: parsed.data.vat_rate,
       vatCategory: parsed.data.vat_category,
       total: financials.total,
+      installScope: parsed.data.install_scope,
+      paymentTerms: parsed.data.payment_terms,
+      agentAutonomy: parsed.data.agent_autonomy,
       validUntil: parsed.data.valid_until ?? null,
       status: parsed.data.status,
       changeSummary: "Initial version",

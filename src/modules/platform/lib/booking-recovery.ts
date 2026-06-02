@@ -28,6 +28,20 @@ type BookingAppointmentRow = {
   job_id: string | null;
 };
 
+type BookingReviewLinkRow = {
+  id: string;
+  conversation_id: string;
+  customer_id: string | null;
+  lead_id: string | null;
+  job_id: string | null;
+  booking_appointment_id: string | null;
+  latest_channel: string | null;
+  identity_phone: string | null;
+  identity_email: string | null;
+  metadata: Record<string, unknown>;
+  latest_event_at: string | null;
+};
+
 export type BookingRecoveryCase = {
   id: string;
   eventId: string | null;
@@ -104,7 +118,7 @@ function buildReason(input: {
 }
 
 export async function listBookingRecoveryCases(supabase: SupabaseClient, tenantId: string) {
-  const [eventsResult, customersResult, orphanAppointmentsResult] = await Promise.all([
+  const [eventsResult, customersResult, orphanAppointmentsResult, reviewLinksResult] = await Promise.all([
     supabase
       .schema("crm")
       .from("platform_event_log")
@@ -132,11 +146,21 @@ export async function listBookingRecoveryCases(supabase: SupabaseClient, tenantI
       .order("starts_at", { ascending: false })
       .limit(100)
       .returns<BookingAppointmentRow[]>(),
+    supabase
+      .schema("crm")
+      .from("platform_conversation_links")
+      .select("id, conversation_id, customer_id, lead_id, job_id, booking_appointment_id, latest_channel, identity_phone, identity_email, metadata, latest_event_at")
+      .eq("tenant_id", tenantId)
+      .contains("metadata", { needs_review: true })
+      .order("latest_event_at", { ascending: false, nullsFirst: false })
+      .limit(100)
+      .returns<BookingReviewLinkRow[]>(),
   ]);
 
   if (eventsResult.error) throw eventsResult.error;
   if (customersResult.error) throw customersResult.error;
   if (orphanAppointmentsResult.error) throw orphanAppointmentsResult.error;
+  if (reviewLinksResult.error) throw reviewLinksResult.error;
 
   const events = eventsResult.data ?? [];
   const ignoredBookingIds = new Set(
@@ -147,6 +171,7 @@ export async function listBookingRecoveryCases(supabase: SupabaseClient, tenantI
   );
   const customers = customersResult.data ?? [];
   const orphanAppointments = orphanAppointmentsResult.data ?? [];
+  const reviewLinks = reviewLinksResult.data ?? [];
   const externalIds = [...new Set(events.map((event) => bookingIdFromPayload(event.payload)).filter((value): value is string => Boolean(value)))];
   const appointmentLookupResult =
     externalIds.length === 0
@@ -224,6 +249,50 @@ export async function listBookingRecoveryCases(supabase: SupabaseClient, tenantI
       endsAt: appointment.ends_at,
       reason: buildReason({ event: null, appointment, conflictReason: null }),
       conflictingCustomerId: null,
+    });
+  }
+
+  const reviewAppointmentIds = [
+    ...new Set(reviewLinks.map((link) => link.booking_appointment_id).filter((value): value is string => Boolean(value))),
+  ];
+  const reviewAppointmentsResult =
+    reviewAppointmentIds.length === 0
+      ? { data: [] as BookingAppointmentRow[], error: null }
+      : await supabase
+          .schema("crm")
+          .from("appointments")
+          .select("id, external_id, title, starts_at, ends_at, status, customer_id, lead_id, job_id")
+          .eq("tenant_id", tenantId)
+          .in("id", reviewAppointmentIds)
+          .returns<BookingAppointmentRow[]>();
+
+  if (reviewAppointmentsResult.error) throw reviewAppointmentsResult.error;
+
+  const reviewAppointmentsById = new Map((reviewAppointmentsResult.data ?? []).map((appointment) => [appointment.id, appointment]));
+  for (const link of reviewLinks) {
+    const metadata = asRecord(link.metadata);
+    const appointment = link.booking_appointment_id ? reviewAppointmentsById.get(link.booking_appointment_id) ?? null : null;
+    const bookingId = pickString(metadata, ["platform_booking_id", "booking_uid", "booking_id"]);
+    const id = `review:${link.id}`;
+    if (appointment && [...cases.values()].some((item) => item.appointmentId === appointment.id)) {
+      continue;
+    }
+    cases.set(id, {
+      id,
+      eventId: null,
+      appointmentId: appointment?.id ?? link.booking_appointment_id,
+      bookingId: bookingId ?? appointment?.external_id ?? null,
+      channel: link.latest_channel,
+      customerName: pickString(metadata, ["review_customer_name"]),
+      phone: link.identity_phone,
+      email: link.identity_email,
+      address: pickString(metadata, ["review_address"]),
+      postcode: pickString(metadata, ["review_postcode"]),
+      service: pickString(metadata, ["service_name_candidate", "job_type_name_candidate"]) ?? appointment?.title ?? null,
+      startsAt: appointment?.starts_at ?? link.latest_event_at,
+      endsAt: appointment?.ends_at ?? null,
+      reason: pickString(metadata, ["review_reason"]) ?? "AI booking needs office review before all CRM fields can be trusted.",
+      conflictingCustomerId: pickString(metadata, ["conflicting_customer_id"]),
     });
   }
 

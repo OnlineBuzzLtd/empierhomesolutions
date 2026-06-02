@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
+import { DeleteTrailButton } from "@/modules/crm/components/client/DeleteTrailButton";
 import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
 import { ExpenseCreateForm } from "@/modules/crm/components/forms/ExpenseCreateForm";
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
@@ -39,6 +40,14 @@ import {
 import { getAssignableEngineerOptions } from "@/modules/crm/lib/staff";
 
 const SHOW_OFF_LOOP_JOB_SURFACES = false;
+
+function formatJobTime(value: string | null | undefined) {
+  if (!value) {
+    return "TBC";
+  }
+  const match = value.match(/^(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : value;
+}
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [session, { id }, demoState] = await Promise.all([requireCrmUser(), params, getCrmDemoState()]);
@@ -153,6 +162,7 @@ async function AdminJobView({
   const availableSiteIds = new Set(availableSites.map((site) => site.id));
   const availableSiteContacts = siteContacts.filter((contact) => availableSiteIds.has(contact.site_id));
   const canManageCommercials = userCanManageSettings(session.profile?.role);
+  const canDraftQuote = ["management", "admin", "sales", "accounts"].includes(session.profile?.role ?? "");
   const siteAddress = [job.site?.address_line1, job.site?.city, job.site?.postcode]
     .filter(Boolean)
     .join(", ");
@@ -162,6 +172,8 @@ async function AdminJobView({
     job.assignees && job.assignees.length > 0
       ? job.assignees.map((assignee) => assignee.user_profile?.full_name ?? "Engineer").join(", ")
       : job.assigned_engineer || "Unassigned";
+  const serviceNeedsReview = !job.service?.name;
+  const jobTypeNeedsReview = !job.job_type?.name;
 
   return (
     <div className="space-y-6">
@@ -182,11 +194,20 @@ async function AdminJobView({
                 Site contact: {job.site_contact?.full_name ?? "Not set"}
               </p>
               <p className="text-sm text-slate-700">Assigned crew: {assignedEngineerLabel}</p>
-              <p className="text-sm text-slate-700">Service: {job.service?.name ?? "Not set"}</p>
-              <p className="text-sm text-slate-700">Job type: {job.job_type?.name ?? "Not set"}</p>
+              <p className="text-sm text-slate-700">
+                Service: {job.service?.name ?? <span className="font-semibold text-amber-700">Needs review</span>}
+              </p>
+              <p className="text-sm text-slate-700">
+                Job type: {job.job_type?.name ?? <span className="font-semibold text-amber-700">Needs review</span>}
+              </p>
               <p className="text-sm text-slate-700">Date: {job.scheduled_date ?? "TBC"}</p>
-              <p className="text-sm text-slate-700">Time: {job.scheduled_time ?? "TBC"}</p>
+              <p className="text-sm text-slate-700">Time: {formatJobTime(job.scheduled_time)}</p>
             </div>
+            {serviceNeedsReview || jobTypeNeedsReview ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                This AI booking needs office review before the service and job type can be trusted.
+              </p>
+            ) : null}
             {job.site?.access_notes || job.site?.parking_notes ? (
               <div className="grid gap-3 md:grid-cols-2">
                 <p className="rounded-xl bg-amber-50 p-4 text-sm text-slate-700">
@@ -252,6 +273,35 @@ async function AdminJobView({
               <option value="no_access">No Access</option>
               <option value="aborted">Aborted</option>
             </select>
+            <select
+              name="visit_classification"
+              defaultValue={job.visit_classification ?? "standard"}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="standard">Standard visit</option>
+              <option value="survey_assessment">Survey / assessment</option>
+              <option value="install_work">Install work</option>
+              <option value="powerflush_work">Powerflush work</option>
+              <option value="repair">Repair</option>
+              <option value="follow_up">Follow-up</option>
+            </select>
+            <select
+              name="commercial_stage"
+              defaultValue={job.commercial_stage ?? "booked"}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="booked">Booked</option>
+              <option value="survey_booked">Survey booked</option>
+              <option value="survey_done">Survey done</option>
+              <option value="quote_draft">Quote draft</option>
+              <option value="quote_sent">Quote sent</option>
+              <option value="accepted">Accepted</option>
+              <option value="deposit_due">Deposit due</option>
+              <option value="deposit_paid">Deposit paid</option>
+              <option value="install_ready">Install ready</option>
+              <option value="final_invoice_due">Final invoice due</option>
+              <option value="closed">Closed</option>
+            </select>
             {job.status === "completed" ||
             job.status === "invoiced" ||
             job.status === "no_access" ||
@@ -270,7 +320,7 @@ async function AdminJobView({
             <input
               name="scheduled_time"
               type="time"
-              defaultValue={job.scheduled_time ?? ""}
+              defaultValue={job.scheduled_time ? formatJobTime(job.scheduled_time) : ""}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -356,7 +406,21 @@ async function AdminJobView({
               <p className="text-sm text-slate-600">Total {formatCurrency(quote.total)}</p>
             </div>
           ) : (
-            <EmptyState message="No quote linked yet." />
+            <div className="space-y-3">
+              <EmptyState message="No quote linked yet." />
+              {canDraftQuote ? (
+                <ApiForm
+                  endpoint={`/api/crm/jobs/${job.id}/draft-quote`}
+                  submitLabel="Draft AI Quote"
+                  className="space-y-0"
+                  successMessage="Quote draft requested."
+                >
+                  <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                    Uses catalogue package pricing and keeps the quote as a draft for office review.
+                  </p>
+                </ApiForm>
+              ) : null}
+            </div>
           )}
         </SectionCard>
 
@@ -377,6 +441,57 @@ async function AdminJobView({
           ) : (
             <EmptyState message="No invoice linked yet." />
           )}
+        </SectionCard>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <SectionCard title="Survey assessment">
+          <ApiForm endpoint={`/api/crm/jobs/${job.id}/survey-assessment`} method="PUT" submitLabel="Save Survey" className="grid gap-3">
+            <select name="status" defaultValue={job.surveyAssessment?.status ?? "draft"} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="draft">Draft</option>
+              <option value="completed">Completed</option>
+            </select>
+            <input name="boiler_type" defaultValue={job.surveyAssessment?.boiler_type ?? ""} placeholder="Boiler type" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="boiler_model" defaultValue={job.surveyAssessment?.boiler_model ?? ""} placeholder="Boiler model" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="flue_route" defaultValue={job.surveyAssessment?.flue_route ?? ""} placeholder="Flue route" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="gas_pipe_notes" defaultValue={job.surveyAssessment?.gas_pipe_notes ?? ""} placeholder="Gas pipe / condensate / access notes" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="engineer_notes" defaultValue={job.surveyAssessment?.engineer_notes ?? ""} placeholder="Engineer notes" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            {job.surveyAssessment?.completed_at ? <p className="text-xs text-slate-500">Completed {formatDateTime(job.surveyAssessment.completed_at)}</p> : null}
+          </ApiForm>
+        </SectionCard>
+
+        <SectionCard title="Cooling-off">
+          <ApiForm endpoint={`/api/crm/jobs/${job.id}/cooling-off`} method="PUT" submitLabel="Save Consent" className="grid gap-3">
+            <input type="hidden" name="applies" value="false" />
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" name="applies" value="true" defaultChecked={job.coolingOffConsent?.applies === true} />
+              Cooling-off applies
+            </label>
+            <input name="contract_channel" defaultValue={job.coolingOffConsent?.contract_channel ?? ""} placeholder="online, phone, customer home" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="expires_at" type="datetime-local" defaultValue={job.coolingOffConsent?.expires_at?.slice(0, 16) ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="early_start_consent_at" type="datetime-local" defaultValue={job.coolingOffConsent?.early_start_consent_at?.slice(0, 16) ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="consent_method" defaultValue={job.coolingOffConsent?.consent_method ?? ""} placeholder="Consent method" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <textarea name="notes" defaultValue={job.coolingOffConsent?.notes ?? ""} placeholder="Consent notes" className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </ApiForm>
+        </SectionCard>
+
+        <SectionCard title="Compliance closeout">
+          <ApiForm endpoint={`/api/crm/jobs/${job.id}/compliance-closeout`} method="PUT" submitLabel="Save Closeout" className="grid gap-3">
+            <input type="hidden" name="commissioning_complete" value="false" />
+            <input type="hidden" name="controls_handover_complete" value="false" />
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" name="commissioning_complete" value="true" defaultChecked={job.complianceCloseout?.commissioning_complete === true} />
+              Commissioning complete
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" name="controls_handover_complete" value="true" defaultChecked={job.complianceCloseout?.controls_handover_complete === true} />
+              Controls handover complete
+            </label>
+            <input name="building_regs_notification_due_at" type="datetime-local" defaultValue={job.complianceCloseout?.building_regs_notification_due_at?.slice(0, 16) ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="building_regs_notified_at" type="datetime-local" defaultValue={job.complianceCloseout?.building_regs_notified_at?.slice(0, 16) ?? ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="gas_safe_reference" defaultValue={job.complianceCloseout?.gas_safe_reference ?? ""} placeholder="Gas Safe / certificate ref" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input name="evidence_url" type="url" defaultValue={job.complianceCloseout?.evidence_url ?? ""} placeholder="Evidence URL" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </ApiForm>
         </SectionCard>
       </div>
 
@@ -962,6 +1077,20 @@ async function AdminJobView({
           </div>
         </SectionCard>
       </div>
+
+      {canManageCommercials ? (
+        <SectionCard title="Danger Zone">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Delete job trail</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Removes operational job records and redacts retained quote, invoice, and payment history.
+              </p>
+            </div>
+            <DeleteTrailButton rootType="job" rootId={job.id} />
+          </div>
+        </SectionCard>
+      ) : null}
     </div>
   );
 }

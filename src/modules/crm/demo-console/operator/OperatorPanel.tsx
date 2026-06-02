@@ -1,7 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { ConsentForm } from "@/modules/crm/demo-console/operator/ConsentForm";
+import type { ParsedWebchatMessage } from "@/modules/crm/demo-console/parse-webchat-session";
+import type { DemoWebchatController } from "@/modules/crm/demo-console/use-demo-webchat";
+import {
+  DEMO_WEBCHAT_SCENARIOS,
+  getDemoWebchatScenario,
+  renderDemoWebchatLine,
+  renderDemoWebchatScenarioFacts,
+  type DemoWebchatScenarioKey,
+} from "@/modules/crm/demo-console/webchat-scenarios";
+import {
+  getDemoWebchatSpeedDelayMs,
+  initialDemoWebchatAutopilotState,
+  reduceDemoWebchatAutopilot,
+  type DemoWebchatRunnerMode,
+  type DemoWebchatSpeed,
+} from "@/modules/crm/demo-console/webchat-autopilot";
 
 // Operator panel (tickets E-1 + E-4 + E-5 + E-6 assembled). Opened via
 // Ctrl+Shift+D on /demo/run. Sections:
@@ -30,14 +46,48 @@ type OperatorPanelProps = {
   onSessionStarted: (session: ActiveDemoSession) => void;
   onSessionEnded: () => void;
   onKillSwitchToggled: (newValue: Date | null) => void;
+  webchat: DemoWebchatController;
 };
 
-type TriggerResult = {
-  channel: "google" | "meta";
+export type TriggerResult = {
+  channel: "google" | "meta" | "quote" | "webchat";
   ok: boolean;
   message: string;
   at: Date;
 };
+
+export function clearWebchatTriggerResults(results: TriggerResult[]) {
+  return results.filter((result) => result.channel !== "webchat");
+}
+
+type DemoCustomerTurnResponse = {
+  ok?: boolean;
+  error?: string;
+  turn?: {
+    status?: "message" | "complete" | "blocked";
+    message?: string | null;
+    reason?: string;
+    stopCode?: string;
+  };
+};
+
+type ScenarioRunOutcome =
+  | { status: "completed"; message: string }
+  | { status: "blocked"; message: string };
+
+function appendTranscriptMessages(
+  current: ParsedWebchatMessage[],
+  next: ParsedWebchatMessage[],
+) {
+  const seen = new Set(current.map((message) => message.id));
+  const merged = [...current];
+  for (const message of next) {
+    if (seen.has(message.id)) continue;
+    seen.add(message.id);
+    merged.push(message);
+  }
+  return merged;
+}
 
 export function OperatorPanel({
   activeSession,
@@ -46,17 +96,261 @@ export function OperatorPanel({
   onSessionStarted,
   onSessionEnded,
   onKillSwitchToggled,
+  webchat,
 }: OperatorPanelProps) {
   const [triggerResults, setTriggerResults] = useState<TriggerResult[]>([]);
   const [triggerBusy, setTriggerBusy] = useState<"google" | "meta" | null>(null);
+  const [quoteBusy, setQuoteBusy] = useState<"mark_survey_done_then_draft" | "draft_from_service_booking" | "generate_deposit_invoice" | null>(null);
+  const [autopilot, dispatchAutopilot] = useReducer(
+    reduceDemoWebchatAutopilot,
+    initialDemoWebchatAutopilotState,
+  );
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [killBusy, setKillBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autopilotStoppedRef = useRef(false);
+  const autopilotPausedRef = useRef(false);
+  const autopilotRunIdRef = useRef(0);
 
   const killActive =
     killSwitchAt !== null && Date.now() - killSwitchAt.getTime() < 24 * 60 * 60 * 1000;
   const triggersDisabled = !activeSession || killActive || triggerBusy !== null;
+  const autopilotActive = autopilot.status === "running" || autopilot.status === "paused";
+  const selectedScenario = getDemoWebchatScenario(autopilot.scenarioKey);
+
+  useEffect(() => {
+    if (!activeSession) {
+      autopilotStoppedRef.current = true;
+      autopilotPausedRef.current = false;
+      dispatchAutopilot({ type: "stop" });
+    }
+  }, [activeSession]);
+
+  function wait(ms: number) {
+    return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async function waitWhilePaused() {
+    while (autopilotPausedRef.current && !autopilotStoppedRef.current) {
+      await wait(150);
+    }
+  }
+
+  async function waitWithControls(ms: number) {
+    const started = Date.now();
+    while (Date.now() - started < ms) {
+      if (autopilotStoppedRef.current) return;
+      await waitWhilePaused();
+      await wait(Math.min(150, ms - (Date.now() - started)));
+    }
+  }
+
+  async function getNextDemoCustomerTurn(input: {
+    scenarioKey: DemoWebchatScenarioKey;
+    transcript: ParsedWebchatMessage[];
+    turnIndex: number;
+  }) {
+    const res = await fetch("/api/crm/demo/webchat/next-customer-turn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const body = (await res.json().catch(() => ({}))) as DemoCustomerTurnResponse;
+    if (!res.ok || body.ok !== true || !body.turn) {
+      throw new Error(body.error ?? `Demo customer HTTP ${res.status}`);
+    }
+    return body.turn;
+  }
+
+  async function runFixedScriptScenario(input: {
+    scenarioKey: DemoWebchatScenarioKey;
+    speed: DemoWebchatSpeed;
+    runId: number;
+  }): Promise<ScenarioRunOutcome> {
+    if (!activeSession) return { status: "blocked", message: "No active demo session." };
+    const scenario = getDemoWebchatScenario(input.scenarioKey);
+    let conversationId: string | null = null;
+    for (let index = 0; index < scenario.lines.length; index += 1) {
+      if (autopilotStoppedRef.current || autopilotRunIdRef.current !== input.runId) {
+        return { status: "blocked", message: "Scenario stopped." };
+      }
+      await waitWhilePaused();
+      const line = renderDemoWebchatLine(scenario.lines[index], {
+        prospectName: activeSession.prospectName,
+        prospectPhone: activeSession.prospectPhone,
+      });
+      dispatchAutopilot({
+        type: "line",
+        lineIndex: index,
+        message: `Sending fixed line ${index + 1} of ${scenario.lines.length}.`,
+      });
+      const sent = await webchat.sendMessage(line, {
+        scenarioKey: input.scenarioKey,
+        forceNewSession: index === 0,
+        conversationId,
+      });
+      conversationId = sent.conversationId;
+      await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
+    }
+    return { status: "completed", message: `${scenario.label} completed.` };
+  }
+
+  async function runAiCustomerScenario(input: {
+    scenarioKey: DemoWebchatScenarioKey;
+    speed: DemoWebchatSpeed;
+    runId: number;
+  }): Promise<ScenarioRunOutcome> {
+    if (!activeSession) return { status: "blocked", message: "No active demo session." };
+    const scenario = getDemoWebchatScenario(input.scenarioKey);
+    const facts = renderDemoWebchatScenarioFacts(scenario, {
+      prospectName: activeSession.prospectName,
+      prospectPhone: activeSession.prospectPhone,
+    });
+    let transcript: ParsedWebchatMessage[] = [];
+    let conversationId: string | null = null;
+
+    dispatchAutopilot({
+      type: "line",
+      lineIndex: 0,
+      message: "Sending opening customer message.",
+    });
+    const opening = await webchat.sendMessage(facts.openingMessage, {
+      scenarioKey: input.scenarioKey,
+      forceNewSession: true,
+    });
+    conversationId = opening.conversationId;
+    transcript = appendTranscriptMessages(transcript, opening.messages);
+    await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
+
+    for (let turnIndex = 1; turnIndex <= 8; turnIndex += 1) {
+      if (autopilotStoppedRef.current || autopilotRunIdRef.current !== input.runId) {
+        return { status: "blocked", message: "Scenario stopped." };
+      }
+      await waitWhilePaused();
+      dispatchAutopilot({
+        type: "line",
+        lineIndex: turnIndex,
+        message: "Reading the AI reply.",
+      });
+      const latestAiReply = [...transcript].reverse().find((message) => message.direction === "outbound");
+      if (!latestAiReply) {
+        return { status: "blocked", message: "The AI did not return a reply to answer." };
+      }
+
+      dispatchAutopilot({
+        type: "line",
+        lineIndex: turnIndex,
+        message: "Generating the next customer reply.",
+      });
+      const nextTurn = await getNextDemoCustomerTurn({
+        scenarioKey: input.scenarioKey,
+        transcript,
+        turnIndex,
+      });
+      if (nextTurn.status === "complete") {
+        return { status: "completed", message: nextTurn.reason ?? `${scenario.label} completed.` };
+      }
+      if (nextTurn.status !== "message" || !nextTurn.message) {
+        return {
+          status: "blocked",
+          message: nextTurn.reason ?? "Demo customer could not generate a safe next reply.",
+        };
+      }
+
+      dispatchAutopilot({
+        type: "line",
+        lineIndex: turnIndex,
+        message: "Sending adaptive customer reply.",
+      });
+      const sent = await webchat.sendMessage(nextTurn.message, {
+        scenarioKey: input.scenarioKey,
+        conversationId,
+      });
+      conversationId = sent.conversationId;
+      transcript = appendTranscriptMessages(transcript, sent.messages);
+      await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
+    }
+
+    return { status: "blocked", message: "Stopped after the maximum adaptive turns." };
+  }
+
+  async function startWebchatScenario() {
+    if (!activeSession || killActive || autopilotActive || webchat.busy) return;
+    const scenarioKey = autopilot.scenarioKey;
+    const speed = autopilot.speed;
+    const runnerMode = autopilot.runnerMode;
+    const scenario = getDemoWebchatScenario(scenarioKey);
+    const runId = autopilotRunIdRef.current + 1;
+    autopilotRunIdRef.current = runId;
+    autopilotStoppedRef.current = false;
+    autopilotPausedRef.current = false;
+    webchat.reset();
+    dispatchAutopilot({ type: "start", scenarioKey, speed, runnerMode });
+    setError(null);
+    setTriggerResults(clearWebchatTriggerResults);
+
+    try {
+      const outcome =
+        runnerMode === "ai_customer"
+          ? await runAiCustomerScenario({ scenarioKey, speed, runId })
+          : await runFixedScriptScenario({ scenarioKey, speed, runId });
+      if (autopilotStoppedRef.current || autopilotRunIdRef.current !== runId) return;
+      if (outcome.status === "blocked") {
+        dispatchAutopilot({ type: "block", message: outcome.message });
+        setTriggerResults((prev) => [
+          {
+            channel: "webchat",
+            ok: false,
+            message: outcome.message,
+            at: new Date(),
+          },
+          ...prev.slice(0, 9),
+        ]);
+        return;
+      }
+      dispatchAutopilot({ type: "complete" });
+      setTriggerResults((prev) => [
+        {
+          channel: "webchat",
+          ok: true,
+          message: outcome.message || `${scenario.label} completed.`,
+          at: new Date(),
+        },
+        ...prev.slice(0, 9),
+      ]);
+    } catch (caught) {
+      if (autopilotStoppedRef.current || autopilotRunIdRef.current !== runId) return;
+      const message = caught instanceof Error ? caught.message : "Scripted webchat failed.";
+      dispatchAutopilot({ type: "fail", message });
+      setTriggerResults((prev) => [
+        {
+          channel: "webchat",
+          ok: false,
+          message,
+          at: new Date(),
+        },
+        ...prev.slice(0, 9),
+      ]);
+    }
+  }
+
+  function pauseWebchatScenario() {
+    autopilotPausedRef.current = true;
+    dispatchAutopilot({ type: "pause" });
+  }
+
+  function resumeWebchatScenario() {
+    autopilotPausedRef.current = false;
+    dispatchAutopilot({ type: "resume" });
+  }
+
+  function stopWebchatScenario() {
+    autopilotStoppedRef.current = true;
+    autopilotPausedRef.current = false;
+    autopilotRunIdRef.current += 1;
+    dispatchAutopilot({ type: "stop" });
+  }
 
   async function fireTrigger(channel: "google" | "meta") {
     setError(null);
@@ -88,6 +382,46 @@ export function OperatorPanel({
       setError(caught instanceof Error ? caught.message : "Trigger failed.");
     } finally {
       setTriggerBusy(null);
+    }
+  }
+
+  async function runQuoteAction(action: "mark_survey_done_then_draft" | "draft_from_service_booking" | "generate_deposit_invoice") {
+    setError(null);
+    setQuoteBusy(action);
+    try {
+      const res = await fetch("/api/crm/demo/quote/from-job", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        quoteAutomation?: { status?: string; quoteId?: string | null; blockers?: Array<{ message?: string }> };
+        invoice?: { invoice_number?: string; total?: number };
+      };
+      const ok = res.ok && body.ok === true;
+      const blocker = body.quoteAutomation?.blockers?.[0]?.message;
+      const message = ok
+        ? body.invoice?.invoice_number
+          ? `Invoice ${body.invoice.invoice_number} generated.`
+          : body.quoteAutomation?.quoteId
+            ? `Quote ${body.quoteAutomation.quoteId.slice(0, 8)} ${body.quoteAutomation.status ?? "ready"}.`
+            : blocker ?? "Quote action completed."
+        : body.error ?? blocker ?? `HTTP ${res.status}`;
+      setTriggerResults((prev) => [
+        {
+          channel: "quote",
+          ok,
+          message,
+          at: new Date(),
+        },
+        ...prev.slice(0, 9),
+      ]);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Quote action failed.");
+    } finally {
+      setQuoteBusy(null);
     }
   }
 
@@ -173,7 +507,7 @@ export function OperatorPanel({
           <p className="font-semibold">Kill switch active.</p>
           <p className="mt-1">
             All trigger buttons disabled. Set at{" "}
-            {killSwitchAt?.toLocaleTimeString()}. Clear it below when you've investigated.
+            {killSwitchAt?.toLocaleTimeString()}. Clear it below when you have investigated.
           </p>
         </div>
       ) : null}
@@ -226,6 +560,144 @@ export function OperatorPanel({
                 ))}
               </ul>
             ) : null}
+          </section>
+
+          <section className="mt-4 space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Scripted webchat
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                ["ai_customer", "AI customer"],
+                ["fixed_script", "Fixed script"],
+              ] as Array<[DemoWebchatRunnerMode, string]>).map(([runnerMode, label]) => (
+                <button
+                  key={runnerMode}
+                  type="button"
+                  onClick={() => dispatchAutopilot({ type: "select_runner_mode", runnerMode })}
+                  disabled={autopilotActive}
+                  className={`rounded-lg border px-2 py-1.5 text-xs font-semibold disabled:opacity-50 ${
+                    autopilot.runnerMode === runnerMode
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-slate-200 text-slate-600"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={autopilot.scenarioKey}
+              onChange={(event) =>
+                dispatchAutopilot({
+                  type: "select_scenario",
+                  scenarioKey: event.target.value as DemoWebchatScenarioKey,
+                })
+              }
+              disabled={autopilotActive}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50"
+            >
+              {DEMO_WEBCHAT_SCENARIOS.map((scenario) => (
+                <option key={scenario.key} value={scenario.key}>
+                  {scenario.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] leading-snug text-slate-500">
+              {selectedScenario.description}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {(["slow", "normal", "fast"] as DemoWebchatSpeed[]).map((speed) => (
+                <button
+                  key={speed}
+                  type="button"
+                  onClick={() => dispatchAutopilot({ type: "select_speed", speed })}
+                  disabled={autopilotActive}
+                  className={`rounded-lg border px-2 py-1.5 text-xs font-semibold capitalize disabled:opacity-50 ${
+                    autopilot.speed === speed
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-slate-200 text-slate-600"
+                  }`}
+                >
+                  {speed}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={startWebchatScenario}
+                disabled={!activeSession || killActive || autopilotActive || webchat.busy}
+                className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Start
+              </button>
+              <button
+                type="button"
+                onClick={pauseWebchatScenario}
+                disabled={autopilot.status !== "running"}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Pause
+              </button>
+              <button
+                type="button"
+                onClick={resumeWebchatScenario}
+                disabled={autopilot.status !== "paused"}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Resume
+              </button>
+              <button
+                type="button"
+                onClick={stopWebchatScenario}
+                disabled={!autopilotActive}
+                className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Stop
+              </button>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+              <p className="font-semibold capitalize text-slate-800">{autopilot.status}</p>
+              <p>
+                {autopilot.message ??
+                  (autopilot.runnerMode === "ai_customer"
+                    ? "AI customer will answer the live AI's actual questions."
+                    : selectedScenario.expectedOutcome)}
+              </p>
+            </div>
+          </section>
+
+          <section className="mt-4 space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              AI quote story
+            </h3>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => runQuoteAction("mark_survey_done_then_draft")}
+                disabled={triggersDisabled || quoteBusy !== null}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {quoteBusy === "mark_survey_done_then_draft" ? "Drafting..." : "Mark survey done + draft quote"}
+              </button>
+              <button
+                type="button"
+                onClick={() => runQuoteAction("draft_from_service_booking")}
+                disabled={triggersDisabled || quoteBusy !== null}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {quoteBusy === "draft_from_service_booking" ? "Drafting..." : "Run AI quote draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => runQuoteAction("generate_deposit_invoice")}
+                disabled={triggersDisabled || quoteBusy !== null}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {quoteBusy === "generate_deposit_invoice" ? "Generating..." : "Generate deposit invoice"}
+              </button>
+            </div>
           </section>
 
           <section className="mt-4 space-y-2">

@@ -23,6 +23,7 @@
     "crm:perf:benchmark": "node scripts/perf/crm-production-benchmark.mjs",
     "crm:perf:transitions": "node scripts/perf/crm-transition-benchmark.mjs",
     "crm:perf:explain": "node scripts/perf/crm-db-explain.mjs",
+    "crm:perf:io": "node scripts/ops/supabase-io-audit.mjs",
     "crm:perf:proof": "node scripts/perf/crm-performance-proof.mjs",
     "crm:perf:cleanup": "node scripts/perf/crm-seed-synthetic-tenant.mjs --cleanup",
     "format:check": "prettier --check .",

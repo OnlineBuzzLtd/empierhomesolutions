@@ -12,6 +12,14 @@ import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
 import { getInvoiceDetail, listAttachmentsForEntity } from "@/modules/crm/lib/data";
 import { invoiceStatusConfig } from "@/modules/crm/lib/status";
 
+const invoiceKindLabels: Record<string, string> = {
+  standard: "Standard invoice",
+  deposit: "Deposit invoice",
+  pro_forma: "Pro-forma invoice",
+  stage: "Stage invoice",
+  final: "Final balance invoice",
+};
+
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireCrmUser();
   const { id } = await params;
@@ -38,7 +46,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <p className="text-sm font-semibold text-slate-900">{invoice.customer?.full_name}</p>
             <p className="mt-1 text-sm text-slate-600">{invoice.customer?.address_line1}</p>
             <p className="text-sm text-slate-600">{invoice.customer?.postcode}</p>
-            <p className="mt-3 text-sm text-slate-600">Due {formatDate(invoice.due_date)}</p>
+            <p className="mt-3 text-sm text-slate-600">{invoiceKindLabels[invoice.invoice_kind ?? "standard"] ?? "Invoice"}</p>
+            <p className="text-sm text-slate-600">Due {formatDate(invoice.due_date)}</p>
           </div>
           <div className="flex gap-3 lg:justify-end">
             <a href={`/api/crm/invoices/${invoice.id}/pdf`} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">

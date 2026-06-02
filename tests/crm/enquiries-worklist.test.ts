@@ -30,7 +30,11 @@ describe("enquiries worklist", () => {
     }));
     vi.doMock("@/modules/crm/lib/data", () => ({
       getEnquiryCounts,
+      listCustomers: vi.fn().mockResolvedValue([]),
+      listJobTypes: vi.fn().mockResolvedValue([]),
       listLeads,
+      listServices: vi.fn().mockResolvedValue([]),
+      listUserProfiles: vi.fn().mockResolvedValue([]),
     }));
     vi.doMock("@/modules/crm/lib/demo-state", () => ({
       getCrmDemoState: vi.fn().mockResolvedValue({ mode: "live", active: false }),
@@ -55,6 +59,7 @@ describe("enquiries worklist", () => {
 
     expect(listLeads).toHaveBeenCalledWith("live", pagination, "todo");
     expect(body.counts).toEqual({ todoCount: 4, doneCount: 5, allCount: 9 });
+    expect(body.lookups).toEqual({ customers: [], services: [], jobTypes: [], engineers: [] });
     expect(body.recoveryCases).toHaveLength(1);
     expect(body.visibleCount).toBe(2);
   });
@@ -75,7 +80,11 @@ describe("enquiries worklist", () => {
     }));
     vi.doMock("@/modules/crm/lib/data", () => ({
       getEnquiryCounts,
+      listCustomers: vi.fn().mockResolvedValue([]),
+      listJobTypes: vi.fn().mockResolvedValue([]),
       listLeads,
+      listServices: vi.fn().mockResolvedValue([]),
+      listUserProfiles: vi.fn().mockResolvedValue([]),
     }));
     vi.doMock("@/modules/crm/lib/demo-state", () => ({
       getCrmDemoState: vi.fn().mockResolvedValue({ mode: "live", active: false }),

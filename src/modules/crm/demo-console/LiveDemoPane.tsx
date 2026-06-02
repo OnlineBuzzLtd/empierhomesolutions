@@ -1,6 +1,7 @@
 "use client";
 
-import { useDemoSessionFeed, type DemoFeedRow } from "@/modules/crm/demo-console/use-demo-session-feed";
+import { useEffect, useMemo, useState } from "react";
+import { useDemoSessionFeed, type DemoFeedRow, type DemoFeedTable } from "@/modules/crm/demo-console/use-demo-session-feed";
 
 // Live CRM pane (ticket C-4). Renders the four lists from
 // useDemoSessionFeed as cards with channel badges and time-since-created.
@@ -14,8 +15,9 @@ type LiveDemoPaneProps = {
 
 export function LiveDemoPane({ sessionStartedAt, tenantId }: LiveDemoPaneProps) {
   const feed = useDemoSessionFeed({ sessionStartedAt, tenantId });
+  const [selected, setSelected] = useState<DemoFeedRow | null>(null);
   const totalEvents =
-    feed.customers.length + feed.leads.length + feed.jobs.length + feed.appointments.length;
+    feed.customers.length + feed.leads.length + feed.jobs.length + feed.appointments.length + feed.commercial.length;
 
   return (
     <div className="flex h-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4">
@@ -32,13 +34,20 @@ export function LiveDemoPane({ sessionStartedAt, tenantId }: LiveDemoPaneProps) 
       </header>
 
       <div className="grid flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2">
-        <FeedColumn title="Customers" rows={feed.customers} formatTitle={(r) => formatCustomerTitle(r)} />
-        <FeedColumn title="Leads" rows={feed.leads} formatTitle={(r) => formatLeadTitle(r)} />
-        <FeedColumn title="Jobs" rows={feed.jobs} formatTitle={(r) => formatJobTitle(r)} />
+        <FeedColumn title="Customers" rows={feed.customers} formatTitle={(r) => formatCustomerTitle(r)} onSelect={setSelected} />
+        <FeedColumn title="Leads" rows={feed.leads} formatTitle={(r) => formatLeadTitle(r)} onSelect={setSelected} />
+        <FeedColumn title="Jobs" rows={feed.jobs} formatTitle={(r) => formatJobTitle(r)} onSelect={setSelected} />
         <FeedColumn
           title="Appointments"
           rows={feed.appointments}
           formatTitle={(r) => formatAppointmentTitle(r)}
+          onSelect={setSelected}
+        />
+        <FeedColumn
+          title="Commercial"
+          rows={feed.commercial}
+          formatTitle={(r) => formatCommercialTitle(r)}
+          onSelect={setSelected}
         />
       </div>
 
@@ -47,6 +56,7 @@ export function LiveDemoPane({ sessionStartedAt, tenantId }: LiveDemoPaneProps) 
           Start a demo session from the operator panel (Ctrl+Shift+D) to begin watching the feed.
         </footer>
       ) : null}
+      {selected ? <LiveRecordDrawer row={selected} onClose={() => setSelected(null)} /> : null}
     </div>
   );
 }
@@ -93,10 +103,12 @@ function FeedColumn({
   title,
   rows,
   formatTitle,
+  onSelect,
 }: {
   title: string;
   rows: DemoFeedRow[];
   formatTitle: (row: DemoFeedRow) => string;
+  onSelect: (row: DemoFeedRow) => void;
 }) {
   return (
     <section className="flex min-h-0 flex-col rounded-xl border border-slate-100 bg-slate-50/50">
@@ -113,21 +125,244 @@ function FeedColumn({
           <p className="px-2 py-1 text-[11px] text-slate-400">No rows yet.</p>
         ) : (
           rows.map((row) => (
-            <article
-              key={row.id}
-              className="animate-[fadeIn_180ms_ease-out] rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm"
+            <button
+              key={`${row.table}:${row.id}`}
+              type="button"
+              onClick={() => onSelect(row)}
+              className="block w-full animate-[fadeIn_180ms_ease-out] rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
             >
               <div className="flex items-baseline justify-between gap-2">
                 <p className="truncate text-sm font-medium text-slate-900">{formatTitle(row)}</p>
                 <ChannelBadge source={row.source ?? row.channel ?? null} />
               </div>
               <p className="mt-0.5 text-[11px] text-slate-400">{formatTimeAgo(row.created_at)}</p>
-            </article>
+            </button>
           ))
         )}
       </div>
     </section>
   );
+}
+
+type LiveRecordDetail = {
+  ok?: boolean;
+  type: string;
+  record: Record<string, unknown>;
+  linked: Array<{ id: string | null; label: string; status: string | null; created_at: string | null; raw: Record<string, unknown> }>;
+  commercial: Record<string, Array<{ id: string | null; label: string; status: string | null; created_at: string | null; raw: Record<string, unknown> }>>;
+  error?: string;
+};
+
+function recordTypeForTable(table: DemoFeedTable): string | null {
+  const map: Partial<Record<DemoFeedTable, string>> = {
+    customers: "customer",
+    leads: "lead",
+    jobs: "job",
+    appointments: "appointment",
+    job_survey_assessments: "survey_assessment",
+    quotes: "quote",
+    quote_acceptances: "quote_acceptance",
+    invoice_schedules: "invoice_schedule",
+    invoices: "invoice",
+    payments: "payment",
+  };
+  return map[table] ?? null;
+}
+
+function LiveRecordDrawer({ row, onClose }: { row: DemoFeedRow; onClose: () => void }) {
+  const [detail, setDetail] = useState<LiveRecordDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"overview" | "trail" | "commercial" | "raw">("overview");
+  const type = recordTypeForTable(row.table);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setError(null);
+      setDetail(null);
+      if (!type) {
+        setError("This record type is not expandable yet.");
+        return;
+      }
+      const res = await fetch(`/api/crm/demo/live-record?type=${encodeURIComponent(type)}&id=${encodeURIComponent(row.id)}`, {
+        cache: "no-store",
+      });
+      const body = (await res.json().catch(() => ({}))) as LiveRecordDetail;
+      if (cancelled) return;
+      if (!res.ok || body.error) {
+        setError(body.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setDetail(body);
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [row.id, type]);
+
+  const timeline = useMemo(() => buildCommercialTimeline(detail), [detail]);
+
+  return (
+    <aside className="fixed right-4 top-16 z-40 flex max-h-[calc(100vh-5rem)] w-[min(520px,calc(100vw-2rem))] flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {row.table.replaceAll("_", " ")}
+          </p>
+          <h3 className="truncate text-base font-semibold text-slate-900">{formatDrawerTitle(row)}</h3>
+          <p className="mt-0.5 text-xs text-slate-400">{row.id}</p>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          Close
+        </button>
+      </header>
+      <div className="flex gap-1 border-b border-slate-100 px-3 py-2">
+        {(["overview", "trail", "commercial", "raw"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => setTab(item)}
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold capitalize ${
+              tab === item ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {error ? <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+        {!error && !detail ? <p className="text-sm text-slate-500">Loading record detail...</p> : null}
+        {detail && tab === "overview" ? (
+          <dl className="grid gap-2 text-sm">
+            {Object.entries(pickOverviewFields(detail.record)).map(([key, value]) => (
+              <div key={key} className="grid grid-cols-[150px_1fr] gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{key.replaceAll("_", " ")}</dt>
+                <dd className="min-w-0 break-words text-slate-900">{formatValue(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {detail && tab === "trail" ? (
+          <div className="space-y-2">
+            {detail.linked.length === 0 ? <p className="text-sm text-slate-500">No linked records found.</p> : null}
+            {detail.linked.map((item, index) => (
+              <div key={`${item.id ?? index}:${index}`} className="rounded-lg border border-slate-200 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
+                  {item.status ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{item.status}</span> : null}
+                </div>
+                <p className="mt-0.5 text-xs text-slate-400">{item.created_at ? formatTimeAgo(item.created_at) : item.id}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {detail && tab === "commercial" ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              {timeline.map((stage) => (
+                <div key={stage.label} className="flex items-start gap-3">
+                  <span className={`mt-1 h-2.5 w-2.5 rounded-full ${stage.done ? "bg-emerald-500" : "bg-slate-300"}`} />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{stage.label}</p>
+                    <p className="text-xs text-slate-500">{stage.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2">
+              {Object.entries(detail.commercial).map(([key, values]) => (
+                values.length > 0 ? (
+                  <div key={key} className="rounded-lg border border-slate-200 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{key.replaceAll("_", " ")}</p>
+                    <ul className="mt-2 space-y-1">
+                      {values.map((item, index) => (
+                        <li key={`${item.id ?? key}:${index}`} className="text-sm text-slate-700">
+                          {item.label}
+                          {item.status ? <span className="text-slate-400"> · {item.status}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {detail && tab === "raw" ? (
+          <pre className="max-h-[65vh] overflow-auto rounded-lg bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100">
+            {JSON.stringify(detail.record, null, 2)}
+          </pre>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
+function pickOverviewFields(record: Record<string, unknown>) {
+  const keys = [
+    "full_name",
+    "phone",
+    "email",
+    "title",
+    "status",
+    "commercial_stage",
+    "visit_classification",
+    "quote_number",
+    "invoice_number",
+    "invoice_kind",
+    "total",
+    "scheduled_date",
+    "scheduled_time",
+    "starts_at",
+    "created_at",
+  ];
+  const picked: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (record[key] !== undefined && record[key] !== null && String(record[key]).length > 0) {
+      picked[key] = record[key];
+    }
+  }
+  return Object.keys(picked).length > 0 ? picked : record;
+}
+
+function formatValue(value: unknown) {
+  if (typeof value === "number") return value.toLocaleString("en-GB");
+  if (typeof value === "string") return value;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return JSON.stringify(value);
+}
+
+function formatDrawerTitle(row: DemoFeedRow) {
+  if (row.table === "quotes") return formatCommercialTitle(row);
+  if (row.table === "invoices") return formatCommercialTitle(row);
+  if (row.table === "invoice_schedules") return formatCommercialTitle(row);
+  if (row.table === "job_survey_assessments") return "Survey assessment";
+  if (row.table === "quote_acceptances") return "Quote acceptance";
+  if (row.table === "payments") return "Payment";
+  if (row.table === "customers") return formatCustomerTitle(row);
+  if (row.table === "leads") return formatLeadTitle(row);
+  if (row.table === "jobs") return formatJobTitle(row);
+  return formatAppointmentTitle(row);
+}
+
+function buildCommercialTimeline(detail: LiveRecordDetail | null) {
+  const commercial = detail?.commercial ?? {};
+  const hasSurvey = (commercial.survey_assessments ?? []).length > 0;
+  const hasQuote = (commercial.quotes ?? []).length > 0;
+  const hasAccepted = (commercial.quote_acceptances ?? []).length > 0;
+  const hasSchedule = (commercial.invoice_schedules ?? []).length > 0;
+  const hasInvoice = (commercial.invoices ?? []).length > 0;
+  const hasPayment = (commercial.payments ?? []).length > 0;
+  return [
+    { label: "Survey completed", done: hasSurvey, detail: hasSurvey ? "Survey evidence is linked." : "Waiting for survey or not required." },
+    { label: "Quote drafted", done: hasQuote, detail: hasQuote ? "Catalogue package quote exists." : "No quote draft yet." },
+    { label: "Quote accepted", done: hasAccepted, detail: hasAccepted ? "Acceptance evidence recorded." : "Customer acceptance pending." },
+    { label: "Invoice schedule", done: hasSchedule, detail: hasSchedule ? "Deposit/final schedule planned." : "No schedule rows yet." },
+    { label: "Invoice raised", done: hasInvoice, detail: hasInvoice ? "Invoice record exists." : "No invoice raised yet." },
+    { label: "Payment tracked", done: hasPayment, detail: hasPayment ? "Payment row exists." : "No payment recorded." },
+  ];
 }
 
 function ChannelBadge({ source }: { source: string | null }) {
@@ -208,4 +443,42 @@ function formatAppointmentTitle(row: DemoFeedRow): string {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
+}
+
+function formatCommercialTitle(row: DemoFeedRow): string {
+  if (row.table === "job_survey_assessments") {
+    const status = typeof row.raw.status === "string" ? row.raw.status : "survey";
+    return `Survey · ${status}`;
+  }
+  if (row.table === "quotes") {
+    const number = typeof row.raw.quote_number === "string" ? row.raw.quote_number : "Quote";
+    const status = typeof row.raw.status === "string" ? row.raw.status : "draft";
+    const total = typeof row.raw.total === "number" ? ` · ${formatMoney(row.raw.total)}` : "";
+    return `${number} · ${status}${total}`;
+  }
+  if (row.table === "quote_acceptances") {
+    const name = typeof row.raw.accepted_by_name === "string" ? row.raw.accepted_by_name : "Customer";
+    return `Accepted by ${name}`;
+  }
+  if (row.table === "invoice_schedules") {
+    const label = typeof row.raw.label === "string" ? row.raw.label : "Invoice schedule";
+    const type = typeof row.raw.payment_type === "string" ? row.raw.payment_type : "planned";
+    return `${label} · ${type}`;
+  }
+  if (row.table === "invoices") {
+    const number = typeof row.raw.invoice_number === "string" ? row.raw.invoice_number : "Invoice";
+    const kind = typeof row.raw.invoice_kind === "string" ? row.raw.invoice_kind : "standard";
+    const total = typeof row.raw.total === "number" ? ` · ${formatMoney(row.raw.total)}` : "";
+    return `${number} · ${kind}${total}`;
+  }
+  if (row.table === "payments") {
+    const status = typeof row.raw.status === "string" ? row.raw.status : "payment";
+    const amount = typeof row.raw.amount === "number" ? ` · ${formatMoney(row.raw.amount)}` : "";
+    return `Payment · ${status}${amount}`;
+  }
+  return row.table.replaceAll("_", " ");
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(value);
 }

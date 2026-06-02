@@ -57,6 +57,23 @@ describe("packageSchema", () => {
     const r = packageSchema.safeParse({ name: "" });
     expect(r.success).toBe(false);
   });
+
+  it("requires a linked service and positive public price before AI pricing is enabled", () => {
+    const noService = packageSchema.safeParse({
+      name: "Boiler service",
+      ai_price_enabled: true,
+      items: [{ description: "Service", qty: 1, unit_price: 95 }],
+    });
+    const noPrice = packageSchema.safeParse({
+      name: "Boiler service",
+      service_id: "11111111-1111-4111-8111-111111111111",
+      ai_price_enabled: true,
+      items: [{ description: "Service", qty: 1, unit_price: 0 }],
+    });
+
+    expect(noService.success).toBe(false);
+    expect(noPrice.success).toBe(false);
+  });
 });
 
 describe("paymentPlanSchema", () => {

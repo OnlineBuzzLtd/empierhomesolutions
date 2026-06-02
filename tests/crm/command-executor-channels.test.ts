@@ -73,7 +73,17 @@ function makeBaseLink(overrides: Partial<Record<string, unknown>> = {}) {
  * Builds a lightweight Supabase mock whose per-table chains are individually
  * observable via the returned spy references.
  */
-function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; customerId?: string; customerLookupRows?: unknown[] } = {}) {
+function buildSupabaseMock(
+  opts: {
+    appointmentId?: string;
+    jobId?: string;
+    customerId?: string;
+    customerLookupRows?: unknown[];
+    serviceRows?: unknown[];
+    jobTypeRows?: unknown[];
+    existingJobClassification?: { id: string; service_id: string | null; job_type_id: string | null } | null;
+  } = {},
+) {
   const aptId = opts.appointmentId ?? "appt-test-1";
   const jId = opts.jobId ?? "job-test-1";
   const cId = opts.customerId ?? "cust-test-1";
@@ -126,6 +136,58 @@ function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; custo
   const jobSingle = vi.fn().mockResolvedValue({ data: { id: jId }, error: null });
   const jobInsertSelect = vi.fn().mockReturnValue({ single: jobSingle });
   const jobInsert = vi.fn().mockReturnValue({ select: jobInsertSelect });
+  const jobMaybeSingle = vi.fn().mockResolvedValue({ data: opts.existingJobClassification ?? null, error: null });
+  const jobSelectEq2 = vi.fn().mockReturnValue({ maybeSingle: jobMaybeSingle });
+  const jobSelectEq1 = vi.fn().mockReturnValue({ eq: jobSelectEq2 });
+  const jobSelect = vi.fn().mockReturnValue({ eq: jobSelectEq1 });
+  const jobUpdateEq2 = vi.fn().mockResolvedValue({ error: null });
+  const jobUpdateEq1 = vi.fn().mockReturnValue({ eq: jobUpdateEq2 });
+  const jobUpdate = vi.fn().mockReturnValue({ eq: jobUpdateEq1 });
+
+  const servicesReturns = vi.fn().mockResolvedValue({
+    data:
+      opts.serviceRows ?? [
+        {
+          id: "svc-boilers",
+          tenant_id: TENANT_ID,
+          slug: "boilers",
+          name: "Boilers",
+          active: true,
+          ai_visible: true,
+        },
+      ],
+    error: null,
+  });
+  const servicesEq = vi.fn().mockReturnValue({ returns: servicesReturns });
+  const servicesSelect = vi.fn().mockReturnValue({ eq: servicesEq });
+
+  const jobTypesReturns = vi.fn().mockResolvedValue({
+    data:
+      opts.jobTypeRows ?? [
+        {
+          id: "type-boiler-service",
+          tenant_id: TENANT_ID,
+          service_id: "svc-boilers",
+          slug: "boiler-service",
+          name: "Boiler Service",
+          active: true,
+          ai_visible: true,
+        },
+        {
+          id: "type-boiler-repair",
+          tenant_id: TENANT_ID,
+          service_id: "svc-boilers",
+          slug: "boiler-repair",
+          name: "Boiler Repair",
+          active: true,
+          ai_visible: true,
+        },
+      ],
+    error: null,
+  });
+  const jobTypesEq2 = vi.fn().mockReturnValue({ returns: jobTypesReturns });
+  const jobTypesEq1 = vi.fn().mockReturnValue({ eq: jobTypesEq2 });
+  const jobTypesSelect = vi.fn().mockReturnValue({ eq: jobTypesEq1 });
 
   const from = vi.fn().mockImplementation((table: string) => {
     switch (table) {
@@ -138,7 +200,11 @@ function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; custo
       case "appointments":
         return { insert: apptInsert, update: apptUpdate };
       case "jobs":
-        return { insert: jobInsert };
+        return { insert: jobInsert, select: jobSelect, update: jobUpdate };
+      case "services":
+        return { select: servicesSelect };
+      case "job_types":
+        return { select: jobTypesSelect };
       default:
         return {
           insert: vi.fn().mockResolvedValue({ error: null }),
@@ -153,15 +219,45 @@ function buildSupabaseMock(opts: { appointmentId?: string; jobId?: string; custo
   const schema = vi.fn().mockReturnValue({ from });
   const supabase = { schema };
 
-  return { supabase, from, apptInsert, apptUpdate, jobInsert, leadsUpdate, notesInsert, customersInsert };
+  return { supabase, from, apptInsert, apptUpdate, jobInsert, jobUpdate, leadsUpdate, notesInsert, customersInsert };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
+
+describe("bookingInstantToTenantSchedule", () => {
+  it("converts UTC booking instants to Europe/London summer time", async () => {
+    const { bookingInstantToTenantSchedule } = await import("@/modules/platform/lib/command-executor");
+
+    expect(bookingInstantToTenantSchedule("2026-06-01T09:00:00.000Z", "Europe/London")).toEqual({
+      scheduledDate: "2026-06-01",
+      scheduledTime: "10:00:00",
+    });
+  });
+
+  it("keeps winter Europe/London bookings on GMT clock time", async () => {
+    const { bookingInstantToTenantSchedule } = await import("@/modules/platform/lib/command-executor");
+
+    expect(bookingInstantToTenantSchedule("2026-12-01T09:00:00.000Z", "Europe/London")).toEqual({
+      scheduledDate: "2026-12-01",
+      scheduledTime: "09:00:00",
+    });
+  });
+});
 
 describe("executePlatformCommand – new-customer journeys across channels", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.doMock("@/modules/crm/lib/quote-automation", () => ({
+      draftQuoteForJob: vi.fn().mockResolvedValue({
+        status: "blocked",
+        quoteId: null,
+        invoiceScheduleIds: [],
+        blockers: [{ code: "feature_disabled", message: "Disabled in command-executor tests." }],
+        warnings: [],
+        automationMetadata: {},
+      }),
+    }));
   });
 
   // 1. SMS ─────────────────────────────────────────────────────────────────────
@@ -214,8 +310,10 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
         lead_id: "lead-1",
         title: "Booked visit: Boiler Service (Thu 09:00-10:00)",
         status: "booked",
+        service_id: "svc-boilers",
+        job_type_id: "type-boiler-service",
         scheduled_date: "2026-04-17",
-        scheduled_time: "09:00",
+        scheduled_time: "10:00:00",
         assigned_engineer: null,
         is_demo: false,
       }),
@@ -226,6 +324,65 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
     const linkCalls = upsertPlatformConversationLink.mock.calls;
     expect(linkCalls[0][2]).toMatchObject({ bookingAppointmentId: "appt-test-1" });
     expect(linkCalls[1][2]).toMatchObject({ jobId: "job-test-1" });
+  });
+
+  it("SMS: classifies boiler-install bookings as survey appointments without dropping the diary job", async () => {
+    const baseLink = makeBaseLink({ latest_channel: "sms" });
+    const refreshedLink = makeBaseLink({
+      latest_channel: "sms",
+      booking_appointment_id: "appt-test-1",
+    });
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink: vi
+        .fn()
+        .mockResolvedValueOnce(baseLink)
+        .mockResolvedValueOnce(refreshedLink),
+      upsertPlatformConversationLink: vi.fn().mockResolvedValue(baseLink),
+    }));
+
+    const { supabase, apptInsert, jobInsert, leadsUpdate } = buildSupabaseMock({
+      jobTypeRows: [
+        {
+          id: "type-boiler-install",
+          tenant_id: TENANT_ID,
+          service_id: "svc-boilers",
+          slug: "boiler-installation",
+          name: "Boiler Installation",
+          active: true,
+          ai_visible: true,
+        },
+      ],
+    });
+    const { executePlatformCommand } = await import("@/modules/platform/lib/command-executor");
+
+    await executePlatformCommand(
+      supabase as never,
+      alias,
+      makeCommand("CreateOrUpdateAppointment", {
+        channel: "sms",
+        booking_start_at: "2026-04-17T09:00:00.000Z",
+        booking_end_at: "2026-04-17T10:00:00.000Z",
+        booking_slot_label: "Thu 09:00-10:00",
+        treatmentType: "Boiler Installation",
+      }),
+    );
+
+    expect(apptInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "survey",
+        visit_classification: "survey_assessment",
+      }),
+    );
+    expect(jobInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "booked",
+        visit_classification: "survey_assessment",
+        commercial_stage: "survey_booked",
+        job_type_id: "type-boiler-install",
+      }),
+    );
+    expect(leadsUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: "survey_booked" }));
   });
 
   // 2. WhatsApp ─────────────────────────────────────────────────────────────────
@@ -284,7 +441,7 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
         lead_id: "lead-1",
         status: "booked",
         scheduled_date: "2026-04-17",
-        scheduled_time: "14:00",
+        scheduled_time: "15:00:00",
         assigned_engineer: null,
         is_demo: false,
       }),
@@ -410,7 +567,7 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
       expect.objectContaining({
         assigned_engineer: "Jack Mason",
         scheduled_date: "2026-04-18",
-        scheduled_time: "08:00",
+        scheduled_time: "09:00:00",
         title: "Booked visit: Annual Boiler Service (Fri 08:00-09:00)",
         status: "booked",
         is_demo: false,

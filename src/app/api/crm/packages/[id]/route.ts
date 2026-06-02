@@ -42,11 +42,31 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
 
     const { supabase, tenant } = auth.session;
+    if (parsed.data.job_type_id && !parsed.data.service_id) {
+      return jsonError("Select a service before selecting a job type.");
+    }
+    if (parsed.data.job_type_id && parsed.data.service_id) {
+      const { data: jobType, error: jobTypeError } = await supabase
+        .schema("crm")
+        .from("job_types")
+        .select("id")
+        .eq("id", parsed.data.job_type_id)
+        .eq("service_id", parsed.data.service_id)
+        .maybeSingle();
+      if (jobTypeError) {
+        return jsonError(jobTypeError.message, 500);
+      }
+      if (!jobType) {
+        return jsonError("Job type must belong to the selected service.");
+      }
+    }
+
     const { error: updateError } = await supabase
       .schema("crm")
       .from("packages")
       .update({
         service_id: parsed.data.service_id ?? null,
+        job_type_id: parsed.data.job_type_id ?? null,
         name: parsed.data.name,
         description: parsed.data.description ?? null,
         default_markup_percent: parsed.data.default_markup_percent ?? null,
@@ -58,6 +78,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         ai_requires_office_quote: parsed.data.ai_requires_office_quote,
         ai_default_duration_minutes: parsed.data.ai_default_duration_minutes ?? null,
         ai_price_disclaimer: parsed.data.ai_price_disclaimer ?? null,
+        ai_pricing_style: parsed.data.ai_pricing_style,
       })
       .eq("id", id);
     if (updateError) {

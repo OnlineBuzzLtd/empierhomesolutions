@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-06-03 — Reliable Demo Webchat Booking Completion
+
+This release fixes the `/demo/run` AI-customer booking demo so it completes real CRM bookings instead of stopping mid-conversation.
+
+### Fixed
+
+- The fake demo customer now behaves as a cooperative booking finisher in AI-customer mode:
+  - answers repeated booking questions instead of blocking on `repeated_question`
+  - provides service, name, phone, postcode, address, time preference, and confirmation from scenario facts
+  - accepts the first offered slot even when it differs from the original preference
+  - replies exactly `YES` when the real booking AI asks for YES confirmation
+- The operator runner now allows up to 14 adaptive turns, giving the live AI enough room to collect service, contact, address, time, slot choice, and final confirmation.
+- Boiler install survey demo bookings are now classified as survey work in CRM even when the platform payload arrives with a generic `Boilers` service label.
+- The demo runner now continues after teammate-style wording if the real AI asks another normal booking question.
+
+### Deployed
+
+- Empire CRM deployed to Vercel production at `https://empire-home-solutions.vercel.app`.
+- Production deployment id: `dpl_8rL1W6jCyfKFVCiKhdmbVRxpymXD`.
+- Customer Journeys platform API deployed separately to Cloud Run revision `customerjourneys-platform-api-00820-67b`.
+
+### Verified
+
+- Live `/demo/run` smoke:
+  - emergency repair booking: 5/5 passed
+  - boiler install survey: 1/1 passed
+  - each successful run created customer + enquiry + job + appointment
+  - cleanup passed after each active demo session
+- No SMS, WhatsApp, voice, Stripe, or customer email sends were triggered by the webchat demo runs.
+- `npx vitest run tests/unit/demo-customer-agent.test.ts tests/crm/demo-webchat-routes.test.ts tests/crm/command-executor-channels.test.ts --coverage=false` — 52/52 passing.
+- `npm run lint` passed with existing warnings only.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- Removed leftover `is_test=true` demo customers from failed smoke attempts.
+
 ## 2026-06-02 — CRM commercial workflow, demo autopilot, and shared platform AI customer
 
 This release extends the live CRM around enquiry-to-job conversion, install quoting/invoicing, commercial demo storytelling, and the `/demo/run` autopilot. The final demo-customer implementation now reuses the Customer Journeys platform AI stack instead of requiring a separate Gemini/OpenAI key in Empire.

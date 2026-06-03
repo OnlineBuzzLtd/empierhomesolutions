@@ -60,6 +60,7 @@ Current validated behavior (as of May 13, 2026):
 - **[2026-05-30] CRM UX simplification and AI booking recovery**. Admin UX now uses trade-native terminology (`Enquiries`, `Scheduler`, `AI Receptionist`) and keeps secondary/technical surfaces behind More or Advanced settings. Engineers retain the Commusoft-style field app. AI booking recovery cases now surface inside Enquiries/AI Receptionist instead of leaving anonymous Scheduler blocks. Production fake/test CRM records were cleaned with local JSON backups under ignored `backups/`.
 - **[2026-06-02] Demo customer AI now reuses CustomerJourneys platform AI**. `/demo/run` no longer needs a CRM-side Gemini/OpenAI key for the fake customer. Empire calls the linked platform runtime via `CUSTOMERJOURNEYS_INTERNAL_API_TOKEN`; CustomerJourneys uses Anthropic first and OpenAI fallback. Deterministic scenario replies remain as the no-provider fallback.
 - **[2026-06-02] Demo webchat bookings materialise as trusted test records**. Operator-controlled `/demo/run` webchat bookings carry `is_test=true`, `source=demo_console_webchat`, `demo_session_id`, and `demo_scenario_key` through the authenticated platform-events path. Empire permits synthetic/test phone numbers only for those trusted demo webchat events, creates the normal CRM trail, and keeps customer-facing outbound sends disabled.
+- **[2026-06-03] Demo webchat booking completion hardened**. The AI-customer mode now keeps answering normal booking prompts instead of stopping on repeat-question guards, accepts the first offered slot, replies `YES` when asked, and waits for the CRM outcome endpoint to show the real customer/enquiry/job/appointment trail. Boiler install survey demos now materialise as survey-classified jobs and appointments.
 - Live validation: `scripts/live-empire-channel-tests.mts` — 10-scenario end-to-end channel suite. The CustomerJourneys reliability patchset was validated on the mock-tagged runtime at **3 consecutive 10/10 runs**, then promoted to production revision `customerjourneys-platform-api-00758-xmx`.
 
 Current local operator setup:
@@ -144,10 +145,11 @@ Live CRM:
 
 Current production deployment note:
 
-- The 2026-05-30 CRM UX/recovery and AI catalogue release is deployed at `https://empire-home-solutions.vercel.app` (`dpl_9v6K1exp6RqsoEMG1hjqjE6uuHrG`).
+- The 2026-06-03 reliable demo webchat booking fix is deployed at `https://empire-home-solutions.vercel.app` (`dpl_8rL1W6jCyfKFVCiKhdmbVRxpymXD`).
 - The CRM now has faster screen-shell navigation, bounded list fetches, tenant-scoped client caching, and database/query performance indexes.
 - The admin CRM now uses the simplified trade workflow navigation and the Enquiries worklist count matches the dashboard `Enquiries to do` card.
 - AI Receptionist booking recovery is visible as `Needs review` work and no longer hides successful-but-unlinked bookings only inside Scheduler.
+- `/demo/run` live smoke on 2026-06-03 passed 5/5 emergency repair bookings and 1/1 boiler install survey booking, with cleanup passing after each active session and no outbound SMS, WhatsApp, voice, Stripe, or customer email sends.
 - Production proof against a synthetic enterprise tenant showed `/calendar` passing budget, `/customers` close to budget, and several hot screens still failing p95 route budgets. Do not claim the CRM is fully “super fast” until `npm run crm:perf:proof` passes.
 
 Live front-desk test surface:
@@ -200,6 +202,7 @@ CRM:
 - **[2026-05-30] Enquiries worklist contract**. `/api/crm/leads` accepts `tab=todo|done|all`, defaults to To-do, returns tab counts, and includes unresolved AI booking recovery cases in To-do. Dashboard summary uses the same To-do definition so the card and tab count match.
 - **[2026-05-30] AI Receptionist recovery**. Failed or orphan `BookingConfirmed` events can be listed and resolved through `/api/crm/ai-receptionist/recovery-cases`, with conflict-safe identity rules and no destructive customer merge.
 - **[2026-05-30] engineer UX retained**. Engineers still default to the Commusoft-style field app, with relabelled bottom navigation for Today, Diary, Jobs, and Profile.
+- **[2026-06-03] reliable `/demo/run` AI-customer booking demo**. The fake customer acts as a cooperative finisher: it answers repeated booking prompts, accepts the first offered slot, sends `YES` when requested, and only completes when CRM has the expected customer/enquiry/job/appointment or survey trail.
 
 ## Supabase Notes
 

@@ -82,6 +82,7 @@ function buildSupabaseMock(
     serviceRows?: unknown[];
     jobTypeRows?: unknown[];
     existingJobClassification?: { id: string; service_id: string | null; job_type_id: string | null } | null;
+    appointmentLookupRow?: { id: string; customer_id: string | null; lead_id: string | null; job_id: string | null; status: string } | null;
   } = {},
 ) {
   const aptId = opts.appointmentId ?? "appt-test-1";
@@ -168,6 +169,11 @@ function buildSupabaseMock(
   const apptEq2 = vi.fn().mockResolvedValue({ error: null });
   const apptEq1 = vi.fn().mockReturnValue({ eq: apptEq2 });
   const apptUpdate = vi.fn().mockReturnValue({ eq: apptEq1 });
+  const apptMaybeSingle = vi.fn().mockResolvedValue({ data: opts.appointmentLookupRow ?? null, error: null });
+  const apptSelectEq3 = vi.fn().mockReturnValue({ maybeSingle: apptMaybeSingle });
+  const apptSelectEq2 = vi.fn().mockReturnValue({ eq: apptSelectEq3 });
+  const apptSelectEq1 = vi.fn().mockReturnValue({ eq: apptSelectEq2 });
+  const apptSelect = vi.fn().mockReturnValue({ eq: apptSelectEq1 });
 
   // jobs – insert.select.single
   const jobSingle = vi.fn().mockResolvedValue({ data: { id: jId }, error: null });
@@ -235,7 +241,7 @@ function buildSupabaseMock(
       case "customers":
         return { select: customersSelect, insert: customersInsert, update: customersUpdate };
       case "appointments":
-        return { insert: apptInsert, update: apptUpdate };
+        return { insert: apptInsert, update: apptUpdate, select: apptSelect };
       case "jobs":
         return { insert: jobInsert, select: jobSelect, update: jobUpdate };
       case "services":
@@ -361,6 +367,62 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
     const linkCalls = upsertPlatformConversationLink.mock.calls;
     expect(linkCalls[0][2]).toMatchObject({ bookingAppointmentId: "appt-test-1" });
     expect(linkCalls[1][2]).toMatchObject({ jobId: "job-test-1" });
+  });
+
+  it("SMS: sends a changed platform booking id on an already-booked conversation to review", async () => {
+    const existingLink = makeBaseLink({
+      latest_channel: "sms",
+      booking_appointment_id: "appt-existing-1",
+      metadata: {
+        platform_booking_id: "booking-old-1",
+      },
+    });
+
+    const getPlatformConversationLink = vi.fn().mockResolvedValue(existingLink);
+    const upsertPlatformConversationLink = vi.fn().mockResolvedValue(existingLink);
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink,
+      upsertPlatformConversationLink,
+    }));
+
+    const { supabase, apptInsert, jobInsert } = buildSupabaseMock({ appointmentLookupRow: null });
+    const { executePlatformCommand } = await import("@/modules/platform/lib/command-executor");
+
+    await executePlatformCommand(
+      supabase as never,
+      alias,
+      makeCommand("CreateOrUpdateAppointment", {
+        channel: "sms",
+        booking_id: "booking-new-1",
+        booking_start_at: "2026-04-17T09:00:00.000Z",
+        booking_end_at: "2026-04-17T10:00:00.000Z",
+        booking_slot_label: "Thu 09:00-10:00",
+        treatmentType: "Boiler Service",
+        message_summary: "Customer changed booking provider reference.",
+      }),
+    );
+
+    expect(apptInsert).not.toHaveBeenCalled();
+    expect(jobInsert).not.toHaveBeenCalled();
+    expect(upsertPlatformConversationLink).toHaveBeenCalledWith(
+      supabase,
+      alias,
+      expect.objectContaining({
+        conversationId: CONVERSATION_ID,
+        bookingAppointmentId: "appt-existing-1",
+        metadata: expect.objectContaining({
+          platform_booking_id: "booking-old-1",
+          needs_review: true,
+          review_reason: "duplicate_booking_candidate",
+          duplicate_booking_candidate: {
+            incoming_booking_id: "booking-new-1",
+            linked_booking_id: "booking-old-1",
+            linked_appointment_id: "appt-existing-1",
+          },
+        }),
+      }),
+    );
   });
 
   it("SMS: classifies boiler-install bookings as survey appointments without dropping the diary job", async () => {

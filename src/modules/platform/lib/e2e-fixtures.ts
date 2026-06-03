@@ -122,6 +122,7 @@ export function buildPlatformE2eInboxFixtures() {
       received_at: "2026-04-07T09:00:01.000Z",
       processed_at: "2026-04-07T09:00:02.000Z",
       last_error: null,
+      dead_letter_reason: null,
       envelope: {
         event_id: "10000000-0000-4000-8000-000000000001",
         event_type: "MissedCallCaptured",
@@ -148,6 +149,7 @@ export function buildPlatformE2eInboxFixtures() {
       received_at: "2026-04-07T09:15:01.000Z",
       processed_at: "2026-04-07T09:15:02.000Z",
       last_error: null,
+      dead_letter_reason: null,
       envelope: {
         event_id: "10000000-0000-4000-8000-000000000002",
         event_type: "ConversationQualified",
@@ -174,6 +176,7 @@ export function buildPlatformE2eInboxFixtures() {
       received_at: "2026-04-07T10:00:01.000Z",
       processed_at: "2026-04-07T10:00:02.000Z",
       last_error: null,
+      dead_letter_reason: null,
       envelope: {
         event_id: "10000000-0000-4000-8000-000000000003",
         event_type: "BookingConfirmed",

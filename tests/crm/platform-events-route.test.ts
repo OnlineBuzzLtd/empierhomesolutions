@@ -145,6 +145,14 @@ describe("platform events route", () => {
       expect(enqueuePlatformCommand).toHaveBeenCalledTimes(expectedCommandTypes.length);
       expect(executePlatformCommand).toHaveBeenCalledTimes(expectedCommandTypes.length);
       expect(updatePlatformCommandStatus).toHaveBeenCalledTimes(expectedCommandTypes.length);
+      expect(updatePlatformCommandStatus).toHaveBeenCalledWith(
+        {},
+        expect.objectContaining({
+          tenantId: alias.tenant_id,
+          status: "acked",
+          attemptCount: 1,
+        }),
+      );
       expect(updatePlatformEventStatus).toHaveBeenCalledWith(
         {},
         "aaaaaaaa-1111-4111-8111-111111111111",

@@ -153,6 +153,13 @@ describe("LinkConversationToCustomerOrJob: WhatsApp booking without a captured n
         channel: "whatsapp",
         identity_phone: "+447700903322",
         identity_email: "shaz-wa@example.com",
+        agent_trace: {
+          trace_id: "trace-1",
+          stage: "capturing_identity",
+          intent: "book",
+          confidence: 0.82,
+          verifier_verdict: "APPROVE",
+        },
       }),
     );
 
@@ -172,6 +179,17 @@ describe("LinkConversationToCustomerOrJob: WhatsApp booking without a captured n
     // And the conversation link is patched with the new customer id so the
     // subsequent CreateOrUpdateAppointment branch can auto-create the job.
     const linkCalls = upsertPlatformConversationLink.mock.calls;
+    expect(
+      linkCalls.some(([, , input]) => {
+        const metadata = (input as { metadata?: Record<string, unknown> }).metadata;
+        return (
+          metadata?.latest_agent_stage === "capturing_identity" &&
+          metadata?.latest_agent_intent === "book" &&
+          metadata?.latest_agent_confidence === 0.82 &&
+          metadata?.latest_verifier_verdict === "APPROVE"
+        );
+      }),
+    ).toBe(true);
     expect(linkCalls.some(([, , input]) => (input as { customerId?: string }).customerId === "cust-new-1"))
       .toBe(true);
   });

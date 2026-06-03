@@ -827,6 +827,24 @@ function buildCommonPlatformPayload(
   };
 }
 
+function buildLiveEventIdempotencyKey(
+  session: LiveFrontDeskSession,
+  eventType: "started" | "qualified" | "booked" | "escalated",
+  result: LiveAgentResult,
+) {
+  if (eventType === "booked") {
+    const bookingKey = result.booking?.booking_uid ?? result.booking?.start_at ?? "missing-booking-key";
+    return `${session.conversation.id}:booked:${bookingKey}`;
+  }
+
+  if (eventType === "escalated") {
+    const trigger = result.qualification?.urgency ?? "live_agent_escalation";
+    return `${session.conversation.id}:escalated:${trigger}`;
+  }
+
+  return `${session.conversation.id}:${eventType}`;
+}
+
 export function buildPlatformEventsFromLiveAgentResult(input: {
   alias: WorkspaceAlias;
   session: LiveFrontDeskSession;
@@ -861,7 +879,7 @@ export function buildPlatformEventsFromLiveAgentResult(input: {
       workspace_id: input.alias.workspace_id,
       occurred_at: occurredAt,
       source_system: "agentic_runtime",
-      idempotency_key: `${input.session.conversation.id}:started:${occurredAt}`,
+      idempotency_key: buildLiveEventIdempotencyKey(input.session, "started", input.result),
       correlation_id: input.session.conversation.id,
       causation_id: null,
       aggregate: {
@@ -880,7 +898,7 @@ export function buildPlatformEventsFromLiveAgentResult(input: {
       workspace_id: input.alias.workspace_id,
       occurred_at: occurredAt,
       source_system: "agentic_runtime",
-      idempotency_key: `${input.session.conversation.id}:qualified:${occurredAt}`,
+      idempotency_key: buildLiveEventIdempotencyKey(input.session, "qualified", input.result),
       correlation_id: input.session.conversation.id,
       causation_id: null,
       aggregate: {
@@ -899,7 +917,7 @@ export function buildPlatformEventsFromLiveAgentResult(input: {
       workspace_id: input.alias.workspace_id,
       occurred_at: occurredAt,
       source_system: "agentic_runtime",
-      idempotency_key: `${input.session.conversation.id}:booked:${occurredAt}`,
+      idempotency_key: buildLiveEventIdempotencyKey(input.session, "booked", input.result),
       correlation_id: input.session.conversation.id,
       causation_id: null,
       aggregate: {
@@ -924,7 +942,7 @@ export function buildPlatformEventsFromLiveAgentResult(input: {
       workspace_id: input.alias.workspace_id,
       occurred_at: occurredAt,
       source_system: "agentic_runtime",
-      idempotency_key: `${input.session.conversation.id}:escalated:${occurredAt}`,
+      idempotency_key: buildLiveEventIdempotencyKey(input.session, "escalated", input.result),
       correlation_id: input.session.conversation.id,
       causation_id: null,
       aggregate: {

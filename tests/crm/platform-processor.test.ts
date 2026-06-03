@@ -101,6 +101,14 @@ describe("platform event processor", () => {
     expect(recordPlatformEvent).toHaveBeenCalledTimes(1);
     expect(executePlatformCommand).toHaveBeenCalledTimes(2);
     expect(updatePlatformCommandStatus).toHaveBeenCalledTimes(2);
+    expect(updatePlatformCommandStatus).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        tenantId: alias.tenant_id,
+        status: "acked",
+        attemptCount: 1,
+      }),
+    );
     expect(updatePlatformEventStatus).toHaveBeenCalledWith(
       {},
       "11111111-1111-4111-8111-111111111111",
@@ -172,6 +180,15 @@ describe("platform event processor", () => {
 
     expect(result.alias).toEqual(alias);
     expect(result.deferred).toBe(true);
+    expect(updatePlatformCommandStatus).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        tenantId: alias.tenant_id,
+        status: "failed",
+        lastError: "link failed",
+        attemptCount: 1,
+      }),
+    );
     expect(updatePlatformEventStatus).toHaveBeenCalledWith(
       {},
       "11111111-1111-4111-8111-111111111111",

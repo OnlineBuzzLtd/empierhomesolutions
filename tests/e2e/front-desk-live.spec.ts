@@ -5,15 +5,15 @@ test.describe("Live channel tester", () => {
     await page.goto("/ai-hub/live", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
 
-    await expect(page.getByRole("heading", { level: 1, name: "AI Hub" })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText("Tenant-Linked Runtime Surface")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "AI Receptionist" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("Empire Home Solutions Runtime")).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "Web" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "SMS" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "WhatsApp" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "Phone" })).toBeVisible();
     await expect(page.getByText("Empire Home Solutions Runtime")).toBeVisible();
     await expect(page.getByText("+44 1895 725151").first()).toBeVisible();
-    await expect(page.getByText("Platform AI").first()).toBeVisible();
+    await expect(page.getByText("AI connected").first()).toBeVisible();
   });
 
   test("opens a linked webchat session and shows the agent reply", async ({ page }) => {
@@ -26,14 +26,14 @@ test.describe("Live channel tester", () => {
     await page.getByLabel("Opening message").fill("Need a boiler service this Thursday morning.");
     await page.getByRole("button", { name: "Start live webchat" }).click();
 
-    await expect(page.getByText("Booking state: capturing_identity")).toBeVisible();
+    await expect(page.getByText("Booking step: capturing_identity")).toBeVisible();
     await expect(page.getByLabel("Send message")).toBeVisible();
 
     await page.getByLabel("Send message").fill("UB8 1AA");
     await page.getByRole("button", { name: "Send" }).click();
 
     await expect(page.getByText("Booked for Thursday 10:00-11:00. We have your service visit locked in.")).toBeVisible();
-    await expect(page.getByText("Lead booked · Booked visit: Thu 10:00-11:00")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Inbox" }).first()).toBeVisible();
+    await expect(page.getByText("Enquiry booked · Booked visit: Thu 10:00-11:00")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Conversations" }).first()).toBeVisible();
   });
 });

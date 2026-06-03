@@ -40,12 +40,14 @@ export async function processPlatformEvent(
         continue;
       }
 
+      const attemptCount = storedCommand.attempt_count + 1;
       try {
         await executePlatformCommand(supabase, alias, storedCommand.envelope);
         await updatePlatformCommandStatus(supabase, {
           commandId: storedCommand.envelope.command_id,
           tenantId: alias.tenant_id,
           status: "acked",
+          attemptCount,
         });
       } catch (commandError) {
         const commandMessage =
@@ -55,6 +57,7 @@ export async function processPlatformEvent(
           tenantId: alias.tenant_id,
           status: "failed",
           lastError: commandMessage,
+          attemptCount,
         });
         if (!nonFatalLifecycleEvents.has(envelope.event_type)) {
           throw commandError;

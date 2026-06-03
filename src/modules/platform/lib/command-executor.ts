@@ -6,6 +6,9 @@ import { draftQuoteForJob } from "@/modules/crm/lib/quote-automation";
 import type { PlatformCommandEnvelope } from "@/modules/platform/contracts";
 import type { PlatformEventEnvelope } from "@/modules/platform/contracts";
 import {
+  buildAgentConversationMetadata,
+} from "@/modules/platform/lib/agent-operations";
+import {
   buildBookingReviewMetadata,
   detectBookingIdentityConflict,
   type BookingCustomerIdentity,
@@ -460,14 +463,19 @@ function buildLeadFieldPatch(payload: Record<string, unknown>) {
 }
 
 function buildConversationSessionMetadata(payload: Record<string, unknown>) {
-  return {
-    session_id: pickString(payload, ["session_id"]),
-    prior_session_id: pickString(payload, ["prior_session_id"]),
-    restart_reason: pickString(payload, ["restart_reason"]),
-    session_origin: pickString(payload, ["session_origin"]),
-    returning_customer: payload.returning_customer === true,
-    memory_applied: asRecord(payload.memory_applied)
-  };
+  return buildAgentConversationMetadata(payload);
+}
+
+function hasMeaningfulConversationSessionMetadata(metadata: Record<string, unknown>) {
+  return Object.entries(metadata).some(([key, value]) => {
+    if (key === "returning_customer") {
+      return value === true;
+    }
+    if (key === "memory_applied") {
+      return Object.keys(asRecord(value)).length > 0;
+    }
+    return value !== null && value !== undefined && value !== "";
+  });
 }
 
 function buildCallbackTitle(payload: Record<string, unknown>) {
@@ -1084,6 +1092,24 @@ function buildClassificationReviewMetadata(classification: BookingClassification
     job_type_id_candidate: classification.jobTypeId,
     job_type_name_candidate: classification.jobTypeName,
     force_survey_assessment: classification.forceSurveyAssessment === true,
+  };
+}
+
+function buildDuplicateBookingReviewMetadata(input: {
+  existingMetadata: Record<string, unknown>;
+  incomingBookingId: string;
+  linkedBookingId: string | null;
+  linkedAppointmentId: string;
+}) {
+  return {
+    ...input.existingMetadata,
+    needs_review: true,
+    review_reason: "duplicate_booking_candidate",
+    duplicate_booking_candidate: {
+      incoming_booking_id: input.incomingBookingId,
+      linked_booking_id: input.linkedBookingId,
+      linked_appointment_id: input.linkedAppointmentId,
+    },
   };
 }
 
@@ -2068,11 +2094,31 @@ export async function executePlatformCommand(
         return;
       }
 
-      const link = await ensureBookingLeadForConversation(supabase, alias, conversationId, payload);
       const startsAt = toIsoString(pickString(payload, ["booking_start_at", "starts_at"]), command.issued_at);
       const endsAt = toIsoString(pickString(payload, ["booking_end_at", "ends_at"]), addMinutes(startsAt, 60));
       const bookingId = pickString(payload, ["booking_id", "booking_uid", "calcom_booking_id"]);
       const externalAppointment = bookingId ? await findAppointmentByExternalId(supabase, alias.tenant_id, bookingId) : null;
+      if (bookingId && !externalAppointment) {
+        const existingLink = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
+        const existingLinkMetadata = asRecord(existingLink?.metadata);
+        const existingLinkedBookingId = pickString(existingLinkMetadata, ["platform_booking_id", "booking_id", "booking_uid", "calcom_booking_id"]);
+        if (existingLink?.booking_appointment_id && (!existingLinkedBookingId || existingLinkedBookingId !== bookingId)) {
+          await upsertPlatformConversationLink(supabase, alias, {
+            conversationId,
+            bookingAppointmentId: existingLink.booking_appointment_id,
+            latestEventAt: startsAt,
+            metadata: buildDuplicateBookingReviewMetadata({
+              existingMetadata: existingLinkMetadata,
+              incomingBookingId: bookingId,
+              linkedBookingId: existingLinkedBookingId,
+              linkedAppointmentId: existingLink.booking_appointment_id,
+            }),
+          });
+          return;
+        }
+      }
+
+      const link = await ensureBookingLeadForConversation(supabase, alias, conversationId, payload);
       const title = buildBookingTitle(payload);
       const bookingTimeZone = resolveBookingTimeZone(payload);
       const bookingClassification = await resolveBookingClassification(supabase, alias, payload);
@@ -2206,6 +2252,28 @@ export async function executePlatformCommand(
         if (linkedCustomer) {
           await updateCustomerFromPayload(supabase, alias, linkedCustomer, payload);
         }
+      }
+
+      const activeLinkMetadata = asRecord(activeLink.metadata);
+      const linkedBookingId = pickString(activeLinkMetadata, ["platform_booking_id", "booking_id", "booking_uid", "calcom_booking_id"]);
+      if (
+        bookingId &&
+        !externalAppointment &&
+        activeLink.booking_appointment_id &&
+        (!linkedBookingId || linkedBookingId !== bookingId)
+      ) {
+        await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          bookingAppointmentId: activeLink.booking_appointment_id,
+          latestEventAt: startsAt,
+          metadata: buildDuplicateBookingReviewMetadata({
+            existingMetadata: activeLinkMetadata,
+            incomingBookingId: bookingId,
+            linkedBookingId,
+            linkedAppointmentId: activeLink.booking_appointment_id,
+          }),
+        });
+        return;
       }
 
       const linkedAppointmentId = externalAppointment?.id ?? (bookingId ? null : activeLink.booking_appointment_id);
@@ -2402,12 +2470,22 @@ export async function executePlatformCommand(
       }
 
       const link = await getPlatformConversationLink(supabase, alias.tenant_id, conversationId);
+      const sessionMetadata = buildConversationSessionMetadata(payload);
       if (!link) {
         await upsertPlatformConversationLink(supabase, alias, {
           conversationId,
           latestEventAt: occurredAt,
+          ...(hasMeaningfulConversationSessionMetadata(sessionMetadata) ? { metadata: sessionMetadata } : {}),
         });
         return;
+      }
+
+      if (hasMeaningfulConversationSessionMetadata(sessionMetadata)) {
+        await upsertPlatformConversationLink(supabase, alias, {
+          conversationId,
+          metadata: sessionMetadata,
+          latestEventAt: occurredAt,
+        });
       }
 
       const explicitJobId = pickString(payload, ["job_id"]);

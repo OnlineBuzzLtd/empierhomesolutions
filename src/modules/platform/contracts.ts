@@ -51,7 +51,7 @@ export type PlatformSourceSystem = (typeof platformSourceSystems)[number];
 export const platformTargetSystems = platformSourceSystems;
 export type PlatformTargetSystem = (typeof platformTargetSystems)[number];
 
-export const platformEventProcessingStatuses = ["accepted", "processed", "failed", "ignored"] as const;
+export const platformEventProcessingStatuses = ["accepted", "processed", "failed", "ignored", "dead_letter"] as const;
 export type PlatformEventProcessingStatus = (typeof platformEventProcessingStatuses)[number];
 
 export const platformCommandDeliveryStatuses = ["pending", "sent", "acked", "failed", "dead_letter"] as const;

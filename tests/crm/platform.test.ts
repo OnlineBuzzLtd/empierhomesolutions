@@ -97,6 +97,10 @@ describe("crm platform helpers", () => {
       "LinkConversationToCustomerOrJob",
       "CreateOrUpdateAppointment",
     ]);
+    expect(commands.map((command) => command.idempotency_key)).toEqual([
+      "booking-confirmed:test:LinkConversationToCustomerOrJob",
+      "booking-confirmed:test:CreateOrUpdateAppointment",
+    ]);
     expect(commands[0]?.causation_id).toBe(event.event_id);
   });
 

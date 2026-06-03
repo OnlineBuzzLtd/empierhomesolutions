@@ -4,6 +4,7 @@ import { requireCrmUser } from "@/modules/crm/lib/auth";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { PlatformTimeline } from "@/modules/platform/components/PlatformTimeline";
 import { platformEventTypes } from "@/modules/platform/contracts";
+import { normalizeAgentTraceFromPayload, scoreAgentWorkItem } from "@/modules/platform/lib/agent-operations";
 import { humanizePlatformKey } from "@/modules/platform/lib/presenter";
 import { getPlatformWorkspaceOverview } from "@/modules/platform/lib/repository";
 
@@ -30,6 +31,63 @@ export default async function AutomationsPage() {
           status: event.processing_status,
           meta: event.last_error ?? `Idempotency ${event.envelope.idempotency_key}`,
         }))].sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
+    : [];
+  const recoveryItems = overview
+    ? [
+        ...overview.failedEvents.map((event) => ({
+          id: event.envelope.event_id,
+          title: humanizePlatformKey(event.envelope.event_type),
+          detail: `Inbound event from ${humanizePlatformKey(event.envelope.source_system)}. Correlation ${event.envelope.correlation_id ?? "not set"}.`,
+          timestamp: event.envelope.occurred_at,
+          status: event.processing_status,
+          meta: [
+            event.last_error ?? `Idempotency ${event.envelope.idempotency_key}`,
+            ...scoreAgentWorkItem({
+              occurredAt: event.envelope.occurred_at,
+              eventType: event.envelope.event_type,
+              lastError: event.last_error,
+              trace: normalizeAgentTraceFromPayload(event.envelope.payload),
+            }).reasons,
+          ].join(" · "),
+        })),
+        ...overview.failedCommands.map((command) => ({
+          id: command.envelope.command_id,
+          title: humanizePlatformKey(command.envelope.command_type),
+          detail: `Command target ${humanizePlatformKey(command.envelope.target_system)}. Attempts: ${command.attempt_count}.`,
+          timestamp: command.envelope.issued_at,
+          status: command.delivery_status,
+          meta: [
+            command.last_error ?? `Idempotency ${command.envelope.idempotency_key}`,
+            ...scoreAgentWorkItem({
+              occurredAt: command.envelope.issued_at,
+              eventType: command.envelope.command_type,
+              lastError: command.last_error,
+              attempts: command.attempt_count,
+            }).reasons,
+          ].join(" · "),
+        })),
+        ...overview.failedOutboxEvents.map((event) => ({
+          id: event.id,
+          title: `Outbox ${humanizePlatformKey(event.envelope.event_type)}`,
+          detail: `Outbound event to ${humanizePlatformKey(event.envelope.source_system)}. Attempts: ${event.delivery_attempt_count}.`,
+          timestamp: event.occurred_at,
+          status: event.publication_status,
+          meta: [
+            event.last_error ?? `Idempotency ${event.envelope.idempotency_key}`,
+            ...scoreAgentWorkItem({
+              occurredAt: event.occurred_at,
+              eventType: event.envelope.event_type,
+              lastError: event.last_error,
+              trace: normalizeAgentTraceFromPayload(event.envelope.payload),
+              attempts: event.delivery_attempt_count,
+            }).reasons,
+          ].join(" · "),
+        })),
+      ].sort((left, right) => {
+        const leftScore = scoreAgentWorkItem({ occurredAt: left.timestamp, lastError: left.meta }).score;
+        const rightScore = scoreAgentWorkItem({ occurredAt: right.timestamp, lastError: right.meta }).score;
+        return rightScore - leftScore || new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime();
+      })
     : [];
 
   return (
@@ -66,6 +124,24 @@ export default async function AutomationsPage() {
         </div>
       </SectionCard>
 
+      <SectionCard title="Agent Quality">
+        <div className="grid gap-4 md:grid-cols-4">
+          <Metric label="Booking Success" value={formatPercent(overview?.agentQuality.bookingSuccessRate ?? null)} />
+          <Metric label="Failed Commands" value={formatPercent(overview?.agentQuality.failedCommandRate ?? null)} />
+          <Metric label="Review Signals" value={String(overview?.agentQuality.reviewNeededCount ?? 0)} />
+          <Metric label="Outbox Backlog" value={String(overview?.agentQuality.outboxBacklog ?? 0)} />
+        </div>
+        {overview?.agentQuality.alerts.length ? (
+          <div className="mt-4 space-y-2">
+            {overview.agentQuality.alerts.map((alert) => (
+              <p key={alert.message} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {alert.message}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </SectionCard>
+
       <SectionCard title="Shared Event Vocabulary">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {platformEventTypes.map((eventType) => (
@@ -82,6 +158,13 @@ export default async function AutomationsPage() {
           emptyMessage="No automation dispatches or delivery updates have been logged for this workspace yet."
         />
       </SectionCard>
+
+      <SectionCard title="Recovery Queue">
+        <PlatformTimeline
+          items={recoveryItems}
+          emptyMessage="No failed platform events, commands, or outbox publishes need operator review."
+        />
+      </SectionCard>
     </div>
   );
 }
@@ -93,4 +176,8 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
     </div>
   );
+}
+
+function formatPercent(value: number | null) {
+  return value === null ? "n/a" : `${Math.round(value * 100)}%`;
 }

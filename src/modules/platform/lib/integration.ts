@@ -30,7 +30,7 @@ function buildCommandFromEvent(
     issued_at: new Date().toISOString(),
     source_system: "crm",
     target_system: "crm",
-    idempotency_key: `${event.event_id}:${commandType}`,
+    idempotency_key: `${event.idempotency_key}:${commandType}`,
     correlation_id: event.correlation_id ?? event.event_id,
     causation_id: event.event_id,
     aggregate: {

@@ -10,6 +10,7 @@ import {
   type PlatformEventEnvelope,
   type PlatformEventProcessingStatus,
 } from "@/modules/platform/contracts";
+import { computeAgentQualityMetrics } from "@/modules/platform/lib/agent-operations";
 
 type WorkspaceAliasRow = {
   workspace_id: string;
@@ -41,6 +42,7 @@ type PlatformEventRow = {
   received_at: string;
   processed_at: string | null;
   last_error: string | null;
+  dead_letter_reason?: string | null;
 };
 
 type PlatformCommandRow = {
@@ -98,11 +100,12 @@ type PlatformOutboxEventRow = {
   aggregate_type: string;
   aggregate_id: string | null;
   payload: Record<string, unknown>;
-  publication_status: "pending" | "published" | "failed";
+  publication_status: "pending" | "published" | "failed" | "dead_letter";
   occurred_at: string;
   published_at: string | null;
   delivery_attempt_count: number;
   last_error: string | null;
+  dead_letter_reason?: string | null;
 };
 
 export type WorkspaceAlias = WorkspaceAliasRow;
@@ -131,6 +134,7 @@ export type PlatformOutboxEventRecord = {
   published_at: string | null;
   delivery_attempt_count: number;
   last_error: string | null;
+  dead_letter_reason: string | null;
   envelope: PlatformEventEnvelope;
 };
 
@@ -140,6 +144,7 @@ export type PlatformEventRecord = {
   received_at: string;
   processed_at: string | null;
   last_error: string | null;
+  dead_letter_reason: string | null;
   envelope: PlatformEventEnvelope;
 };
 
@@ -159,6 +164,7 @@ export type UpdatePlatformCommandStatusInput = {
   tenantId: string;
   status: PlatformCommandDeliveryStatus;
   lastError?: string | null;
+  attemptCount?: number;
 };
 
 function mapById<T extends { id: string }>(rows: T[]) {
@@ -172,6 +178,7 @@ function mapPlatformEventRow(row: PlatformEventRow): PlatformEventRecord {
     received_at: row.received_at,
     processed_at: row.processed_at,
     last_error: row.last_error,
+    dead_letter_reason: row.dead_letter_reason ?? null,
     envelope: platformEventEnvelopeSchema.parse({
       event_id: row.event_id,
       event_type: row.event_type,
@@ -229,6 +236,7 @@ function mapPlatformOutboxEventRow(row: PlatformOutboxEventRow): PlatformOutboxE
     published_at: row.published_at,
     delivery_attempt_count: row.delivery_attempt_count,
     last_error: row.last_error,
+    dead_letter_reason: row.dead_letter_reason ?? null,
     envelope: platformEventEnvelopeSchema.parse({
       event_id: row.id,
       event_type: row.event_type,
@@ -325,6 +333,24 @@ export async function listPlatformEvents(supabase: SupabaseClient, tenantId: str
   return ((data ?? []) as PlatformEventRow[]).map(mapPlatformEventRow);
 }
 
+export async function listFailedPlatformEvents(supabase: SupabaseClient, tenantId: string, limit = 25) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("platform_event_log")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("processing_status", "failed")
+    .order("occurred_at", { ascending: false })
+    .limit(limit)
+    .returns<PlatformEventRow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as PlatformEventRow[]).map(mapPlatformEventRow);
+}
+
 export async function getPlatformEventById(
   supabase: SupabaseClient,
   tenantId: string,
@@ -353,6 +379,24 @@ export async function listPlatformCommands(supabase: SupabaseClient, tenantId: s
     .eq("tenant_id", tenantId)
     .order("issued_at", { ascending: false })
     .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as PlatformCommandRow[]).map(mapPlatformCommandRow);
+}
+
+export async function listFailedPlatformCommands(supabase: SupabaseClient, tenantId: string, limit = 25) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("platform_command_log")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("delivery_status", "failed")
+    .order("issued_at", { ascending: false })
+    .limit(limit)
+    .returns<PlatformCommandRow[]>();
 
   if (error) {
     throw error;
@@ -433,6 +477,32 @@ export async function updatePlatformEventStatus(
   }
 }
 
+export async function markPlatformEventDeadLetter(
+  supabase: SupabaseClient,
+  input: {
+    eventId: string;
+    tenantId: string;
+    reason: string;
+  },
+) {
+  const { error } = await supabase
+    .schema("crm")
+    .from("platform_event_log")
+    .update({
+      processing_status: "dead_letter",
+      last_error: input.reason,
+      dead_letter_reason: input.reason,
+      processed_at: new Date().toISOString(),
+    })
+    .eq("event_id", input.eventId)
+    .eq("tenant_id", input.tenantId)
+    .eq("processing_status", "failed");
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function enqueuePlatformCommand(supabase: SupabaseClient, alias: WorkspaceAlias, envelope: PlatformCommandEnvelope) {
   const { data, error } = await supabase
     .schema("crm")
@@ -481,6 +551,10 @@ export async function updatePlatformCommandStatus(
     last_error: input.lastError ?? null,
   };
 
+  if (typeof input.attemptCount === "number") {
+    patch.attempt_count = input.attemptCount;
+  }
+
   if (input.status === "acked") {
     patch.acknowledged_at = new Date().toISOString();
   }
@@ -495,6 +569,30 @@ export async function updatePlatformCommandStatus(
     .update(patch)
     .eq("command_id", input.commandId)
     .eq("tenant_id", input.tenantId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function markPlatformCommandDeadLetter(
+  supabase: SupabaseClient,
+  input: {
+    commandId: string;
+    tenantId: string;
+    reason: string;
+  },
+) {
+  const { error } = await supabase
+    .schema("crm")
+    .from("platform_command_log")
+    .update({
+      delivery_status: "dead_letter",
+      last_error: input.reason,
+    })
+    .eq("command_id", input.commandId)
+    .eq("tenant_id", input.tenantId)
+    .eq("delivery_status", "failed");
 
   if (error) {
     throw error;
@@ -565,6 +663,44 @@ export async function getPlatformOutboxEventByIdempotencyKey(
   return data ? mapPlatformOutboxEventRow(data) : null;
 }
 
+export async function getPlatformOutboxEventById(
+  supabase: SupabaseClient,
+  tenantId: string,
+  id: string,
+) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("platform_outbox_events")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .maybeSingle<PlatformOutboxEventRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapPlatformOutboxEventRow(data) : null;
+}
+
+export async function listFailedPlatformOutboxEvents(supabase: SupabaseClient, tenantId: string, limit = 25) {
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("platform_outbox_events")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("publication_status", "failed")
+    .order("occurred_at", { ascending: false })
+    .limit(limit)
+    .returns<PlatformOutboxEventRow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as PlatformOutboxEventRow[]).map(mapPlatformOutboxEventRow);
+}
+
 export async function listReadyPlatformOutboxEvents(supabase: SupabaseClient, limit = 25) {
   const { data, error } = await supabase
     .schema("crm")
@@ -602,6 +738,31 @@ export async function markPlatformOutboxEventPublished(
     })
     .eq("id", input.id)
     .eq("tenant_id", input.tenantId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function markPlatformOutboxEventDeadLetter(
+  supabase: SupabaseClient,
+  input: {
+    id: string;
+    tenantId: string;
+    reason: string;
+  },
+) {
+  const { error } = await supabase
+    .schema("crm")
+    .from("platform_outbox_events")
+    .update({
+      publication_status: "dead_letter",
+      last_error: input.reason,
+      dead_letter_reason: input.reason,
+    })
+    .eq("id", input.id)
+    .eq("tenant_id", input.tenantId)
+    .eq("publication_status", "failed");
 
   if (error) {
     throw error;
@@ -806,22 +967,34 @@ export async function upsertPlatformConversationLink(
 }
 
 export async function getPlatformWorkspaceOverview(supabase: SupabaseClient, tenantId: string) {
-  const [alias, events, commands] = await Promise.all([
+  const [alias, events, commands, failedEvents, failedCommands, failedOutboxEvents] = await Promise.all([
     getWorkspaceAlias(supabase, tenantId),
     listPlatformEvents(supabase, tenantId, 20),
     listPlatformCommands(supabase, tenantId, 20),
+    listFailedPlatformEvents(supabase, tenantId, 20),
+    listFailedPlatformCommands(supabase, tenantId, 20),
+    listFailedPlatformOutboxEvents(supabase, tenantId, 20),
   ]);
 
   return {
     alias,
     events,
     commands,
+    failedEvents,
+    failedCommands,
+    failedOutboxEvents,
     stats: {
       eventCount: events.length,
       commandCount: commands.length,
-      openFailures: events.filter((event) => event.processing_status === "failed").length + commands.filter((command) => command.delivery_status === "failed").length,
+      openFailures: failedEvents.length + failedCommands.length + failedOutboxEvents.length,
       pendingCommands: commands.filter((command) => command.delivery_status === "pending").length,
       missedCalls: events.filter((event) => event.envelope.event_type === "MissedCallCaptured").length,
     },
+    agentQuality: computeAgentQualityMetrics({
+      events,
+      commands,
+      outboxEvents: failedOutboxEvents,
+      windowDays: 7,
+    }),
   };
 }

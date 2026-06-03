@@ -277,6 +277,7 @@ export function OperatorPanel({
     });
     let transcript: ParsedWebchatMessage[] = [];
     let conversationId: string | null = null;
+    let sentConsolidatedRescue = false;
 
     dispatchAutopilot({
       type: "line",
@@ -291,7 +292,7 @@ export function OperatorPanel({
     transcript = appendTranscriptMessages(transcript, opening.messages);
     await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
 
-    for (let turnIndex = 1; turnIndex <= 8; turnIndex += 1) {
+    for (let turnIndex = 1; turnIndex <= 14; turnIndex += 1) {
       if (autopilotStoppedRef.current || autopilotRunIdRef.current !== input.runId) {
         return { status: "blocked", message: "Scenario stopped." };
       }
@@ -330,6 +331,30 @@ export function OperatorPanel({
             };
       }
       if (nextTurn.status !== "message" || !nextTurn.message) {
+        if (!sentConsolidatedRescue) {
+          sentConsolidatedRescue = true;
+          dispatchAutopilot({
+            type: "line",
+            lineIndex: turnIndex,
+            message: "Sending all booking details once more.",
+          });
+          const sent = await webchat.sendMessage(facts.consolidatedDetailsMessage, {
+            scenarioKey: input.scenarioKey,
+            conversationId,
+          });
+          conversationId = sent.conversationId;
+          transcript = appendTranscriptMessages(transcript, sent.messages);
+          const outcome = await waitForScenarioOutcome({
+            scenarioKey: input.scenarioKey,
+            runId: input.runId,
+            attempts: 2,
+          });
+          if (outcome.complete) {
+            return { status: "completed", message: outcome.summary };
+          }
+          await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
+          continue;
+        }
         return {
           status: "blocked",
           message: nextTurn.reason ?? "Demo customer could not generate a safe next reply.",
@@ -358,7 +383,17 @@ export function OperatorPanel({
       await waitWithControls(getDemoWebchatSpeedDelayMs(input.speed));
     }
 
-    return { status: "blocked", message: "Stopped after the maximum adaptive turns." };
+    const finalOutcome = await waitForScenarioOutcome({
+      scenarioKey: input.scenarioKey,
+      runId: input.runId,
+      attempts: 8,
+    });
+    return finalOutcome.complete
+      ? { status: "completed", message: finalOutcome.summary }
+      : {
+          status: "blocked",
+          message: `CRM trail missing after the maximum adaptive turns. ${finalOutcome.summary}`,
+        };
   }
 
   async function startWebchatScenario() {

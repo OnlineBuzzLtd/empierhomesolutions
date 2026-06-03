@@ -5,7 +5,7 @@ import {
   type DemoWebchatScenarioKey,
 } from "@/modules/crm/demo-console/webchat-scenarios";
 
-export const demoCustomerMaxTurns = 8;
+export const demoCustomerMaxTurns = 14;
 
 export type DemoCustomerTurnStatus = "message" | "complete" | "blocked";
 
@@ -63,13 +63,13 @@ export function classifyDemoCustomerQuestion(text: string): QuestionKind | null 
     return "confirmation";
   }
   if (/\b(email|e-mail|mail address)\b/.test(lowered)) return "email";
-  if (/\b(phone|mobile|number|contact)\b/.test(lowered)) return "phone";
-  if (/\b(postcode|post code|zip)\b/.test(lowered)) return "postcode";
-  if (/\b(address|where|property|location)\b/.test(lowered)) return "address";
-  if (/\b(name|who is this|your details)\b/.test(lowered)) return "identity";
   if (/\b(when|date|time|slot|today|tomorrow|morning|afternoon|availability)\b/.test(lowered)) {
     return "time";
   }
+  if (/\b(name|who is this|your details)\b/.test(lowered)) return "identity";
+  if (/\b(postcode|post code|zip)\b/.test(lowered)) return "postcode";
+  if (/\b(address|where|property|location)\b/.test(lowered)) return "address";
+  if (/\b(phone|mobile|number|contact)\b/.test(lowered)) return "phone";
   if (/\b(service|problem|issue|boiler|heating|hot water|install|survey)\b/.test(lowered)) {
     return "service";
   }
@@ -120,9 +120,8 @@ function requiresLiteralYesConfirmation(text: string) {
 }
 
 export function demoCustomerReplyLooksComplete(text: string) {
-  return /\b(you(?:'re| are)\s+booked|booking\s+(?:is\s+)?confirmed|appointment\s+(?:is\s+)?confirmed|survey\s+(?:is\s+)?(?:booked|confirmed)|confirmed\s+(?:for|the)\s+(?:appointment|booking|survey)|we(?:'re| are)\s+all\s+set)\b/i.test(
-    text,
-  );
+  const normalized = text.replace(/[‘’]/g, "'");
+  return /\b(you're\s+booked|you\s+are\s+booked|booking\s+(?:is\s+)?confirmed|appointment\s+(?:is\s+)?confirmed|survey\s+(?:is\s+)?(?:booked|confirmed)|(?:emergency|boiler|repair|service|job|visit|callout)[^.?!]{0,120}\bis\s+confirmed|confirmed\s+(?:for|the)\s+(?:appointment|booking|survey|visit|job)|(?:we're|we\s+are|you're|you\s+are|(?:booking|appointment|survey|visit|job|emergency|boiler|repair|service|callout)[^.?!]{0,80}\s+is)\s+all\s+set)\b/i.test(normalized);
 }
 
 function buildOfferedSlotReply(text: string) {
@@ -271,8 +270,26 @@ function buildFirstPassDeterministicReply(
     return `The ${offeredSlot} slot works. Please book that.`;
   }
 
+  if (latestQuestion === "time") return facts.preferredTime;
+  if (
+    latestQuestion === "confirmation" &&
+    /\b(service|problem|issue|boiler|heating|hot water|install|installation|survey|repair|callout)\b/.test(
+      lowered,
+    ) &&
+    !/\b(slot|appointment|booking|time|date)\b/.test(lowered)
+  ) {
+    return `Yes, ${facts.service}. ${facts.problem}`;
+  }
+  if (latestQuestion === "confirmation") return facts.acceptancePhrase;
+
   if (asksName && asksPhone && (asksPostcode || asksAddress)) {
     return `My name is ${facts.prospectName}, my phone is ${facts.prospectPhone}, and the address is ${facts.addressLine} ${facts.postcode}.`;
+  }
+  if (asksName && asksPhone) {
+    return `My name is ${facts.prospectName} and my phone is ${facts.prospectPhone}.`;
+  }
+  if (asksName && (asksPostcode || asksAddress)) {
+    return `My name is ${facts.prospectName}, and the address is ${facts.addressLine} ${facts.postcode}.`;
   }
   if (asksEmail && (asksPhone || asksPostcode || asksAddress || asksName)) {
     return `Please use my phone number ${facts.prospectPhone} for the booking confirmation. My name is ${facts.prospectName}, and the address is ${facts.addressLine} ${facts.postcode}.`;
@@ -280,17 +297,18 @@ function buildFirstPassDeterministicReply(
   if (asksEmail) {
     return `Please use my phone number ${facts.prospectPhone} for the booking confirmation.`;
   }
+  if (asksPhone && asksAddress) {
+    return `My phone is ${facts.prospectPhone}, and the address is ${facts.addressLine} ${facts.postcode}.`;
+  }
   if (asksPhone && asksPostcode) {
     return `My phone is ${facts.prospectPhone} and the postcode is ${facts.postcode}.`;
   }
+  if (asksName) return `My name is ${facts.prospectName}.`;
   if (asksPhone) return `My phone number is ${facts.prospectPhone}.`;
   if (asksPostcode && asksAddress) return `The address is ${facts.addressLine} ${facts.postcode}.`;
   if (asksPostcode) return `The postcode is ${facts.postcode}.`;
   if (asksAddress) return `The address is ${facts.addressLine} ${facts.postcode}.`;
-  if (asksName) return `My name is ${facts.prospectName}.`;
 
-  if (latestQuestion === "time") return facts.preferredTime;
-  if (latestQuestion === "confirmation") return facts.acceptancePhrase;
   if (latestQuestion === "service") return `${facts.service}. ${facts.problem}`;
   if (latestQuestion === "email") {
     return `Please use my phone number ${facts.prospectPhone} for the booking confirmation.`;
@@ -348,29 +366,27 @@ export function resolveDeterministicDemoCustomerTurn(
     latestReply.body,
   );
 
+  if (firstPassReply) {
+    const sameQuestionCount = outboundMessages(input.transcript).filter((message) => {
+      return classifyDemoCustomerQuestion(message.body) === latestQuestion;
+    }).length;
+    const alreadyRetried =
+      sameQuestionCount >= 2 && hasDirectRetryAfterConsolidatedDetails(input, latestQuestion);
+    return makeTurn(
+      "message",
+      "next_message",
+      alreadyRetried
+        ? "Continuing the booking by re-answering a known prompt from scenario facts."
+        : "Answering the AI's structured booking question from scenario facts.",
+      firstPassReply,
+    );
+  }
+
   const sameQuestionCount = outboundMessages(input.transcript).filter((message) => {
     return classifyDemoCustomerQuestion(message.body) === latestQuestion;
   }).length;
 
-  if (sameQuestionCount >= 2) {
-    if (hasConsolidatedDetailsAlready(input)) {
-      if (
-        firstPassReply &&
-        !hasDirectRetryAfterConsolidatedDetails(input, latestQuestion)
-      ) {
-        return makeTurn(
-          "message",
-          "next_message",
-          "Retrying the repeated missing-info prompt with the exact scenario detail requested.",
-          firstPassReply,
-        );
-      }
-      return makeTurn(
-        "blocked",
-        "repeated_question",
-        "The AI repeated the same question after the consolidated details and a direct retry were already sent.",
-      );
-    }
+  if (sameQuestionCount >= 2 && !hasConsolidatedDetailsAlready(input)) {
     const scenario = getDemoWebchatScenario(input.scenarioKey);
     const facts = renderDemoWebchatScenarioFacts(scenario, {
       prospectName: input.prospectName,
@@ -381,15 +397,6 @@ export function resolveDeterministicDemoCustomerTurn(
       "next_message",
       "Answering repeated missing-info prompt with all scenario details.",
       facts.consolidatedDetailsMessage,
-    );
-  }
-
-  if (firstPassReply) {
-    return makeTurn(
-      "message",
-      "next_message",
-      "Answering the AI's structured booking question from scenario facts.",
-      firstPassReply,
     );
   }
 

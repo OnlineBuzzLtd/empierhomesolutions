@@ -399,7 +399,67 @@ describe("demo webchat routes", () => {
       stopCode: "next_message",
       message: "My phone is +447779305853 and the postcode is UB8 1AA.",
     });
-    expect(body.turn.reason).toContain("exact scenario detail");
+    expect(body.turn.reason).toContain("structured booking question");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(generateCustomerJourneysDemoCustomerTurn).not.toHaveBeenCalled();
+  });
+
+  it("next-customer-turn answers repeated date/time prompts after consolidated details", async () => {
+    mockActiveDemoApi();
+    const generateCustomerJourneysDemoCustomerTurn = vi.fn();
+    vi.doMock("@/modules/crm/demo-console/server/demo-kill-switch", () => ({
+      guardDemoKillSwitchClear: vi.fn().mockResolvedValue({ ok: true }),
+    }));
+    vi.doMock("@/modules/crm/lib/customerjourneys", () => ({
+      getCustomerJourneysRuntimeLink: vi.fn().mockResolvedValue({ customerjourneys_tenant_id: "runtime-1" }),
+      generateCustomerJourneysDemoCustomerTurn,
+    }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const route = await import("@/app/api/crm/demo/webchat/next-customer-turn/route");
+    const response = (await route.POST(
+      new Request("http://localhost/api/crm/demo/webchat/next-customer-turn", {
+        method: "POST",
+        body: JSON.stringify({
+          scenarioKey: "emergency_repair_booking",
+          turnIndex: 4,
+          transcript: [
+            {
+              direction: "inbound",
+              body: "Hi, I have no heating or hot water and need someone urgently.",
+            },
+            {
+              direction: "outbound",
+              body: "I can help with that. No heating or hot water sounds like a boiler issue. Is it a boiler repair you need, or could it be something else like a cylinder or plumbing problem?",
+            },
+            {
+              direction: "inbound",
+              body: "Emergency boiler repair callout. No heating or hot water. The boiler is making a loud noise.",
+            },
+            { direction: "outbound", body: "What is the best phone number for the booking?" },
+            { direction: "inbound", body: "My phone number is +447779305853." },
+            {
+              direction: "outbound",
+              body: "Thanks. I have your number. I need your postcode and street address so the engineer knows where to go.",
+            },
+            {
+              direction: "inbound",
+              body: "My name is shaz, my phone is +447779305853, and the address is 188 Hello Lane, Uxbridge UB8 1AA. The boiler is making a loud noise and tomorrow morning from 8am works. Yes, please book the slot.",
+            },
+            { direction: "outbound", body: "What date and time would you like?" },
+          ],
+        }),
+      }),
+    )) as Response;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.turn).toMatchObject({
+      status: "message",
+      stopCode: "next_message",
+      message: "Tomorrow morning, preferably from 8am.",
+    });
+    expect(body.turn.stopCode).not.toBe("repeated_question");
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(generateCustomerJourneysDemoCustomerTurn).not.toHaveBeenCalled();
   });

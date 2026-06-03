@@ -102,7 +102,24 @@ function buildSupabaseMock(
 
   // customers – lookup select.eq.eq.returns and insert.select.single
   const customersReturns = vi.fn().mockResolvedValue({ data: opts.customerLookupRows ?? [], error: null });
-  const customersEq2 = vi.fn().mockReturnValue({ returns: customersReturns });
+  const customerMaybeSingle = vi.fn().mockResolvedValue({
+    data: {
+      id: cId,
+      tenant_id: TENANT_ID,
+      full_name: "Shaz Ahmed",
+      first_name: "Shaz",
+      last_name: "Ahmed",
+      phone: "+447779305853",
+      email: "shaz@onlinebuzz.co.uk",
+      address_line1: "4 Toby Way",
+      city: "Romford",
+      postcode: "RM7ATQ",
+      archived: false,
+    },
+    error: null,
+  });
+  const customersEq3 = vi.fn().mockReturnValue({ maybeSingle: customerMaybeSingle });
+  const customersEq2 = vi.fn().mockReturnValue({ returns: customersReturns, eq: customersEq3 });
   const customersEq1 = vi.fn().mockReturnValue({ eq: customersEq2 });
   const customersSelect = vi.fn().mockReturnValue({ eq: customersEq1 });
   const customerSingle = vi.fn().mockResolvedValue({
@@ -123,6 +140,26 @@ function buildSupabaseMock(
   });
   const customersInsertSelect = vi.fn().mockReturnValue({ single: customerSingle });
   const customersInsert = vi.fn().mockReturnValue({ select: customersInsertSelect });
+  const customerUpdateSingle = vi.fn().mockResolvedValue({
+    data: {
+      id: cId,
+      tenant_id: TENANT_ID,
+      full_name: "Shaz Ahmed",
+      first_name: "Shaz",
+      last_name: "Ahmed",
+      phone: "+447779305853",
+      email: "shaz@onlinebuzz.co.uk",
+      address_line1: "4 Toby Way",
+      city: "Romford",
+      postcode: "RM7ATQ",
+      archived: false,
+    },
+    error: null,
+  });
+  const customersUpdateSelect = vi.fn().mockReturnValue({ single: customerUpdateSingle });
+  const customersUpdateEq2 = vi.fn().mockReturnValue({ select: customersUpdateSelect });
+  const customersUpdateEq1 = vi.fn().mockReturnValue({ eq: customersUpdateEq2 });
+  const customersUpdate = vi.fn().mockReturnValue({ eq: customersUpdateEq1 });
 
   // appointments – insert.select.single and update.eq.eq
   const apptSingle = vi.fn().mockResolvedValue({ data: { id: aptId }, error: null });
@@ -196,7 +233,7 @@ function buildSupabaseMock(
       case "leads":
         return { update: leadsUpdate, insert: leadsInsert };
       case "customers":
-        return { select: customersSelect, insert: customersInsert };
+        return { select: customersSelect, insert: customersInsert, update: customersUpdate };
       case "appointments":
         return { insert: apptInsert, update: apptUpdate };
       case "jobs":
@@ -219,7 +256,7 @@ function buildSupabaseMock(
   const schema = vi.fn().mockReturnValue({ from });
   const supabase = { schema };
 
-  return { supabase, from, apptInsert, apptUpdate, jobInsert, jobUpdate, leadsUpdate, notesInsert, customersInsert };
+  return { supabase, from, apptInsert, apptUpdate, jobInsert, jobUpdate, leadsUpdate, notesInsert, customersInsert, customersUpdate };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -385,6 +422,61 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
     expect(leadsUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: "survey_booked" }));
   });
 
+  it("Webchat demo: classifies boiler-install survey scenarios as survey appointments even with a generic service", async () => {
+    const baseLink = makeBaseLink({ latest_channel: "webchat" });
+    const refreshedLink = makeBaseLink({
+      latest_channel: "webchat",
+      booking_appointment_id: "appt-test-1",
+    });
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink: vi
+        .fn()
+        .mockResolvedValueOnce(baseLink)
+        .mockResolvedValueOnce(refreshedLink),
+      upsertPlatformConversationLink: vi.fn().mockResolvedValue(baseLink),
+    }));
+
+    const { supabase, apptInsert, jobInsert, leadsUpdate } = buildSupabaseMock();
+    const { executePlatformCommand } = await import("@/modules/platform/lib/command-executor");
+
+    await executePlatformCommand(
+      supabase as never,
+      alias,
+      makeCommand("CreateOrUpdateAppointment", {
+        channel: "webchat",
+        source: "demo_console_webchat",
+        is_test: true,
+        booking_start_at: "2026-06-08T10:00:00.000Z",
+        booking_end_at: "2026-06-08T11:00:00.000Z",
+        booking_slot_label: "Mon 11:00-12:00",
+        treatmentType: "Boilers",
+        message_summary: "Customer booked a boiler install survey through the demo.",
+        metadata: {
+          is_test: true,
+          demo_scenario_key: "boiler_install_survey",
+        },
+      }),
+    );
+
+    expect(apptInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "survey",
+        visit_classification: "survey_assessment",
+      }),
+    );
+    expect(jobInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "booked",
+        visit_classification: "survey_assessment",
+        commercial_stage: "survey_booked",
+        service_id: "svc-boilers",
+        is_test: true,
+      }),
+    );
+    expect(leadsUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: "survey_booked" }));
+  });
+
   // 2. WhatsApp ─────────────────────────────────────────────────────────────────
 
   it("WhatsApp: links booking job to a pre-matched returning customer", async () => {
@@ -524,6 +616,127 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
         }),
       }),
     );
+  });
+
+  it("Demo webchat: marks the resolved customer as test when a test booking is confirmed", async () => {
+    const baseLink = makeBaseLink({
+      latest_channel: "webchat",
+      customer_id: null,
+      identity_phone: "+447700900111",
+    });
+    const refreshedLink = makeBaseLink({
+      latest_channel: "webchat",
+      customer_id: "existing-customer-1",
+      booking_appointment_id: "appt-test-1",
+      identity_phone: "+447700900111",
+    });
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink: vi
+        .fn()
+        .mockResolvedValueOnce(baseLink)
+        .mockResolvedValueOnce(refreshedLink),
+      upsertPlatformConversationLink: vi.fn().mockResolvedValue(baseLink),
+    }));
+
+    const { supabase, customersUpdate, jobInsert } = buildSupabaseMock({
+      customerId: "existing-customer-1",
+      customerLookupRows: [
+        {
+          id: "existing-customer-1",
+          tenant_id: TENANT_ID,
+          full_name: "Smoke Demo Customer",
+          first_name: "Smoke",
+          last_name: "Customer",
+          phone: "+447700900111",
+          email: null,
+          address_line1: "188 Hello Lane",
+          city: null,
+          postcode: "UB8 1AA",
+          archived: false,
+        },
+      ],
+    });
+    const { executePlatformCommand } = await import("@/modules/platform/lib/command-executor");
+
+    await executePlatformCommand(
+      supabase as never,
+      alias,
+      makeCommand("CreateOrUpdateAppointment", {
+        channel: "webchat",
+        source: "demo_console_webchat",
+        is_test: true,
+        customer_full_name: "Smoke Demo Customer",
+        customer_phone: "+447700900111",
+        customer_address: "188 Hello Lane",
+        customer_postcode: "UB8 1AA",
+        booking_title: "Emergency callout",
+        booking_start_at: "2026-06-04T08:00:00.000Z",
+        booking_end_at: "2026-06-04T09:00:00.000Z",
+      }),
+    );
+
+    expect(customersUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_test: true,
+        full_name: "Smoke Demo Customer",
+        phone: "+447700900111",
+      }),
+    );
+    expect(jobInsert).toHaveBeenCalledWith(expect.objectContaining({ is_test: true }));
+  });
+
+  it("Demo webchat: marks a pre-linked customer as test when a test booking is confirmed", async () => {
+    const baseLink = makeBaseLink({
+      latest_channel: "webchat",
+      customer_id: "prelinked-customer-1",
+      identity_phone: "+447700900222",
+    });
+    const refreshedLink = makeBaseLink({
+      latest_channel: "webchat",
+      customer_id: "prelinked-customer-1",
+      booking_appointment_id: "appt-test-1",
+      identity_phone: "+447700900222",
+    });
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      getPlatformConversationLink: vi
+        .fn()
+        .mockResolvedValueOnce(baseLink)
+        .mockResolvedValueOnce(refreshedLink),
+      upsertPlatformConversationLink: vi.fn().mockResolvedValue(baseLink),
+    }));
+
+    const { supabase, customersUpdate, jobInsert } = buildSupabaseMock({
+      customerId: "prelinked-customer-1",
+    });
+    const { executePlatformCommand } = await import("@/modules/platform/lib/command-executor");
+
+    await executePlatformCommand(
+      supabase as never,
+      alias,
+      makeCommand("CreateOrUpdateAppointment", {
+        channel: "webchat",
+        source: "demo_console_webchat",
+        is_test: true,
+        customer_full_name: "Smoke Prelinked Customer",
+        customer_phone: "+447700900222",
+        customer_address: "188 Hello Lane",
+        customer_postcode: "UB8 1AA",
+        booking_title: "Emergency callout",
+        booking_start_at: "2026-06-04T08:00:00.000Z",
+        booking_end_at: "2026-06-04T09:00:00.000Z",
+      }),
+    );
+
+    expect(customersUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_test: true,
+        full_name: "Smoke Prelinked Customer",
+        phone: "+447700900222",
+      }),
+    );
+    expect(jobInsert).toHaveBeenCalledWith(expect.objectContaining({ customer_id: "prelinked-customer-1", is_test: true }));
   });
 
   // 3. Voice ─────────────────────────────────────────────────────────────────────

@@ -67,6 +67,7 @@ type BookingClassification = {
   serviceName: string | null;
   jobTypeId: string | null;
   jobTypeName: string | null;
+  forceSurveyAssessment?: boolean;
   needsReview: boolean;
   reviewReason: string | null;
 };
@@ -711,6 +712,9 @@ async function updateCustomerFromPayload(
   if (nextPostcode) {
     patch.postcode = nextPostcode;
   }
+  if (extractIsTestFromPayload(payload)) {
+    patch.is_test = true;
+  }
 
   if (Object.keys(patch).length === 0) {
     return customer;
@@ -1000,11 +1004,49 @@ function resolveJobTypeFromPayload(jobTypes: JobTypeMatchRow[], payload: Record<
   return null;
 }
 
+function payloadIndicatesSurveyAssessment(payload: Record<string, unknown>) {
+  const hints = collectPayloadStrings(payload, [
+    "demo_scenario_key",
+    "demoScenarioKey",
+    "scenario_key",
+    "visit_classification",
+    "appointment_type",
+    "appointmentType",
+    "booking_classification",
+    "job_type_key",
+    "job_type_slug",
+    "job_type_name",
+    "issue_description",
+    "problem_description",
+    "message_summary",
+    "booking_title",
+    "job_title",
+    "title",
+    "service_name",
+    "serviceCategory",
+    "treatmentType",
+  ]);
+  const haystack = hints.map((hint) => normalizeComparableText(hint)).filter(Boolean).join(" ");
+  if (!haystack) {
+    return false;
+  }
+
+  if (/\bsurvey\b|\bassessment\b/.test(haystack)) {
+    return true;
+  }
+
+  return (
+    /\b(install|installation|replacement|new boiler|power flush|powerflush|air source|heat pump)\b/.test(haystack) &&
+    /\b(quote|quotation|site visit|visit)\b/.test(haystack)
+  );
+}
+
 async function resolveBookingClassification(
   supabase: SupabaseClient,
   alias: WorkspaceAlias,
   payload: Record<string, unknown>,
 ): Promise<BookingClassification> {
+  const forceSurveyAssessment = payloadIndicatesSurveyAssessment(payload);
   const services = await listActiveServices(supabase, alias.tenant_id);
   const service = resolveServiceFromPayload(services, payload);
   if (!service) {
@@ -1013,6 +1055,7 @@ async function resolveBookingClassification(
       serviceName: null,
       jobTypeId: null,
       jobTypeName: null,
+      forceSurveyAssessment,
       needsReview: true,
       reviewReason: "Service could not be matched from the AI booking.",
     };
@@ -1026,6 +1069,7 @@ async function resolveBookingClassification(
     serviceName: service.name,
     jobTypeId: jobType?.id ?? null,
     jobTypeName: jobType?.name ?? null,
+    forceSurveyAssessment,
     needsReview: needsJobTypeReview,
     reviewReason: needsJobTypeReview ? "Job type needs review before the office relies on this booking." : null,
   };
@@ -1039,10 +1083,15 @@ function buildClassificationReviewMetadata(classification: BookingClassification
     service_name_candidate: classification.serviceName,
     job_type_id_candidate: classification.jobTypeId,
     job_type_name_candidate: classification.jobTypeName,
+    force_survey_assessment: classification.forceSurveyAssessment === true,
   };
 }
 
 function inferVisitClassification(classification: BookingClassification): "standard" | "survey_assessment" {
+  if (classification.forceSurveyAssessment) {
+    return "survey_assessment";
+  }
+
   const haystack = [classification.serviceName, classification.jobTypeName]
     .map((value) => normalizeComparableText(value))
     .filter(Boolean)
@@ -1565,7 +1614,10 @@ async function resolveCustomerForBookingPayload(
 ): Promise<BookingCustomerResolution> {
   const identityMode = pickString(payload, ["identity_resolution"]);
   const bookingCustomer = buildBookingCustomerIdentityFromPayload(payload);
-  const flat = bookingCustomerIdentityToPayload(bookingCustomer);
+  const flat = {
+    ...bookingCustomerIdentityToPayload(bookingCustomer),
+    is_test: extractIsTestFromPayload(payload),
+  };
 
   if (identityMode === "force_new_customer") {
     return { status: "resolved", customer: await createCustomerFromPayload(supabase, alias, flat) };
@@ -2148,6 +2200,11 @@ export async function executePlatformCommand(
         });
         if (activeLink.lead_id) {
           await attachLeadToCustomer(supabase, alias, activeLink.lead_id, customerResolution.customer.id);
+        }
+      } else if (activeLink.customer_id && extractIsTestFromPayload(payload)) {
+        const linkedCustomer = await findCustomerById(supabase, alias.tenant_id, activeLink.customer_id);
+        if (linkedCustomer) {
+          await updateCustomerFromPayload(supabase, alias, linkedCustomer, payload);
         }
       }
 

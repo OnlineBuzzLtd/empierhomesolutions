@@ -4,6 +4,10 @@ import {
   appointmentTypes,
   certificationCategories,
   customFieldTypes,
+  customerPromiseChannels,
+  customerPromiseOrigins,
+  customerPromiseStatuses,
+  customerPromiseTypes,
   engineerAiAssistActions,
   expenseCategories,
   commercialStages,
@@ -237,6 +241,43 @@ export const leadSchema = z.object({
   preferred_date_text: z.string().optional().nullable(),
   preferred_time_window: z.string().optional().nullable(),
 });
+
+export const customerPromiseSchema = z
+  .object({
+    customer_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    lead_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    job_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    quote_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    invoice_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    platform_conversation_id: z.preprocess(emptyStringToNull, z.string().optional().nullable()),
+    platform_event_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    promise_type: z.enum(customerPromiseTypes).default("follow_up"),
+    title: z.string().min(2).default("Customer promise"),
+    detail: z.string().optional().nullable(),
+    owner_user_id: z.preprocess(emptyStringToNull, z.string().uuid().optional().nullable()),
+    due_at: z.string().optional().nullable(),
+    channel: z.enum(customerPromiseChannels).default("phone"),
+    status: z.enum(customerPromiseStatuses).default("open"),
+    origin: z.enum(customerPromiseOrigins).default("office"),
+    idempotency_key: z.string().optional().nullable(),
+  })
+  .superRefine((value, ctx) => {
+    const hasLink = Boolean(
+      value.customer_id ||
+        value.lead_id ||
+        value.job_id ||
+        value.quote_id ||
+        value.invoice_id ||
+        value.platform_conversation_id,
+    );
+    if (!hasLink) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["customer_id"],
+        message: "Link the promise to a customer, record, or AI conversation.",
+      });
+    }
+  });
 
 export const jobSchema = z.object({
   customer_id: z.string().uuid(),

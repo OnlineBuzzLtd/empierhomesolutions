@@ -24,7 +24,6 @@ export type TrustStripContent = {
   gasSafeNumber: string;
   ratingValue: number;
   ratingCount: number;
-  financeAvailable: boolean;
   guaranteeText: string;
   brandLogos: BrandLogo[];
 };
@@ -36,10 +35,6 @@ export type PricingContent = {
   installRangeMin: number;
   installRangeMax: number;
   pricingDisclaimer: string;
-  financeExample?: {
-    monthlyFrom: number;
-    summary: string;
-  };
 };
 
 export type FaultListItem = {
@@ -97,17 +92,6 @@ export type LpContent = {
   coverage: CoverageContent;
   faqs: FAQItem[];
   cta: CTAContent;
-  seo: SeoContent;
-};
-
-export type FinanceContent = {
-  slug: string;
-  title: string;
-  description: string;
-  eligibility: string[];
-  representativeExample: string;
-  lenderPanelNote: string;
-  fcaDisclaimer: string;
   seo: SeoContent;
 };
 

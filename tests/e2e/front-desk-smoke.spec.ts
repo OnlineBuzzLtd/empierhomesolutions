@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function openInbox(page: Page) {
-  await page.goto("/inbox");
+  await page.goto("/inbox", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(page.locator("h1")).toContainText("Inbox", { timeout: 15000 });
 }
@@ -11,7 +11,7 @@ test.describe("Front Desk smoke", () => {
     await openInbox(page);
 
     await expect(page.getByRole("heading", { level: 1, name: "Inbox" })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText("One workspace queue for conversations, missed-call recovery, and linked CRM outcomes.")).toBeVisible();
+    await expect(page.getByText("Customer replies, AI handoffs, and follow-ups that need office action.")).toBeVisible();
     await expect(page.getByText("Missed call recovery").first()).toBeVisible();
     await expect(page.getByText("Urgent boiler repair enquiry.").first()).toBeVisible();
     await expect(page.getByText("Boiler service visit")).toBeVisible();

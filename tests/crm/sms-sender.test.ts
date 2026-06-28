@@ -67,4 +67,25 @@ describe("sendTenantSms", () => {
     expect(String(init?.body)).toContain("To=%2B15005550006");
     expect(String(init?.body)).toContain("MessagingServiceSid=MG00000000000000000000000000000000");
   });
+
+  it("can authenticate with a Twilio API key and account SID", async () => {
+    process.env.TWILIO_AUTH_TOKEN = "";
+    process.env.TWILIO_API_KEY_SID = "SK00000000000000000000000000000000";
+    process.env.TWILIO_API_KEY_SECRET = "api-secret";
+    const fetchMock = mockTwilioFetch();
+
+    const result = await sendTenantSms({
+      to: "+15005550006",
+      body: "Provider test",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init?.headers).toEqual(
+      expect.objectContaining({
+        authorization: `Basic ${Buffer.from("SK00000000000000000000000000000000:api-secret").toString("base64")}`,
+      }),
+    );
+  });
 });

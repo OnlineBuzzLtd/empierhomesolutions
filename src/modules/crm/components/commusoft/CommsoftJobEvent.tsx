@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { CommsoftJobActions } from "@/modules/crm/components/commusoft/CommsoftJobActions";
+import { EngineerFieldSummaryCard } from "@/modules/crm/components/jobs/EngineerFieldSummaryCard";
+import { buildEngineerFieldSummary } from "@/modules/crm/lib/engineer-field";
 import { formatDate, formatDateTime, formatScheduledTime } from "@/modules/crm/lib/format";
 import { hasReceiptAttachment } from "@/modules/crm/lib/materials";
 import type {
@@ -50,6 +52,7 @@ export function CommsoftJobEvent({
     (c) => c.is_mandatory && c.status !== "completed",
   );
   const jobHasReceiptAttachment = hasReceiptAttachment(attachments);
+  const fieldSummary = buildEngineerFieldSummary(job, attachments);
 
   const isCompleted =
     job.status === "completed" ||
@@ -84,6 +87,8 @@ export function CommsoftJobEvent({
           hasReceiptAttachment={jobHasReceiptAttachment}
         />
       ) : null}
+
+      <EngineerFieldSummaryCard summary={fieldSummary} tone="commsoft" />
 
       {/* Info cards */}
       <div className="flex-1 space-y-0 divide-y divide-slate-100 px-4 py-4">

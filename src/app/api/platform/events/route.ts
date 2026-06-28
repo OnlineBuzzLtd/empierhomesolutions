@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { platformEventEnvelopeSchema } from "@/modules/platform/contracts";
+import { validatePlatformEventContract } from "@/modules/platform/lib/event-contracts";
 import { processPlatformEvent } from "@/modules/platform/lib/processor";
 import {
   collectPhonesFromPayload,
@@ -152,6 +153,18 @@ export async function POST(request: Request) {
         { status: 422 },
       );
     }
+  }
+
+  const contract = validatePlatformEventContract(parsed.data);
+  if (!contract.ok) {
+    return NextResponse.json(
+      {
+        code: "platform_event_contract_invalid",
+        error: contract.message,
+        issues: contract.issues,
+      },
+      { status: 422 },
+    );
   }
 
   const supabase = createCrmServiceRoleClient();

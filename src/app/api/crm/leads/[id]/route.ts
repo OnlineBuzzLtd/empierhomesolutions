@@ -2,8 +2,26 @@ import { leadSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { validateRequiredProgression } from "@/modules/crm/lib/rules";
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
+import { getLeadById } from "@/modules/crm/lib/data";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { publishLeadUpdateToPlatform } from "@/modules/crm/lib/platform-sync";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
+
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const auth = await requireCrmApiUser();
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const demoState = await getCrmDemoState();
+  const lead = await getLeadById(id, demoState.mode);
+  if (!lead) {
+    return jsonError("Enquiry not found.", 404);
+  }
+
+  return jsonSuccess({ lead });
+}
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

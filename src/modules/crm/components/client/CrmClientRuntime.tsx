@@ -27,6 +27,7 @@ type CrmClientRuntimeContextValue = {
 };
 
 const DEFAULT_TTL_MS = 30_000;
+const CRM_CACHE_INVALIDATED_EVENT = "crm-client-cache-invalidated";
 const cache = new Map<string, CacheEntry>();
 const CrmClientRuntimeContext = createContext<CrmClientRuntimeContextValue>({
   tenantId: null,
@@ -38,8 +39,40 @@ function cacheKey(tenantId: string | null, url: string) {
   return `${tenantId ?? "no-tenant"}:${url}`;
 }
 
+function entryUrlFromCacheKey(key: string) {
+  const separatorIndex = key.indexOf(":");
+  return separatorIndex === -1 ? key : key.slice(separatorIndex + 1);
+}
+
+function pathMatches(url: string, paths: readonly string[]) {
+  if (paths.length === 0) {
+    return true;
+  }
+
+  let pathname = url;
+  try {
+    pathname = new URL(url, window.location.origin).pathname;
+  } catch {
+    pathname = url.split("?")[0] ?? url;
+  }
+
+  return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
 export function clearCrmClientCache() {
   cache.clear();
+}
+
+export function invalidateCrmClientCache(paths: string[] = []) {
+  for (const key of cache.keys()) {
+    if (pathMatches(entryUrlFromCacheKey(key), paths)) {
+      cache.delete(key);
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(CRM_CACHE_INVALIDATED_EVENT, { detail: { paths } }));
+  }
 }
 
 export function CrmClientRuntimeProvider({
@@ -203,6 +236,24 @@ export function useCrmApi<T>(url: string | null, options: { ttlMs?: number } = {
       window.clearTimeout(id);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!url) {
+      return;
+    }
+    const activeUrl = url;
+
+    function handleInvalidated(event: Event) {
+      const detail = event instanceof CustomEvent ? event.detail : null;
+      const paths = Array.isArray(detail?.paths) ? detail.paths.filter((path: unknown) => typeof path === "string") : [];
+      if (pathMatches(activeUrl, paths)) {
+        void load({ force: true });
+      }
+    }
+
+    window.addEventListener(CRM_CACHE_INVALIDATED_EVENT, handleInvalidated);
+    return () => window.removeEventListener(CRM_CACHE_INVALIDATED_EVENT, handleInvalidated);
+  }, [load, url]);
 
   return {
     ...state,

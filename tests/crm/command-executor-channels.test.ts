@@ -232,6 +232,14 @@ function buildSupabaseMock(
   const jobTypesEq1 = vi.fn().mockReturnValue({ eq: jobTypesEq2 });
   const jobTypesSelect = vi.fn().mockReturnValue({ eq: jobTypesEq1 });
 
+  const customerPromiseMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+  const customerPromiseSelectEq2 = vi.fn().mockReturnValue({ maybeSingle: customerPromiseMaybeSingle });
+  const customerPromiseSelectEq1 = vi.fn().mockReturnValue({ eq: customerPromiseSelectEq2 });
+  const customerPromiseSelect = vi.fn().mockReturnValue({ eq: customerPromiseSelectEq1 });
+  const customerPromiseSingle = vi.fn().mockResolvedValue({ data: { id: "promise-test-1" }, error: null });
+  const customerPromiseInsertSelect = vi.fn().mockReturnValue({ single: customerPromiseSingle });
+  const customerPromiseInsert = vi.fn().mockReturnValue({ select: customerPromiseInsertSelect });
+
   const from = vi.fn().mockImplementation((table: string) => {
     switch (table) {
       case "notes":
@@ -248,6 +256,8 @@ function buildSupabaseMock(
         return { select: servicesSelect };
       case "job_types":
         return { select: jobTypesSelect };
+      case "customer_promises":
+        return { select: customerPromiseSelect, insert: customerPromiseInsert };
       default:
         return {
           insert: vi.fn().mockResolvedValue({ error: null }),
@@ -262,7 +272,19 @@ function buildSupabaseMock(
   const schema = vi.fn().mockReturnValue({ from });
   const supabase = { schema };
 
-  return { supabase, from, apptInsert, apptUpdate, jobInsert, jobUpdate, leadsUpdate, notesInsert, customersInsert, customersUpdate };
+  return {
+    supabase,
+    from,
+    apptInsert,
+    apptUpdate,
+    jobInsert,
+    jobUpdate,
+    leadsUpdate,
+    notesInsert,
+    customersInsert,
+    customersUpdate,
+    customerPromiseInsert,
+  };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -963,7 +985,7 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
       upsertPlatformConversationLink,
     }));
 
-    const { supabase, apptInsert, apptUpdate, customersInsert, leadsUpdate, jobInsert } = buildSupabaseMock({
+    const { supabase, apptInsert, apptUpdate, customersInsert, leadsUpdate, jobInsert, customerPromiseInsert } = buildSupabaseMock({
       appointmentId: "callback-appt-1",
       customerId: "callback-customer-1",
     });
@@ -1017,6 +1039,19 @@ describe("executePlatformCommand – new-customer journeys across channels", () 
       expect.objectContaining({
         tenant_id: TENANT_ID,
         customer_id: "callback-customer-1",
+      }),
+    );
+    expect(customerPromiseInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: TENANT_ID,
+        customer_id: "callback-customer-1",
+        lead_id: "lead-1",
+        platform_conversation_id: CONVERSATION_ID,
+        platform_event_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        promise_type: "office_review",
+        title: "AI escalation follow-up",
+        channel: "voice",
+        origin: "ai",
       }),
     );
     expect(upsertPlatformConversationLink).toHaveBeenCalledWith(

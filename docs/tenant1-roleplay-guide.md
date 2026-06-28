@@ -12,7 +12,7 @@ Core production users:
 
 - Admin: `admin@empirehomesolutions.local` / `Empire-Admin-2026!`
 - Engineer shortcut: `engineer@ehs.local` / `password`
-- Shane engineer: `shane@ehs.local` / `password`
+- Shane engineer: `shane@ehs.local` / password set by admin reset
 
 Additional seeded staff:
 

@@ -26,7 +26,7 @@ type QuoteFormInput = z.input<typeof quoteFormSchema>;
 type QuoteFormProps = {
   service?: string;
   location?: string;
-  leadType?: "repair" | "install" | "finance" | "power-flush";
+  leadType?: "repair" | "install" | "power-flush";
   heading?: string;
 };
 

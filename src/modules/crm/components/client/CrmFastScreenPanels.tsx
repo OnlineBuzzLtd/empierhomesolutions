@@ -9,9 +9,11 @@ import { WeekTimeline } from "@/modules/crm/components/calendar/WeekTimeline";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
+import { WorkItemRow } from "@/modules/crm/components/shared/WorkItemRow";
 import { CrmInstantLink, useCrmApi } from "@/modules/crm/components/client/CrmClientRuntime";
 import { formatCurrency } from "@/modules/crm/lib/format";
 import { jobStatusConfig } from "@/modules/crm/lib/status";
+import { buildTodayAttentionItems } from "@/modules/crm/lib/today";
 import { appointmentStatuses, appointmentTypes } from "@/modules/crm/types";
 import type {
   CalendarItem,
@@ -76,24 +78,37 @@ export function DashboardClientPanel({ demoActive }: { demoActive: boolean }) {
   }
 
   const dashboard = data.data;
+  const attentionItems = buildTodayAttentionItems(dashboard);
 
   return (
     <div className="space-y-8" data-crm-screen-ready="true">
       <DemoAnchor name="dashboard-overview">
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Trade control centre</h2>
-            <p className="mt-1 text-sm text-slate-500">The work that needs attention today.</p>
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today</p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">Needs attention now</h2>
+            </div>
+            <CrmInstantLink href="/calendar" className="text-sm font-semibold text-blue-700 hover:underline">
+              Open scheduler
+            </CrmInstantLink>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <AttentionCard href="/jobs" label="Jobs today" value={String(dashboard.todaysJobs.length)} action="Check schedule" />
-            <AttentionCard href="/calendar" label="Jobs tomorrow" value="Open scheduler" action="Plan ahead" />
-            <AttentionCard href="/leads?tab=todo" label="Enquiries to do" value={String(dashboard.newLeadCount)} action="Follow up" />
-            <AttentionCard href="/quotes" label="Quotes to chase" value="Review quotes" action="Open quotes" />
-            <AttentionCard href="/invoices" label="Unpaid invoices" value={formatCurrency(dashboard.unpaidInvoicesTotal)} action="Chase payment" />
-            <AttentionCard href="/ai-hub" label="AI receptionist needs review" value={String(dashboard.aiReceptionistReviewCount)} action="Review" />
+          <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
+            {attentionItems.map((item) => (
+              <WorkItemRow
+                key={item.id}
+                title={item.title}
+                detail={item.detail}
+                badge={item.priority === "high" ? "Now" : item.priority === "medium" ? "Soon" : "Today"}
+                label="Today"
+                href={item.href}
+                action={item.action}
+                priority={item.priority}
+                value={item.value}
+              />
+            ))}
           </div>
-        </div>
+        </section>
       </DemoAnchor>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -442,16 +457,6 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
       <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
       {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
     </div>
-  );
-}
-
-function AttentionCard({ href, label, value, action }: { href: string; label: string; value: string; action: string }) {
-  return (
-    <CrmInstantLink href={href} className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200 hover:bg-blue-50/30">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
-      <p className="mt-2 text-sm font-semibold text-blue-700">{action}</p>
-    </CrmInstantLink>
   );
 }
 

@@ -6,6 +6,7 @@ import {
   platformEventTypeSchema,
 } from "@/modules/platform/contracts";
 import { selectLinkableJobForPayload } from "@/modules/platform/lib/command-executor";
+import { validatePlatformEventContract } from "@/modules/platform/lib/event-contracts";
 import { derivePlatformCommandsFromEvent } from "@/modules/platform/lib/integration";
 import { getPlatformConversationReviewState } from "@/modules/platform/lib/review";
 import { buildWorkspaceModuleCards, toWorkspaceId } from "@/modules/platform/lib/workspace";
@@ -20,6 +21,69 @@ describe("crm platform helpers", () => {
   it("exposes the shared command and event vocabulary", () => {
     expect(platformCommandTypeSchema.parse("CreateCallbackTask")).toBe("CreateCallbackTask");
     expect(platformEventTypeSchema.parse("BookingConfirmed")).toBe("BookingConfirmed");
+    expect(platformEventTypeSchema.parse("CustomerPromiseChanged")).toBe("CustomerPromiseChanged");
+  });
+
+  it("rejects semantically incomplete booking event payloads", () => {
+    const event = platformEventEnvelopeSchema.parse({
+      event_id: "11111111-1111-4111-8111-111111111111",
+      event_type: "BookingConfirmed",
+      event_version: 1,
+      workspace_id: "22222222-2222-4222-8222-222222222222",
+      occurred_at: "2026-03-30T10:00:00.000Z",
+      source_system: "agentic_runtime",
+      idempotency_key: "booking-confirmed:invalid",
+      correlation_id: null,
+      causation_id: null,
+      aggregate: {
+        type: "conversation",
+        id: "33333333-3333-4333-8333-333333333333",
+      },
+      payload: {
+        channel: "sms",
+      },
+    });
+
+    const result = validatePlatformEventContract(event);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toBe("Invalid BookingConfirmed payload.");
+      expect(result.issues[0]?.message).toContain("booking start time or booking reference");
+    }
+  });
+
+  it("accepts linked customer promise sync events", () => {
+    const event = platformEventEnvelopeSchema.parse({
+      event_id: "11111111-1111-4111-8111-111111111111",
+      event_type: "CustomerPromiseChanged",
+      event_version: 1,
+      workspace_id: "22222222-2222-4222-8222-222222222222",
+      occurred_at: "2026-03-30T10:00:00.000Z",
+      source_system: "crm",
+      idempotency_key: "customer-promise:created",
+      correlation_id: null,
+      causation_id: null,
+      aggregate: {
+        type: "customer_promise",
+        id: "33333333-3333-4333-8333-333333333333",
+      },
+      payload: {
+        promise_id: "33333333-3333-4333-8333-333333333333",
+        customer_id: "44444444-4444-4444-8444-444444444444",
+        lead_id: null,
+        job_id: null,
+        quote_id: null,
+        invoice_id: null,
+        title: "Call customer after quote",
+        status: "open",
+        due_at: "2026-03-31T10:00:00.000Z",
+        channel: "phone",
+        origin: "office",
+      },
+    });
+
+    expect(validatePlatformEventContract(event)).toEqual({ ok: true });
   });
 
   it("validates versioned workspace-scoped event envelopes", () => {

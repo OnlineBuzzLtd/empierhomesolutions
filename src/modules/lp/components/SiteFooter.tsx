@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Facebook, Instagram, MessageCircle, PhoneCall, Star, Youtube } from "lucide-react";
-import { businessDetails } from "@/lib/business";
+import { businessDetails, phoenixFinanceDisclosure } from "@/lib/business";
 
 const socialItems = [
   { key: "facebook", label: "Facebook", href: businessDetails.socials.facebook, icon: Facebook },
@@ -100,6 +100,7 @@ export function SiteFooter() {
         </div>
       </div>
       <div className="mx-auto mt-6 w-full max-w-6xl border-t border-white/15 pt-4 text-xs text-slate-300">
+        <p className="mb-3 max-w-5xl leading-relaxed">{phoenixFinanceDisclosure}</p>
         <p>© {year} {businessDetails.name}</p>
       </div>
     </footer>

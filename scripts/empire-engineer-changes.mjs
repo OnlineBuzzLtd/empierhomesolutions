@@ -12,19 +12,19 @@
  *          deactivation would lock them out of the CRM.)
  *
  *   2. Ensures Shane exists as an active engineer using the short login:
- *        Shane <shane@ehs.local> / password
+ *        Shane <shane@ehs.local>
  *      If the old shane@empirehomesolutions.local profile exists, it is
- *      migrated to the short login instead of creating a duplicate user.
+ *      left in place so both logins can be used.
  *
  * Safety:
  *   - Dry-run by default. Pass --apply to write.
  *   - Re-running with --apply is safe: already-deactivated rows skip the
- *     update, already-demoted rows skip the demotion, and Shane is updated
- *     in place whether he already exists under the short or old email.
+ *     update, already-demoted rows skip the demotion, and the short Shane
+ *     login is updated in place when it already exists.
  *
  * Run:
  *   node scripts/empire-engineer-changes.mjs          # dry-run preview
- *   node scripts/empire-engineer-changes.mjs --apply  # actually write
+ *   EHS_SHANE_SHORT_LOGIN_PASSWORD="..." node scripts/empire-engineer-changes.mjs --apply
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -46,10 +46,10 @@ const NEW_ENGINEER = {
   legacyEmail: "shane@empirehomesolutions.local",
   phone: "07740 017130",
   role: "engineer",
-  password: "password",
 };
 
 const apply = process.argv.includes("--apply");
+const shortLoginPassword = process.env.EHS_SHANE_SHORT_LOGIN_PASSWORD ?? "";
 
 function log(...args) {
   console.log(...args);
@@ -144,43 +144,33 @@ async function ensureNewEngineer(admin) {
     log(`  Shane already exists (user_id=${existingByEmail.user_id}, active=${existingByEmail.active})`);
     if (!apply) {
       log(`  [dry-run] would ensure role=engineer, active=true, phone=${NEW_ENGINEER.phone}`);
-      log(`  [dry-run] would reset auth password to the short engineer password`);
+      log(`  [dry-run] would reset auth password to the configured Shane password`);
       return;
     }
     await updateEngineerAuthLogin(admin, existingByEmail.user_id, NEW_ENGINEER.email);
     await upsertEngineerRows(admin, existingByEmail.user_id);
-    log(`  updated existing Shane profile, membership, and shortcut password.`);
+    log(`  updated existing Shane profile, membership, and password.`);
     return;
   }
 
   const existingByLegacyEmail = await findProfileByEmail(admin, NEW_ENGINEER.legacyEmail);
   if (existingByLegacyEmail) {
     log(
-      `  Shane exists under old email ${NEW_ENGINEER.legacyEmail} (user_id=${existingByLegacyEmail.user_id})`,
+      `  Legacy Shane login exists at ${NEW_ENGINEER.legacyEmail} (user_id=${existingByLegacyEmail.user_id}); preserving it.`,
     );
-    if (!apply) {
-      log(`  [dry-run] would migrate auth + profile email to ${NEW_ENGINEER.email}`);
-      log(`  [dry-run] would ensure role=engineer, active=true, phone=${NEW_ENGINEER.phone}`);
-      log(`  [dry-run] would reset auth password to the short engineer password`);
-      return;
-    }
-    await updateEngineerAuthLogin(admin, existingByLegacyEmail.user_id, NEW_ENGINEER.email);
-    await upsertEngineerRows(admin, existingByLegacyEmail.user_id);
-    log(`  migrated Shane to ${NEW_ENGINEER.email} and reset shortcut password.`);
-    return;
   }
 
   if (!apply) {
     log(
       `  [dry-run] would create auth.users + crm.user_profiles + tenant_memberships for ${NEW_ENGINEER.email}`,
     );
-    log(`  [dry-run] would set the short engineer password`);
+    log(`  [dry-run] would set the configured Shane password`);
     return;
   }
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email: NEW_ENGINEER.email,
-    password: NEW_ENGINEER.password,
+    password: getShortLoginPassword(),
     email_confirm: true,
     user_metadata: {
       full_name: NEW_ENGINEER.fullName,
@@ -204,7 +194,7 @@ async function ensureNewEngineer(admin) {
   log("  NEW ENGINEER CREATED");
   log("  -----------------------------------------------------------------");
   log(`  Email:    ${NEW_ENGINEER.email}`);
-  log(`  Password: ${NEW_ENGINEER.password}`);
+  log("  Password: set from EHS_SHANE_SHORT_LOGIN_PASSWORD");
   log(`  user_id:  ${userId}`);
   log("  =================================================================");
   log("");
@@ -213,7 +203,7 @@ async function ensureNewEngineer(admin) {
 async function updateEngineerAuthLogin(admin, userId, email) {
   const { error } = await admin.auth.admin.updateUserById(userId, {
     email,
-    password: NEW_ENGINEER.password,
+    password: getShortLoginPassword(),
     email_confirm: true,
     user_metadata: {
       full_name: NEW_ENGINEER.fullName,
@@ -223,6 +213,13 @@ async function updateEngineerAuthLogin(admin, userId, email) {
   if (error) {
     throw new Error(`updateUserById failed: ${error.message}`);
   }
+}
+
+function getShortLoginPassword() {
+  if (!shortLoginPassword) {
+    throw new Error("Set EHS_SHANE_SHORT_LOGIN_PASSWORD before applying Shane login changes.");
+  }
+  return shortLoginPassword;
 }
 
 async function upsertEngineerRows(admin, userId) {

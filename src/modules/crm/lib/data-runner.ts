@@ -18,6 +18,16 @@ type SupabaseSingleResponse<T> = {
   error: SupabaseError | null;
 };
 
+export class CrmDataError extends Error {
+  constructor(
+    public readonly fnName: string,
+    public readonly causeError: SupabaseError,
+  ) {
+    super(`CRM data query failed: ${fnName}`);
+    this.name = "CrmDataError";
+  }
+}
+
 function reportError(fnName: string, error: SupabaseError) {
   const message = `crm.data.${fnName}: ${error.message ?? "unknown error"}`;
   Sentry.captureException(new Error(message), {
@@ -53,6 +63,18 @@ export async function runCrmList<T>(
   if (error) {
     reportError(fnName, error);
     return [];
+  }
+  return data ?? [];
+}
+
+export async function runCrmListStrict<T>(
+  fnName: string,
+  query: PromiseLike<unknown>,
+): Promise<T[]> {
+  const { data, error } = await measureCrmQuery(fnName, query as PromiseLike<SupabaseListResponse<T>>);
+  if (error) {
+    reportError(fnName, error);
+    throw new CrmDataError(fnName, error);
   }
   return data ?? [];
 }

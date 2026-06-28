@@ -6,7 +6,7 @@ import {
 } from "@/modules/crm/lib/attachments";
 import { resolveEngineerAiAssistState } from "@/modules/crm/lib/addons";
 import { buildAiHubAggregateMetrics } from "@/modules/crm/lib/ai-hub";
-import { buildAssetReminderItems, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
+import { buildAssetReminderItems, buildCustomerPromiseCalendarItem, expandAppointmentOccurrences } from "@/modules/crm/lib/calendar";
 import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
 import {
   applyCrmModeFilter,
@@ -34,7 +34,9 @@ import type {
   JobWithRelations,
   Note,
   QuoteTemplate,
+  UserProfile,
 } from "@/modules/crm/types";
+import type { CustomerPromiseWithCustomer } from "@/modules/crm/lib/customer-promises";
 
 describe("crm attachment helpers", () => {
   it("groups attachments into user-facing buckets", () => {
@@ -137,6 +139,67 @@ describe("crm calendar helpers", () => {
     );
 
     expect(reminders.map((item) => item.source)).toEqual(["service_due", "warranty_expiry"]);
+  });
+
+  it("builds synthetic calendar items for saved customer promises", () => {
+    const owner: UserProfile = {
+      id: "profile-1",
+      tenant_id: "tenant-1",
+      user_id: "user-1",
+      full_name: "Office Owner",
+      role: "sales",
+      phone: null,
+      email: null,
+      emergency_contact: null,
+      agreed_hours: null,
+      pay_type: null,
+      pay_notes: null,
+      contract_file_url: null,
+      active: true,
+      created_at: "2026-03-21T00:00:00.000Z",
+      updated_at: "2026-03-21T00:00:00.000Z",
+    };
+    const promise: CustomerPromiseWithCustomer = {
+      id: "promise-1",
+      tenant_id: "tenant-1",
+      customer_id: "cust-1",
+      lead_id: null,
+      job_id: "job-1",
+      quote_id: null,
+      invoice_id: null,
+      platform_conversation_id: null,
+      platform_event_id: null,
+      promise_type: "follow_up",
+      title: "Quote follow-up",
+      detail: null,
+      owner_user_id: "user-1",
+      due_at: "2026-03-24T10:00:00.000Z",
+      channel: "phone",
+      status: "open",
+      origin: "office",
+      idempotency_key: null,
+      completed_at: null,
+      created_by: null,
+      updated_by: null,
+      is_demo: false,
+      demo_scenario_key: null,
+      record_deleted_at: null,
+      created_at: "2026-03-21T00:00:00.000Z",
+      updated_at: "2026-03-21T00:00:00.000Z",
+      customer: { id: "cust-1", full_name: "Jane Smith", postcode: "E1 1AA" },
+      owner,
+    };
+
+    expect(buildCustomerPromiseCalendarItem(promise, new Map([["user-1", owner]]))).toMatchObject({
+      id: "customer-promise-promise-1",
+      source: "customer_promise",
+      type: "follow_up",
+      status: "scheduled",
+      title: "Quote follow-up · Jane Smith",
+      starts_at: "2026-03-24T10:00:00.000Z",
+      entity_link: "/jobs/job-1",
+      owner: { full_name: "Office Owner", role: "sales" },
+    });
   });
 });
 

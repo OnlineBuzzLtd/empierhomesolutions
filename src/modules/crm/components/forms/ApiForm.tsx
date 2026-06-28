@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { invalidateCrmClientCache } from "@/modules/crm/components/client/CrmClientRuntime";
 import { DemoReadonlyNotice } from "@/modules/crm/components/demo/DemoReadonlyNotice";
 import { useCrmDemoMode } from "@/modules/crm/components/demo/DemoModeProvider";
 
@@ -12,6 +13,8 @@ type ApiFormProps = {
   className?: string;
   onSuccess?: (result: Record<string, unknown>) => void;
   refreshOnSuccess?: boolean;
+  redirectOnSuccess?: string;
+  invalidatePaths?: string[];
   successMessage?: string;
   children: ReactNode;
 };
@@ -23,6 +26,8 @@ export function ApiForm({
   className,
   onSuccess,
   refreshOnSuccess = true,
+  redirectOnSuccess,
+  invalidatePaths,
   successMessage = "Saved.",
   children,
 }: ApiFormProps) {
@@ -64,7 +69,15 @@ export function ApiForm({
 
     setSuccess(successMessage);
     setIsSubmitting(false);
+    if (invalidatePaths?.length) {
+      invalidateCrmClientCache(invalidatePaths);
+    }
     onSuccess?.(result);
+    if (redirectOnSuccess) {
+      router.push(redirectOnSuccess);
+      router.refresh();
+      return;
+    }
     if (refreshOnSuccess) {
       router.refresh();
     }

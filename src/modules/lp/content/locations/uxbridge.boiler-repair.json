@@ -22,7 +22,6 @@
     "gasSafeNumber": "663578",
     "ratingValue": 5.0,
     "ratingCount": 25,
-    "financeAvailable": true,
     "guaranteeText": "12-month workmanship guarantee",
     "brandLogos": [
       { "name": "Worcester", "src": "/brands/worcester.svg" },
@@ -36,11 +35,7 @@
     "repairRangeMax": 450,
     "installRangeMin": 1995,
     "installRangeMax": 5000,
-    "pricingDisclaimer": "Prices are shown plus VAT with the including-VAT total alongside. Final quote confirmed after diagnosis.",
-    "financeExample": {
-      "monthlyFrom": 0,
-      "summary": "Finance available over 3, 5, 8, and 10 years. Interest rates are discussed at quote appointment."
-    }
+    "pricingDisclaimer": "Prices are shown plus VAT with the including-VAT total alongside. Final quote confirmed after diagnosis."
   },
   "faults": [
     {

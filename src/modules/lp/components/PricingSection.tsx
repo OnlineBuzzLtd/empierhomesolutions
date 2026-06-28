@@ -3,7 +3,6 @@ import type { PricingContent } from "@/modules/lp/types";
 
 type PricingSectionProps = {
   pricing: PricingContent;
-  emphasizeFinance?: boolean;
   labels?: {
     diagnostic?: string;
     repair?: string;
@@ -23,7 +22,7 @@ function formatGbpWithVat(value: number) {
   return formatGbp(value * 1.2);
 }
 
-export function PricingSection({ pricing, emphasizeFinance = false, labels }: PricingSectionProps) {
+export function PricingSection({ pricing, labels }: PricingSectionProps) {
   const pricingLabels = {
     diagnostic: labels?.diagnostic ?? "Diagnostic from",
     repair: labels?.repair ?? "Typical repair range",
@@ -50,15 +49,6 @@ export function PricingSection({ pricing, emphasizeFinance = false, labels }: Pr
         />
       </div>
       <p className="mt-4 text-sm text-slate-600">{pricing.pricingDisclaimer}</p>
-      {pricing.financeExample ? (
-        <p className="mt-2 rounded-lg border border-[var(--ehs-brand-accent)]/35 bg-[var(--ehs-brand-accent-soft)] px-4 py-3 text-sm font-medium text-[var(--ehs-brand-dark)]">
-          {emphasizeFinance ? "Finance focus: " : "Finance example: "}
-          {pricing.financeExample.monthlyFrom > 0
-            ? `From ${formatGbp(pricing.financeExample.monthlyFrom)}/month. `
-            : ""}
-          {pricing.financeExample.summary}
-        </p>
-      ) : null}
     </Section>
   );
 }

@@ -4,12 +4,16 @@ import { ApiActionButton } from "@/modules/crm/components/forms/ApiActionButton"
 import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
 import { PaymentCreateForm } from "@/modules/crm/components/forms/PaymentCreateForm";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
+import { CustomerPromiseStrip } from "@/modules/crm/components/shared/CustomerPromiseStrip";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { buildRecordPromiseSummary, choosePromiseSummary } from "@/modules/crm/lib/customer-promise";
+import { listCustomerPromises } from "@/modules/crm/lib/customer-promises";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency, formatDate } from "@/modules/crm/lib/format";
-import { getInvoiceDetail, listAttachmentsForEntity } from "@/modules/crm/lib/data";
+import { getInvoiceDetail, listAttachmentsForEntity, listUserProfiles } from "@/modules/crm/lib/data";
 import { invoiceStatusConfig } from "@/modules/crm/lib/status";
 
 const invoiceKindLabels: Record<string, string> = {
@@ -21,14 +25,34 @@ const invoiceKindLabels: Record<string, string> = {
 };
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireCrmUser();
-  const { id } = await params;
-  const [detail, attachments] = await Promise.all([getInvoiceDetail(id), listAttachmentsForEntity("invoice", id)]);
+  const [session, { id }, demoState] = await Promise.all([requireCrmUser(), params, getCrmDemoState()]);
+  const [detail, attachments, promises, users] = await Promise.all([
+    getInvoiceDetail(id, demoState.mode),
+    listAttachmentsForEntity("invoice", id),
+    listCustomerPromises({ invoiceId: id, status: "open", limit: 10 }, demoState.mode),
+    listUserProfiles(demoState.mode),
+  ]);
   if (!detail) {
     notFound();
   }
 
   const { invoice, payments } = detail;
+  const promise = choosePromiseSummary(
+    promises,
+    buildRecordPromiseSummary({
+      dueAt: invoice.due_date,
+      title: "Payment due",
+      readyDetail: invoice.status === "paid" ? "Invoice is marked paid." : "Customer has an invoice due date.",
+      overdueTitle: "Payment overdue",
+      overdueDetail: "This invoice needs chasing or payment allocation.",
+      unsetTitle: "No payment due date",
+      unsetDetail: "Set a due date so accounts can chase this invoice.",
+      ownerLabel: "Accounts",
+      channelLabel: invoice.customer?.phone ? "Phone" : "Email",
+      dateOnly: true,
+      ignoreOverdue: invoice.status === "paid",
+    }),
+  );
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -39,6 +63,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <span className="mx-2">›</span>
         <span className="font-medium text-slate-900">{invoice.invoice_number}</span>
       </nav>
+
+      <CustomerPromiseStrip
+        promise={promise}
+        editContext={{
+          customerId: invoice.customer_id,
+          jobId: invoice.job_id,
+          quoteId: invoice.quote_id,
+          invoiceId: invoice.id,
+          users,
+          invalidatePaths: ["/api/crm/promises", "/api/crm/dashboard/summary"],
+        }}
+      />
 
       <SectionCard title={invoice.invoice_number} action={<StatusBadge config={invoiceStatusConfig[invoice.status]} />} demoAnchor="invoice-record">
         <div className="grid gap-6 lg:grid-cols-2">

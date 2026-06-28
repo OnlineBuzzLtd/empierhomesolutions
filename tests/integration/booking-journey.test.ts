@@ -239,7 +239,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
   it("SMS: BookingConfirmed creates an appointment and a booked job in the DB", async () => {
     const conversationId = id();
     const eventIds: string[] = [];
-    const bookingStartAt = "2026-05-05T09:00:00.000Z"; // Mon 09:00 UTC
+    const bookingStartAt = "2026-05-05T08:00:00.000Z"; // Mon 09:00 Europe/London
 
     // ConversationStarted — sets up the link + matches the test customer
     const startedEvent = makeEvent("ConversationStarted", conversationId, {
@@ -254,7 +254,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
     const bookingEvent = makeEvent("BookingConfirmed", conversationId, {
       channel: "sms",
       booking_start_at: bookingStartAt,
-      booking_end_at: "2026-05-05T10:00:00.000Z",
+      booking_end_at: "2026-05-05T09:00:00.000Z",
       booking_slot_label: "Mon 09:00-10:00",
       treatmentType: "Boiler Service",
       message_summary: "[INTEGRATION TEST] Boiler service booked.",
@@ -312,7 +312,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
   it("WhatsApp: BookingConfirmed creates correct appointment + job", async () => {
     const conversationId = id();
     const eventIds: string[] = [];
-    const bookingStartAt = "2026-05-06T14:00:00.000Z"; // Tue 14:00 UTC
+    const bookingStartAt = "2026-05-06T13:00:00.000Z"; // Tue 14:00 Europe/London
 
     const startedEvent = makeEvent("ConversationStarted", conversationId, {
       channel: "whatsapp",
@@ -325,7 +325,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
     const bookingEvent = makeEvent("BookingConfirmed", conversationId, {
       channel: "whatsapp",
       booking_start_at: bookingStartAt,
-      booking_end_at: "2026-05-06T15:00:00.000Z",
+      booking_end_at: "2026-05-06T14:00:00.000Z",
       booking_slot_label: "Tue 14:00-15:00",
       treatmentType: "Emergency Callout",
       message_summary: "[INTEGRATION TEST] Emergency callout booked.",
@@ -368,7 +368,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
   it("Voice: job is auto-assigned to the named booking-resource engineer", async () => {
     const conversationId = id();
     const eventIds: string[] = [];
-    const bookingStartAt = "2026-05-07T08:00:00.000Z"; // Wed 08:00 UTC
+    const bookingStartAt = "2026-05-07T07:00:00.000Z"; // Wed 08:00 Europe/London
 
     const startedEvent = makeEvent("ConversationStarted", conversationId, {
       channel: "voice",
@@ -380,7 +380,7 @@ describeOrSkip("real booking journeys — live Supabase", () => {
 
     const bookingEvent = makeEvent("BookingConfirmed", conversationId, {
       booking_start_at: bookingStartAt,
-      booking_end_at: "2026-05-07T09:00:00.000Z",
+      booking_end_at: "2026-05-07T08:00:00.000Z",
       booking_slot_label: "Wed 08:00-09:00",
       treatmentType: "Annual Boiler Service",
       // The CustomerJourneys runtime sends this when the booking resource

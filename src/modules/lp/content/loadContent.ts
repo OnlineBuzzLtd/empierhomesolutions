@@ -1,7 +1,6 @@
 import { businessDetails } from "@/lib/business";
 import {
   aboutTrustContentSchema,
-  financeContentSchema,
   lpContentSchema,
   questionsAndAnswersContentSchema,
 } from "@/modules/lp/content/schema";
@@ -14,14 +13,12 @@ import {
 import { applyTokenReplacement } from "@/modules/lp/dtr";
 import type {
   AboutTrustContent,
-  FinanceContent,
   LpContent,
   QuestionsAndAnswersContent,
   ServiceSlug,
 } from "@/modules/lp/types";
 
 import aboutTrustRaw from "@/modules/lp/content/about-trust.json";
-import financeRaw from "@/modules/lp/content/finance.json";
 import questionsAndAnswersRaw from "@/modules/lp/content/q-and-a.json";
 import hayesInstallRaw from "@/modules/lp/content/locations/hayes.boiler-installation.json";
 import hayesPowerFlushingRaw from "@/modules/lp/content/locations/hayes.power-flushing.json";
@@ -155,7 +152,7 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       keyword: "new boiler installation",
       hero: {
         ...defaultLpContent.hero,
-        headline: "Get {{service}} in {{location}} with flexible finance terms",
+        headline: "Get {{service}} in {{location}} with clear fixed pricing",
         subline:
           "Fixed-install quotes from trusted engineers, plus domestic power flushing support where needed.",
         heroImage: {
@@ -165,7 +162,6 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       },
       trust: {
         ...defaultLpContent.trust,
-        financeAvailable: true,
         guaranteeText: "Guaranteed for up to 10 years (selected ranges include 5 or 7 years)",
       },
       pricing: {
@@ -176,7 +172,6 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
         installRangeMax: 5000,
         pricingDisclaimer:
           "Prices are shown plus VAT with the including-VAT total alongside. Install pricing varies by property size, flue route, controls, and boiler output.",
-        financeExample: defaultLpContent.pricing.financeExample,
       },
       faults: [],
       proofCards: [
@@ -205,8 +200,8 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
         },
         {
           id: `${locationSlug}-inst-2`,
-          question: "Can I spread the cost of a new boiler?",
-          answer: "Yes. Finance terms are available over 3, 5, 8, and 10 years, subject to status.",
+          question: "Do you confirm installation costs before work starts?",
+          answer: "Yes. We confirm the installation price after survey and before any installation date is agreed.",
         },
       ],
       seo: {
@@ -233,7 +228,6 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       },
       trust: {
         ...defaultLpContent.trust,
-        financeAvailable: false,
         guaranteeText: "Clear fixed quote before work starts",
       },
       pricing: {
@@ -299,7 +293,6 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
     },
     trust: {
       ...defaultLpContent.trust,
-      financeAvailable: true,
       guaranteeText: "12-month workmanship guarantee",
     },
     pricing: {
@@ -310,7 +303,6 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       installRangeMax: 5000,
       pricingDisclaimer:
         "Prices are shown plus VAT with the including-VAT total alongside. Final quote confirmed after diagnosis.",
-      financeExample: defaultLpContent.pricing.financeExample,
     },
     faults: defaultLpContent.faults,
     proofCards: [
@@ -396,11 +388,6 @@ export function loadLpContent(params: {
   });
 
   return tokenized;
-}
-
-export function loadFinanceContent(): FinanceContent | null {
-  const parsed = financeContentSchema.safeParse(financeRaw);
-  return parsed.success ? parsed.data : null;
 }
 
 export function loadAboutTrustContent(): AboutTrustContent | null {

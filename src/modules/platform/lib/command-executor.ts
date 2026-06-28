@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppointmentStatus, AppointmentType, LeadStatus } from "@/modules/crm/types";
+import { createCustomerPromiseWithClient } from "@/modules/crm/lib/customer-promises";
 import { syncAppointmentReminder24h } from "@/modules/crm/notifications/appointment-reminders";
 import { draftQuoteForJob } from "@/modules/crm/lib/quote-automation";
 import type { PlatformCommandEnvelope } from "@/modules/platform/contracts";
@@ -426,6 +427,25 @@ function buildLeadSourceEnum(payload: Record<string, unknown>) {
       return "whatsapp";
     case "email":
       return "email";
+    default:
+      return "other";
+  }
+}
+
+function normalizePromiseChannel(payload: Record<string, unknown>) {
+  const channel = pickString(payload, ["channel", "response_channel", "source_channel"]);
+  switch (channel) {
+    case "voice":
+      return "voice";
+    case "sms":
+      return "sms";
+    case "whatsapp":
+      return "whatsapp";
+    case "email":
+      return "email";
+    case "webchat":
+    case "web_chat":
+      return "webchat";
     default:
       return "other";
   }
@@ -2087,6 +2107,23 @@ export async function executePlatformCommand(
       if (link.customer_id && callbackAppointmentId) {
         await attachAppointmentToCustomer(supabase, alias, callbackAppointmentId, link.customer_id);
       }
+      await createCustomerPromiseWithClient(supabase, {
+        tenant_id: alias.tenant_id,
+        customer_id: link.customer_id,
+        lead_id: link.lead_id,
+        platform_conversation_id: conversationId,
+        platform_event_id: command.command_id,
+        promise_type: "office_review",
+        title: "AI escalation follow-up",
+        detail: noteBody || "AI raised this conversation for office review.",
+        owner_user_id: null,
+        due_at: occurredAt,
+        channel: normalizePromiseChannel(payload),
+        status: "open",
+        origin: "ai",
+        idempotency_key: `ai-escalation:${alias.tenant_id}:${conversationId}:${command.command_id}`,
+        is_demo: extractIsTestFromPayload(payload),
+      });
       return;
     }
     case "CreateOrUpdateAppointment": {

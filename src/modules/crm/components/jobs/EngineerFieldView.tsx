@@ -3,12 +3,14 @@ import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { ExpenseCreateForm } from "@/modules/crm/components/forms/ExpenseCreateForm";
 import { CompleteJobButton } from "@/modules/crm/components/jobs/CompleteJobButton";
 import { EnRouteButton } from "@/modules/crm/components/jobs/EnRouteButton";
+import { EngineerFieldSummaryCard } from "@/modules/crm/components/jobs/EngineerFieldSummaryCard";
 import { EngineerJobWorkspace } from "@/modules/crm/components/jobs/EngineerJobWorkspace";
 import { JobStatusActionButton } from "@/modules/crm/components/dashboard/JobStatusActionButton";
 import { CollapsibleSectionCard } from "@/modules/crm/components/shared/CollapsibleSectionCard";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { formatCurrency, formatDate, formatDateTime } from "@/modules/crm/lib/format";
+import { buildEngineerFieldSummary } from "@/modules/crm/lib/engineer-field";
 import {
   invoiceStatusConfig,
   jobCertificateStatusConfig,
@@ -73,6 +75,7 @@ export function EngineerFieldView({
   const isInProgress = job.status === "in_progress";
   const isDone = job.status === "completed" || job.status === "invoiced";
   const canSendEnRoute = Boolean((job.customer?.phone || job.site_contact?.phone) && !isDone && job.status !== "aborted");
+  const fieldSummary = buildEngineerFieldSummary(job, attachments);
 
   return (
     <div className="space-y-4">
@@ -147,6 +150,8 @@ export function EngineerFieldView({
           </div>
         </div>
       </div>
+
+      <EngineerFieldSummaryCard summary={fieldSummary} />
 
       {/* Job info card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

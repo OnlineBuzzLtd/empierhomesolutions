@@ -10,15 +10,25 @@ describe("CRM UX navigation", () => {
     const [group] = getCrmNavGroups(true, false);
 
     expect(group?.items.map((item) => item.label)).toEqual([
-      "Dashboard",
+      "Today",
+      "Inbox",
+      "Work",
+      "Customers",
+      "Money",
+      "AI",
+      "More",
+    ]);
+    expect(group?.items.find((item) => item.label === "Inbox")?.children?.map((item) => item.label)).toEqual([
+      "Needs attention",
       "Enquiries",
+    ]);
+    expect(group?.items.find((item) => item.label === "Work")?.children?.map((item) => item.label)).toEqual([
       "Jobs",
       "Scheduler",
-      "Customers",
+    ]);
+    expect(group?.items.find((item) => item.label === "Money")?.children?.map((item) => item.label)).toEqual([
       "Quotes",
       "Invoices",
-      "AI Receptionist",
-      "More",
     ]);
   });
 
@@ -66,9 +76,9 @@ describe("CRM UX navigation", () => {
   });
 
   it("consolidates direct AI routes into AI Receptionist tabs", () => {
-    expect(getAiReceptionistRedirect("/inbox")).toBe("/ai-hub?tab=conversations");
-    expect(getAiReceptionistRedirect("/calls")).toBe("/ai-hub?tab=missed-calls");
-    expect(getAiReceptionistRedirect("/automations")).toBe("/ai-hub?tab=follow-ups");
+    expect(getAiReceptionistRedirect("/inbox")).toBeNull();
+    expect(getAiReceptionistRedirect("/calls")).toBe("/ai-hub?tab=conversations");
+    expect(getAiReceptionistRedirect("/automations")).toBe("/ai-hub?tab=needs-review");
     expect(getAiReceptionistRedirect("/ai-settings")).toBe("/ai-hub?tab=settings");
     expect(getAiReceptionistRedirect("/ai-hub")).toBeNull();
   });

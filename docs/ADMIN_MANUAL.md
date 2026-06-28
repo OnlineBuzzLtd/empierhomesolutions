@@ -60,7 +60,7 @@ If your account belongs to more than one workspace, make sure you are in the rig
 Empire engineer shortcut logins for demos/support:
 
 - `engineer@ehs.local` / `password`
-- `shane@ehs.local` / `password`
+- `shane@ehs.local` / password set by admin reset
 
 This is a normal CRM engineer account. Use admin/management accounts for office workflows and settings.
 

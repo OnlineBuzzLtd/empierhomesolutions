@@ -7,25 +7,25 @@ async function waitForLeadForm(page: Page) {
 
 test.describe("LP critical path", () => {
   test("renders location-specific H1", async ({ page }) => {
-    await page.goto("/lp/boiler-repair/uxbridge");
+    await page.goto("/lp/boiler-repair/uxbridge", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Uxbridge");
   });
 
   test("hero call CTA uses tel link", async ({ page }) => {
-    await page.goto("/lp/boiler-repair/uxbridge");
+    await page.goto("/lp/boiler-repair/uxbridge", { waitUntil: "domcontentloaded" });
     const callLink = page.getByRole("link", { name: "Call Now" }).first();
     await expect(callLink).toHaveAttribute("href", /tel:/);
   });
 
   test("form validation blocks empty submit", async ({ page }) => {
-    await page.goto("/lp/boiler-repair/uxbridge");
+    await page.goto("/lp/boiler-repair/uxbridge", { waitUntil: "domcontentloaded" });
     await waitForLeadForm(page);
     await page.getByRole("button", { name: "Book Now" }).click();
     await expect(page.getByText("Enter your name")).toBeVisible();
   });
 
   test("successful submit shows success state", async ({ page }) => {
-    await page.goto("/lp/boiler-repair/uxbridge?utm_source=google&utm_campaign=repair-test");
+    await page.goto("/lp/boiler-repair/uxbridge?utm_source=google&utm_campaign=repair-test", { waitUntil: "domcontentloaded" });
     await waitForLeadForm(page);
 
     await page.getByRole("textbox", { name: "Name", exact: true }).fill("Jane Smith");
@@ -43,14 +43,14 @@ test.describe("LP critical path", () => {
   });
 
   test("dataLayer receives form_success event", async ({ page }) => {
-    await page.goto("/lp/boiler-repair/uxbridge");
+    await page.goto("/lp/boiler-repair/uxbridge", { waitUntil: "domcontentloaded" });
     await waitForLeadForm(page);
 
     await page.getByRole("textbox", { name: "Name", exact: true }).fill("John Smith");
     await page.getByRole("textbox", { name: "House name / number" }).fill("12");
     await page.getByRole("textbox", { name: "Street" }).fill("High Street");
     await page.getByRole("textbox", { name: "Postcode" }).fill("UB8 1AA");
-    await page.getByRole("textbox", { name: "Phone" }).fill("07911123456");
+    await page.getByRole("textbox", { name: "Phone" }).fill("07911123457");
     await page
       .getByRole("textbox", { name: "Issue" })
       .fill("No hot water and pressure keeps dropping every day.");

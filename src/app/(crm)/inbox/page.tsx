@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
+import { WorkItemRow } from "@/modules/crm/components/shared/WorkItemRow";
 import { getAddonState } from "@/modules/crm/lib/addons";
 import { requireCrmUser } from "@/modules/crm/lib/auth";
+import { listAppointmentsForCalendar } from "@/modules/crm/lib/data";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { getCrmEnv } from "@/modules/crm/lib/env";
+import {
+  buildOfficeInboxQueue,
+  getOfficeInboxFollowUpWindowStart,
+  type OfficeInboxQueueItem,
+} from "@/modules/crm/lib/office-inbox";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import { PlatformConversationList } from "@/modules/platform/components/PlatformConversationList";
 import { PlatformTimeline } from "@/modules/platform/components/PlatformTimeline";
@@ -14,25 +22,43 @@ import { buildWorkspaceModuleCards, toWorkspaceId } from "@/modules/platform/lib
 
 export default async function InboxPage() {
   const env = getCrmEnv();
-  const [session, addon] = await Promise.all([requireCrmUser(), getAddonState("ai_comms_hub")]);
+  const [session, addon, demoState] = await Promise.all([
+    requireCrmUser(),
+    getAddonState("ai_comms_hub"),
+    getCrmDemoState(),
+  ]);
   const fixtures = env.crmE2ePlatformFixturesEnabled ? buildPlatformE2eInboxFixtures() : null;
   const supabase = fixtures ? null : await createCrmServerClient();
-  const overview = fixtures
-    ? fixtures.overview
-    : session.tenant && supabase
-      ? await getPlatformWorkspaceOverview(supabase, session.tenant.id)
-      : null;
-  const conversationRecords = fixtures
-    ? fixtures.conversationRecords
-    : session.tenant && supabase
-      ? await listPlatformConversationRecords(supabase, session.tenant.id, 8)
-      : [];
+  const followUpWindowStart = getOfficeInboxFollowUpWindowStart();
+  const [overview, conversationRecords, calendarItems] = await Promise.all([
+    fixtures
+      ? fixtures.overview
+      : session.tenant && supabase
+        ? getPlatformWorkspaceOverview(supabase, session.tenant.id)
+        : null,
+    fixtures
+      ? fixtures.conversationRecords
+      : session.tenant && supabase
+        ? listPlatformConversationRecords(supabase, session.tenant.id, 8)
+        : [],
+    fixtures || !session.tenant
+      ? []
+      : listAppointmentsForCalendar({
+          mode: demoState.mode,
+          from: followUpWindowStart,
+          days: 21,
+        }),
+  ]);
   const workspaceId = overview?.alias?.workspace_id ?? (session.tenant ? toWorkspaceId(session.tenant.id) : "unconfigured");
   const modules = buildWorkspaceModuleCards();
   const linkedCustomers = conversationRecords.filter((record) => record.customer !== null).length;
   const linkedJobs = conversationRecords.filter((record) => record.job !== null).length;
   const bookedAppointments = conversationRecords.filter((record) => record.bookingAppointment !== null).length;
   const reviewRecords = listReviewablePlatformConversationRecords(conversationRecords);
+  const inboxQueue = buildOfficeInboxQueue({
+    calendarItems,
+    reviewRecords,
+  });
   const currentUser = session.user
     ? {
         id: session.user.id,
@@ -64,15 +90,32 @@ export default async function InboxPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace Operator Surface</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Office work queue</p>
         <h1 className="mt-2 text-2xl font-bold text-slate-900">Inbox</h1>
         <p className="mt-1 text-sm text-slate-500">
-          One workspace queue for conversations, missed-call recovery, and linked CRM outcomes.
+          Customer replies, AI handoffs, and follow-ups that need office action.
         </p>
       </div>
 
       <SectionCard
-        title="Workspace Context"
+        title="Needs Attention"
+        action={
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+            {inboxQueue.summary.totalCount} open
+          </span>
+        }
+      >
+        <div className="mb-4 grid gap-3 md:grid-cols-4">
+          <InfoStat label="First action" value={inboxQueue.summary.firstAction} />
+          <InfoStat label="AI handoffs" value={String(inboxQueue.summary.aiReviewCount)} />
+          <InfoStat label="Follow-ups" value={String(inboxQueue.summary.leadFollowUpCount)} />
+          <InfoStat label="Overdue" value={String(inboxQueue.summary.overdueCount)} />
+        </div>
+        <OfficeInboxQueue items={inboxQueue.items} />
+      </SectionCard>
+
+      <SectionCard
+        title="AI Workspace Context"
         action={
           !addon.enabled ? (
             <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700">
@@ -88,7 +131,7 @@ export default async function InboxPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Live Workspace Counters">
+      <SectionCard title="AI Workspace Counters">
         <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
           <InfoStat label="Events" value={String(overview?.stats.eventCount ?? 0)} />
           <InfoStat label="Commands" value={String(overview?.stats.commandCount ?? 0)} />
@@ -139,6 +182,33 @@ export default async function InboxPage() {
           currentUser={currentUser}
         />
       </SectionCard>
+    </div>
+  );
+}
+
+function OfficeInboxQueue({ items }: { items: OfficeInboxQueueItem[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+        Nothing needs office action right now.
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+      {items.map((item) => (
+        <WorkItemRow
+          key={item.id}
+          title={item.title}
+          detail={item.detail}
+          badge={item.dueLabel}
+          label={item.kind === "ai_review" ? "AI review" : "Follow-up"}
+          href={item.href}
+          action={item.action}
+          priority={item.priority}
+        />
+      ))}
     </div>
   );
 }

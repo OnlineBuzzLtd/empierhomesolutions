@@ -25,9 +25,8 @@ const coreServices = [
     href: "/lp/power-flushing/uxbridge",
   },
   {
-    title: "Boiler Finance",
-    description:
-      "Flexible finance options to spread installation costs, subject to status and affordability checks.",
+    title: "Boiler Installation Finance",
+    description: "Finance option available through Phoenix Financial Consultants Limited.",
     href: "/finance",
   },
 ];

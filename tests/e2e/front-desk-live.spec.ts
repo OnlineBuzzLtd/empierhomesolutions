@@ -2,25 +2,24 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Live channel tester", () => {
   test("shows all live channels with linked runtime readiness", async ({ page }) => {
-    await page.goto("/ai-hub/live", { waitUntil: "domcontentloaded" });
+    await page.goto("/ai-hub?tab=channels", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
 
     await expect(page.getByRole("heading", { level: 1, name: "AI Receptionist" })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText("Empire Home Solutions Runtime")).toBeVisible();
-    await expect(page.getByRole("heading", { level: 3, name: "Web" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 3, name: "Web chat" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "SMS" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "WhatsApp" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 3, name: "Phone" })).toBeVisible();
-    await expect(page.getByText("Empire Home Solutions Runtime")).toBeVisible();
     await expect(page.getByText("+44 1895 725151").first()).toBeVisible();
-    await expect(page.getByText("AI connected").first()).toBeVisible();
+    await expect(page.getByText("Working").first()).toBeVisible();
   });
 
   test("opens a linked webchat session and shows the agent reply", async ({ page }) => {
-    test.setTimeout(60000);
-    await page.goto("/ai-hub/live", { waitUntil: "domcontentloaded" });
+    test.setTimeout(90000);
+    await page.goto("/ai-hub?tab=test", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
 
+    await expect(page.getByLabel("Customer name")).toBeVisible({ timeout: 30000 });
     await page.getByLabel("Customer name").fill("Jane Smith");
     await page.getByLabel("Email").fill("jane@example.com");
     await page.getByLabel("Opening message").fill("Need a boiler service this Thursday morning.");

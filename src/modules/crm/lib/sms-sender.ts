@@ -23,13 +23,18 @@ export async function sendTenantSms(input: SendSmsInput): Promise<{ ok: boolean;
 
   const accountSid = normalizeEnv(process.env.TWILIO_ACCOUNT_SID);
   const authToken = normalizeEnv(process.env.TWILIO_AUTH_TOKEN);
+  const apiKeySid = normalizeEnv(process.env.TWILIO_API_KEY_SID);
+  const apiKeySecret = normalizeEnv(process.env.TWILIO_API_KEY_SECRET);
   const messagingServiceSid =
     input.messagingServiceSid ??
     normalizeEnv(process.env.CRM_TWILIO_MESSAGING_SERVICE_SID) ??
     normalizeEnv(process.env.TWILIO_MESSAGING_SERVICE_SID);
   const from = normalizeEnv(process.env.CRM_TWILIO_FROM_NUMBER) ?? normalizeEnv(process.env.TWILIO_PHONE_NUMBER);
 
-  if (!accountSid || !authToken) {
+  const authUsername = apiKeySid ?? accountSid;
+  const authPassword = apiKeySecret ?? authToken;
+
+  if (!accountSid || !authUsername || !authPassword) {
     return { ok: false, warning: "Twilio account credentials are not configured." };
   }
 
@@ -50,7 +55,7 @@ export async function sendTenantSms(input: SendSmsInput): Promise<{ ok: boolean;
   const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
     method: "POST",
     headers: {
-      authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+      authorization: `Basic ${Buffer.from(`${authUsername}:${authPassword}`).toString("base64")}`,
       "content-type": "application/x-www-form-urlencoded",
     },
     body,

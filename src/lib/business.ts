@@ -1,3 +1,6 @@
+export const phoenixFinanceDisclosure =
+  "Shane Hodges t/a Empire Home Solutions (EHS) is an Introducer Appointed Representative (Financial Services Register No. 1034368) of Phoenix Financial Consultants Limited (Phoenix). Phoenix is a credit broker, not a lender. Phoenix is authorised and regulated by the Financial Conduct Authority (FRN: 539195), and offers finance from its panel of lenders. All finance subject to status and credit checks.";
+
 export const businessDetails = {
   name: "Empire Home Solutions",
   primaryPhoneDisplay: "01895 725 151",

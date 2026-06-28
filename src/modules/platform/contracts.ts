@@ -29,6 +29,7 @@ export const platformEventTypes = [
   "EscalationRaised",
   "DeliveryStatusUpdated",
   "CustomerUpdated",
+  "CustomerPromiseChanged",
   "JobCreated",
   "JobRescheduled",
   "JobCompleted",

@@ -28,7 +28,7 @@ export function InstallTemplate({ content, trustOrder }: InstallTemplateProps) {
     <>
       <HeroSection hero={content.hero} cta={content.cta} proofLine={heroProofLine} />
       <TrustStrip trust={content.trust} trustOrder={trustOrder} />
-      <PricingSection pricing={content.pricing} emphasizeFinance />
+      <PricingSection pricing={content.pricing} />
       <ProofCardsSection cards={content.proofCards} />
       <CoverageSection coverage={content.coverage} />
       <FaqSection faqs={content.faqs} />

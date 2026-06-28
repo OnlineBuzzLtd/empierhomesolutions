@@ -49,13 +49,15 @@ import type {
 } from "@/modules/crm/types";
 import { createCrmServerClient, createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { applyCrmModeFilter, crmDemoScenarioKey } from "@/modules/crm/lib/demo";
-import { runCrmList } from "@/modules/crm/lib/data-runner";
+import { runCrmList, runCrmListStrict, runCrmSingle } from "@/modules/crm/lib/data-runner";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import {
   buildAssetReminderItems,
+  buildCustomerPromiseCalendarItem,
   buildLeadFollowUpItem,
   expandAppointmentOccurrences,
 } from "@/modules/crm/lib/calendar";
+import { listCustomerPromisesForCalendar } from "@/modules/crm/lib/customer-promises";
 import { summarizeEngineerDashboardJobs } from "@/modules/crm/lib/dashboard";
 import { buildReportsSummary } from "@/modules/crm/lib/reporting";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -65,6 +67,13 @@ import {
   measureCrmQuery,
   type CrmPaginationInput,
 } from "@/modules/crm/lib/performance";
+import {
+  findCustomerMatchCandidates,
+  normalizeMatchEmail,
+  normalizeMatchPhone,
+  normalizeMatchPostcode,
+  type CustomerMatchInput,
+} from "@/modules/crm/lib/customer-match";
 
 /**
  * Decides which CRM route the Calendar "Open" button should open for an
@@ -99,6 +108,8 @@ const getCachedCrmDemoState = cache(getCrmDemoState);
 export const enquiryTodoStatuses = ["new", "contacted", "follow_up"] as const;
 export const enquiryDoneStatuses = ["booked", "quoted", "accepted", "completed", "lost"] as const;
 export type EnquiryTab = "todo" | "done" | "all";
+const leadWithRelationsSelect =
+  "id, tenant_id, customer_id, possible_duplicate_customer_id, service_id, job_type_id, assigned_to, status, source, source_enum, next_action_at, notes, problem_description, affected_area, urgency_level, preferred_date_text, preferred_time_window, intake_source, dedupe_result, submission_count, customer_match_result, is_demo, demo_scenario_key, created_at, updated_at, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)";
 
 function emptyDashboard(): DashboardData {
   return {
@@ -106,6 +117,7 @@ function emptyDashboard(): DashboardData {
     todaysJobs: [],
     unpaidInvoicesTotal: 0,
     newLeadCount: 0,
+    followUpDueCount: 0,
     aiReceptionistReviewCount: 0,
     recentCustomers: [],
     activeJobs: [],
@@ -601,6 +613,7 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
   if (summary) {
     return {
       ...summary,
+      followUpDueCount: 0,
       aiReceptionistReviewCount: 0,
       todaysJobs,
       recentCustomers,
@@ -635,6 +648,7 @@ export async function getDashboardData(mode?: CrmMode): Promise<DashboardData> {
       .filter((invoice) => invoice.status === "unpaid")
       .reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
     newLeadCount: leads.length,
+    followUpDueCount: 0,
     aiReceptionistReviewCount: 0,
     recentCustomers,
     activeJobs,
@@ -793,6 +807,21 @@ export async function getEnquiryCounts(mode?: CrmMode) {
   return { todoCount, doneCount, allCount };
 }
 
+function buildLeadsQuery(
+  supabase: Awaited<ReturnType<typeof createCrmServerClient>>,
+  context: { mode: CrmMode; scenarioKey: typeof crmDemoScenarioKey },
+  tab: EnquiryTab,
+) {
+  const leadsQuery = supabase
+    .schema("crm")
+    .from("leads")
+    .select(leadWithRelationsSelect);
+  filterByMode(leadsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(leadsQuery);
+  applyEnquiryTabFilter(leadsQuery, tab);
+  return leadsQuery;
+}
+
 export async function listLeads(mode?: CrmMode, pagination?: CrmPaginationInput, tab: EnquiryTab = "all") {
   if (!getCrmEnv().enabled) {
     return [] as LeadWithRelations[];
@@ -800,19 +829,36 @@ export async function listLeads(mode?: CrmMode, pagination?: CrmPaginationInput,
 
   const context = await getCrmModeContext(mode);
   const supabase = await createCrmServerClient();
-  const leadsQuery = supabase
-    .schema("crm")
-    .from("leads")
-    .select(
-      "id, tenant_id, customer_id, possible_duplicate_customer_id, service_id, job_type_id, owner_user_id, status, source, source_enum, next_action_at, notes, problem_description, affected_area, urgency_level, preferred_date_text, preferred_time_window, intake_source, dedupe_result, submission_count, customer_match_result, is_demo, demo_scenario_key, created_at, updated_at, customer:customers!leads_customer_id_fkey(id, full_name, phone, email, address_line1, postcode), possible_duplicate_customer:customers!leads_possible_duplicate_customer_id_fkey(id, full_name, phone, email), service:services(id, name), job_type:job_types(id, name)",
-    );
-  filterByMode(leadsQuery, context.mode, context.scenarioKey);
-  hideDeletedRecords(leadsQuery);
-  applyEnquiryTabFilter(leadsQuery, tab);
+  const leadsQuery = buildLeadsQuery(supabase, context, tab);
   return runCrmList<LeadWithRelations>(
     "listLeads",
     applyCrmPagination(leadsQuery.order("created_at", { ascending: false }), pagination),
   );
+}
+
+export async function listLeadsStrict(mode?: CrmMode, pagination?: CrmPaginationInput, tab: EnquiryTab = "all") {
+  if (!getCrmEnv().enabled) {
+    return [] as LeadWithRelations[];
+  }
+
+  const context = await getCrmModeContext(mode);
+  const supabase = await createCrmServerClient();
+  const leadsQuery = buildLeadsQuery(supabase, context, tab);
+  return runCrmListStrict<LeadWithRelations>(
+    "listLeads",
+    applyCrmPagination(leadsQuery.order("created_at", { ascending: false }), pagination),
+  );
+}
+
+export async function getLeadById(id: string, mode?: CrmMode) {
+  if (!getCrmEnv().enabled) {
+    return null;
+  }
+
+  const context = await getCrmModeContext(mode);
+  const supabase = await createCrmServerClient();
+  const leadsQuery = buildLeadsQuery(supabase, context, "all");
+  return runCrmSingle<LeadWithRelations>("getLeadById", leadsQuery.eq("id", id).maybeSingle());
 }
 
 export async function listCustomers(mode?: CrmMode, pagination?: CrmPaginationInput) {
@@ -860,6 +906,119 @@ export async function listCustomers(mode?: CrmMode, pagination?: CrmPaginationIn
       active_job_count: count.active,
     };
   });
+}
+
+export type CustomerServerMatchCandidate = {
+  customer: Customer;
+  score: number;
+  reasons: string[];
+  activeLeadCount: number;
+  activeJobCount: number;
+};
+
+export async function searchCustomerMatchCandidates(
+  input: CustomerMatchInput,
+  mode?: CrmMode,
+  limit = 5,
+): Promise<CustomerServerMatchCandidate[]> {
+  if (!getCrmEnv().enabled) {
+    return [];
+  }
+
+  const context = await getCrmModeContext(mode);
+  const supabase = await createCrmServerClient();
+  const normalizedPhone = normalizeMatchPhone(input.phone);
+  const normalizedEmail = normalizeMatchEmail(input.email);
+  const normalizedPostcode = normalizeMatchPostcode(input.postcode);
+  const nameTokens = String(input.fullName ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length >= 3)
+    .slice(0, 3);
+
+  const filters: string[] = [];
+  if (normalizedEmail) {
+    filters.push(`email.ilike.%${escapeSupabaseLike(normalizedEmail)}%`);
+  }
+  if (normalizedPostcode) {
+    filters.push(`postcode.ilike.%${escapeSupabaseLike(normalizedPostcode.slice(0, 4))}%`);
+  }
+  if (normalizedPhone && normalizedPhone.length >= 6) {
+    filters.push(`phone.ilike.%${escapeSupabaseLike(normalizedPhone.slice(-6))}%`);
+  }
+  for (const token of nameTokens) {
+    filters.push(`full_name.ilike.%${escapeSupabaseLike(token)}%`);
+  }
+
+  if (filters.length === 0) {
+    return [];
+  }
+
+  const customersQuery = supabase
+    .schema("crm")
+    .from("customers")
+    .select("id, tenant_id, full_name, phone, email, address_line1, address_line2, city, postcode, source, notes, archived, is_demo, demo_scenario_key, created_at, updated_at")
+    .or(filters.join(","))
+    .limit(50);
+  filterByMode(customersQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(customersQuery);
+
+  const customerRows = await runCrmList<Customer>(
+    "searchCustomerMatchCandidates.customers",
+    customersQuery.order("updated_at", { ascending: false }),
+  );
+  const candidates = findCustomerMatchCandidates(input, customerRows, limit);
+  const customerIds = candidates.map((candidate) => candidate.customer.id);
+  if (customerIds.length === 0) {
+    return [];
+  }
+
+  const activeLeadStatuses = ["new", "contacted", "follow_up", "survey_booked", "quoted", "accepted", "booked"];
+  const activeJobStatuses = ["enquiry", "booked", "in_progress", "no_access"];
+  const leadsQuery = supabase
+    .schema("crm")
+    .from("leads")
+    .select("customer_id, status")
+    .in("customer_id", customerIds)
+    .in("status", activeLeadStatuses);
+  filterByMode(leadsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(leadsQuery);
+  const jobsQuery = supabase
+    .schema("crm")
+    .from("jobs")
+    .select("customer_id, status")
+    .in("customer_id", customerIds)
+    .in("status", activeJobStatuses);
+  filterByMode(jobsQuery, context.mode, context.scenarioKey);
+  hideDeletedRecords(jobsQuery);
+
+  const [leadRows, jobRows] = await Promise.all([
+    runCrmList<{ customer_id: string | null }>("searchCustomerMatchCandidates.leads", leadsQuery),
+    runCrmList<{ customer_id: string | null }>("searchCustomerMatchCandidates.jobs", jobsQuery),
+  ]);
+  const activeLeadCounts = countByCustomerId(leadRows);
+  const activeJobCounts = countByCustomerId(jobRows);
+
+  return candidates.map((candidate) => ({
+    ...candidate,
+    activeLeadCount: activeLeadCounts.get(candidate.customer.id) ?? 0,
+    activeJobCount: activeJobCounts.get(candidate.customer.id) ?? 0,
+  }));
+}
+
+function countByCustomerId(rows: Array<{ customer_id: string | null }>) {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.customer_id) {
+      continue;
+    }
+    counts.set(row.customer_id, (counts.get(row.customer_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function escapeSupabaseLike(value: string) {
+  return value.replace(/[%_,]/g, "");
 }
 
 export async function listSites(mode?: CrmMode) {
@@ -913,6 +1072,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   hideDeletedRecords(jobsQuery);
+  const leadsQuery = buildLeadsQuery(supabase, context, "todo");
   const notesQuery = supabase.schema("crm").from("notes").select("*");
   filterByMode(notesQuery, context.mode, context.scenarioKey);
   const assetsQuery = supabase.schema("crm").from("customer_assets").select("*");
@@ -924,6 +1084,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   const [
     { data: customer },
     { data: jobs },
+    { data: leads },
     { data: notes },
     { data: assets },
     { data: sites },
@@ -932,6 +1093,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   ] = await Promise.all([
     customerQuery.eq("id", id).maybeSingle(),
     jobsQuery.eq("customer_id", id).order("created_at", { ascending: false }),
+    leadsQuery.eq("customer_id", id).order("next_action_at", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
     notesQuery.eq("entity_type", "customer").eq("entity_id", id).order("created_at", { ascending: false }),
     assetsQuery.eq("customer_id", id).order("created_at", { ascending: false }),
     sitesQuery
@@ -974,6 +1136,7 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   return {
     customer: customer as Customer,
     jobs: customerJobs.map((job) => ({ ...job, assignees: assigneesByJobId.get(job.id) ?? [] })),
+    leads: (leads ?? []) as unknown as LeadWithRelations[],
     notes: (notes ?? []) as Note[],
     assets: (assets ?? []) as CustomerAsset[],
     sites: (sites ?? []) as Site[],
@@ -1261,7 +1424,7 @@ export async function listAppointmentsForCalendar(filters?: {
   const usersQuery = supabase.schema("crm").from("user_profiles").select("*");
   filterByMode(usersQuery, context.mode, context.scenarioKey);
 
-  const [{ data: appointments }, { data: leads }, { data: assets }, { data: users }] = await Promise.all([
+  const [{ data: appointments }, { data: leads }, { data: assets }, { data: users }, customerPromises] = await Promise.all([
     appointmentsQuery
       .gte("starts_at", start.toISOString())
       .lte("starts_at", end.toISOString())
@@ -1276,12 +1439,18 @@ export async function listAppointmentsForCalendar(filters?: {
       )
       .order("service_due_date", { ascending: true, nullsFirst: false }),
     usersQuery,
+    listCustomerPromisesForCalendar({
+      dueFrom: start.toISOString(),
+      dueTo: end.toISOString(),
+      mode: context.mode,
+    }),
   ]);
 
   const usersById = new Map<string, UserProfile>(
     ((users ?? []) as UserProfile[]).map((user) => [user.user_id, user]),
   );
   const items: CalendarItem[] = [];
+  const promiseLeadIds = new Set(customerPromises.map((promise) => promise.lead_id).filter((id): id is string => Boolean(id)));
 
   for (const appointment of (appointments ?? []) as Array<
     Appointment & { customer?: CalendarItem["customer"]; lead?: CalendarItem["lead"] }
@@ -1323,9 +1492,19 @@ export async function listAppointmentsForCalendar(filters?: {
     if (!lead.next_action_at) {
       continue;
     }
+    if (promiseLeadIds.has(lead.id)) {
+      continue;
+    }
     const customer = Array.isArray(lead.customer) ? (lead.customer[0] ?? null) : (lead.customer ?? null);
     const nextActionAt = lead.next_action_at;
     items.push(buildLeadFollowUpItem({ ...lead, customer, next_action_at: nextActionAt }, usersById));
+  }
+
+  for (const promise of customerPromises) {
+    if (!promise.due_at) {
+      continue;
+    }
+    items.push(buildCustomerPromiseCalendarItem(promise, usersById));
   }
 
   for (const asset of assets ?? []) {

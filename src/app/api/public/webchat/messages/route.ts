@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -8,6 +9,8 @@ import {
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { resolveLandingPageTenantId } from "@/modules/forms/api/landing-tenant";
+import type { PlatformEventEnvelope, PlatformEventType } from "@/modules/platform/contracts";
+import { processPlatformEvent } from "@/modules/platform/lib/processor";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { validateRequestOrigin } from "@/lib/origin";
 
@@ -24,6 +27,128 @@ function getClientIp(headerStore: Awaited<ReturnType<typeof headers>>): string {
     return forwardedFor.split(",")[0].trim();
   }
   return headerStore.get("x-real-ip") ?? "unknown";
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function cleanString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim().replace(/\s+/g, " ") : null;
+}
+
+function findStringDeep(value: unknown, keys: string[], depth = 0): string | null {
+  if (depth > 6 || typeof value !== "object" || value === null) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findStringDeep(item, keys, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const found = cleanString(record[key]);
+    if (found) return found;
+  }
+  for (const item of Object.values(record)) {
+    const found = findStringDeep(item, keys, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+function extractUkPhoneFromText(value: string | null) {
+  if (!value) return null;
+  const match = value.match(/(?:\+44\s?7\d{3}|07\d{3})[\s-]?\d{3}[\s-]?\d{3}/);
+  return match?.[0]?.trim() ?? null;
+}
+
+function extractUkPostcodeFromText(value: string | null) {
+  if (!value) return null;
+  const match = value.match(/\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/i);
+  return match?.[0]?.toUpperCase() ?? null;
+}
+
+function eventTypeForWebchatOutcome(outcome: string | null, bookingState: string | null): PlatformEventType | null {
+  if (bookingState === "booking_confirmed" || outcome === "booking_confirmed") return "BookingConfirmed";
+  if (outcome === "handoff_required") return "EscalationRaised";
+  if (outcome === "qualified" || outcome === "lead_qualified") return "ConversationQualified";
+  return null;
+}
+
+async function processPublicWebchatOutcome(input: {
+  supabase: ReturnType<typeof createCrmServiceRoleClient>;
+  customerJourneysTenantId: string | null;
+  conversationId: string;
+  inboundBody: string;
+  session: unknown;
+}) {
+  if (!input.customerJourneysTenantId) return;
+
+  const session = asRecord(input.session);
+  const message = asRecord(session.message);
+  const replyMessage = asRecord(session.replyMessage);
+  const replyMetadata = asRecord(replyMessage.metadata);
+  const bookingState = asRecord(session.bookingState);
+  const outcome = cleanString(replyMetadata.outcome);
+  const currentState = cleanString(bookingState.currentState) ?? findStringDeep(replyMetadata, ["currentState", "current_state"]);
+  const eventType = eventTypeForWebchatOutcome(outcome, currentState);
+  if (!eventType) return;
+
+  const inboundText = cleanString(message.body) ?? input.inboundBody;
+  const responseText = cleanString(replyMessage.body);
+  const occurredAt = cleanString(replyMessage.createdAt) ?? cleanString(message.createdAt) ?? new Date().toISOString();
+  const customerPhone = findStringDeep(input.session, ["phoneNumber", "phone_number", "customer_phone", "customerPhone"]) ?? extractUkPhoneFromText(inboundText);
+  const customerPostcode =
+    findStringDeep(input.session, ["postcode", "customer_postcode", "servicePostcode"]) ?? extractUkPostcodeFromText(inboundText);
+  const customerEmail = findStringDeep(input.session, ["email", "customer_email", "customerEmail", "identity_email"]);
+  const customerName = findStringDeep(input.session, ["fullName", "full_name", "customer_name", "customerName"]);
+  const service = findStringDeep(input.session, ["serviceName", "service_name", "serviceKey", "service_key", "title"]);
+
+  const envelope: PlatformEventEnvelope = {
+    event_id: randomUUID(),
+    event_type: eventType,
+    event_version: 1,
+    workspace_id: input.customerJourneysTenantId,
+    occurred_at: occurredAt,
+    source_system: "agentic_runtime",
+    idempotency_key: `public-webchat:${input.conversationId}:${eventType}`,
+    correlation_id: input.conversationId,
+    aggregate: {
+      type: "conversation",
+      id: input.conversationId,
+    },
+    payload: {
+      channel: "webchat",
+      source: PUBLIC_WEBCHAT_SOURCE,
+      conversation_id: input.conversationId,
+      customer_name: customerName,
+      customer_full_name: customerName,
+      customer_phone: customerPhone,
+      identity_phone: customerPhone,
+      customer_email: customerEmail,
+      identity_email: customerEmail,
+      customer_postcode: customerPostcode,
+      postcode: customerPostcode,
+      service,
+      issue: inboundText,
+      message_summary: inboundText,
+      response_text: responseText,
+      reason: cleanString(replyMetadata.fallbackReason) ?? outcome ?? eventType,
+      trigger: outcome ?? eventType,
+      lead_score: eventType === "ConversationQualified" ? 80 : undefined,
+      is_test: /\btest\b/i.test(inboundText),
+      metadata: {
+        public_webchat_source: PUBLIC_WEBCHAT_SOURCE,
+        outcome,
+        booking_state: currentState,
+      },
+    },
+  };
+
+  await processPlatformEvent(input.supabase, envelope);
 }
 
 export async function POST(request: Request) {
@@ -82,6 +207,24 @@ export async function POST(request: Request) {
       body: parsed.data.body,
       source: PUBLIC_WEBCHAT_SOURCE,
     });
+
+    if (!env.crmE2ePlatformFixturesEnabled) {
+      await processPublicWebchatOutcome({
+        supabase: admin,
+        customerJourneysTenantId: link?.customerjourneys_tenant_id ?? null,
+        conversationId: parsed.data.conversationId,
+        inboundBody: parsed.data.body,
+        session,
+      }).catch((error) => {
+        console.warn(
+          JSON.stringify({
+            event: "public_webchat_outcome_bridge_failed",
+            conversationId: parsed.data.conversationId,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      });
+    }
 
     return NextResponse.json(
       { ok: true, session },

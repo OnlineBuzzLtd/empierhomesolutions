@@ -8,6 +8,7 @@ import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
 import { PaymentCreateForm } from "@/modules/crm/components/forms/PaymentCreateForm";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { CollapsibleSectionCard } from "@/modules/crm/components/shared/CollapsibleSectionCard";
+import { CustomerPromiseStrip } from "@/modules/crm/components/shared/CustomerPromiseStrip";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
@@ -16,6 +17,8 @@ import { CommsoftJobEvent } from "@/modules/crm/components/commusoft/CommsoftJob
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getUiPreference } from "@/app/actions/ui-preference";
 import { getAddonState, resolveEngineerAiAssistState } from "@/modules/crm/lib/addons";
+import { buildRecordPromiseSummary, choosePromiseSummary } from "@/modules/crm/lib/customer-promise";
+import { listCustomerPromises } from "@/modules/crm/lib/customer-promises";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency, formatDate, formatDateTime } from "@/modules/crm/lib/format";
 import {
@@ -53,12 +56,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const [session, { id }, demoState] = await Promise.all([requireCrmUser(), params, getCrmDemoState()]);
   const isEngineer = session.profile?.role === "engineer";
 
-  const [detail, staff, sites, siteContacts, suppliers, addon, uiMode] = await Promise.all([
+  const [detail, staff, sites, siteContacts, suppliers, promises, addon, uiMode] = await Promise.all([
     getJobDetail(id, demoState.mode),
     listStaffDirectory(demoState.mode),
     listSites(demoState.mode),
     listSiteContacts(demoState.mode),
     isEngineer ? Promise.resolve([]) : listSuppliers(demoState.mode),
+    isEngineer ? Promise.resolve([]) : listCustomerPromises({ jobId: id, status: "open", limit: 10 }, demoState.mode),
     getAddonState("ai_comms_hub"),
     isEngineer ? getUiPreference() : Promise.resolve("classic" as const),
   ]);
@@ -121,6 +125,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           sites={sites}
           siteContacts={siteContacts}
           suppliers={suppliers}
+          promises={promises}
           session={session}
         />
       )}
@@ -140,6 +145,7 @@ async function AdminJobView({
   sites,
   siteContacts,
   suppliers,
+  promises,
   session,
 }: {
   job: Awaited<ReturnType<typeof getJobDetail>> extends { job: infer J } | null ? J : never;
@@ -153,6 +159,7 @@ async function AdminJobView({
   sites: Awaited<ReturnType<typeof listSites>>;
   siteContacts: Awaited<ReturnType<typeof listSiteContacts>>;
   suppliers: Awaited<ReturnType<typeof listSuppliers>>;
+  promises: Awaited<ReturnType<typeof listCustomerPromises>>;
   session: Awaited<ReturnType<typeof requireCrmUser>>;
 }) {
   const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
@@ -174,9 +181,37 @@ async function AdminJobView({
       : job.assigned_engineer || "Unassigned";
   const serviceNeedsReview = !job.service?.name;
   const jobTypeNeedsReview = !job.job_type?.name;
+  const scheduledPromiseAt = job.scheduled_date
+    ? `${job.scheduled_date}T${formatJobTime(job.scheduled_time) === "TBC" ? "09:00" : formatJobTime(job.scheduled_time)}:00`
+    : null;
+  const promise = choosePromiseSummary(
+    promises,
+    buildRecordPromiseSummary({
+      dueAt: scheduledPromiseAt,
+      title: "Customer appointment",
+      readyDetail: "This job has a scheduled customer visit.",
+      overdueTitle: "Appointment time has passed",
+      overdueDetail: "Check whether the job was completed, moved, or needs customer contact.",
+      unsetTitle: "No appointment promise set",
+      unsetDetail: "Schedule the job before the customer expects a visit.",
+      ownerLabel: assignedEngineerLabel,
+      channelLabel: job.customer?.phone ? "Phone" : "Not set",
+      dateOnly: !job.scheduled_time,
+    }),
+  );
 
   return (
     <div className="space-y-6">
+      <CustomerPromiseStrip
+        promise={promise}
+        editContext={{
+          customerId: job.customer_id,
+          jobId: job.id,
+          users: staff,
+          invalidatePaths: ["/api/crm/promises", "/api/crm/dashboard/summary"],
+        }}
+      />
+
       {/* Job header + edit form */}
       <SectionCard
         title={job.title}

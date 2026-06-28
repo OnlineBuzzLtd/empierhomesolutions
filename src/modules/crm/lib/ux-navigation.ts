@@ -1,9 +1,8 @@
 import type { CrmNavGroup, CrmNavItem } from "@/modules/crm/components/layout/CrmNav";
 
 const aiReceptionistRoutes: Record<string, string> = {
-  "/inbox": "/ai-hub?tab=conversations",
-  "/calls": "/ai-hub?tab=missed-calls",
-  "/automations": "/ai-hub?tab=follow-ups",
+  "/calls": "/ai-hub?tab=conversations",
+  "/automations": "/ai-hub?tab=needs-review",
   "/ai-settings": "/ai-hub?tab=settings",
 };
 
@@ -23,14 +22,36 @@ const engineerBlockedPrefixes = [
 ];
 
 export const adminPrimaryNavItems: CrmNavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/leads", label: "Enquiries", icon: "leads" },
-  { href: "/jobs", label: "Jobs", icon: "jobs" },
-  { href: "/calendar", label: "Scheduler", icon: "calendar" },
+  { href: "/dashboard", label: "Today", icon: "dashboard" },
+  {
+    href: "/inbox",
+    label: "Inbox",
+    icon: "inbox",
+    children: [
+      { href: "/inbox", label: "Needs attention", icon: "inbox" },
+      { href: "/leads", label: "Enquiries", icon: "leads" },
+    ],
+  },
+  {
+    href: "/jobs",
+    label: "Work",
+    icon: "jobs",
+    children: [
+      { href: "/jobs", label: "Jobs", icon: "jobs" },
+      { href: "/calendar", label: "Scheduler", icon: "calendar" },
+    ],
+  },
   { href: "/customers", label: "Customers", icon: "customers" },
-  { href: "/quotes", label: "Quotes", icon: "quotes" },
-  { href: "/invoices", label: "Invoices", icon: "invoices" },
-  { href: "/ai-hub", label: "AI Receptionist", icon: "ai-hub" },
+  {
+    href: "/quotes",
+    label: "Money",
+    icon: "invoices",
+    children: [
+      { href: "/quotes", label: "Quotes", icon: "quotes" },
+      { href: "/invoices", label: "Invoices", icon: "invoices" },
+    ],
+  },
+  { href: "/ai-hub", label: "AI", icon: "ai-hub" },
 ];
 
 export const adminMoreNavItems: CrmNavItem[] = [

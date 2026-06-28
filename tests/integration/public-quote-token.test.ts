@@ -76,7 +76,7 @@ describeOrSkip("public quote token surface (live Supabase)", () => {
         tenant_id: TENANT_ID,
         customer_id: customer.id,
         title: "[INTEGRATION] Token Test Job",
-        status: "lead",
+        status: "enquiry",
         is_demo: false,
       })
       .select("id")

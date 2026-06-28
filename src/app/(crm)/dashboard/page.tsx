@@ -22,8 +22,8 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">Live CRM overview from Supabase.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Today</h1>
+        <p className="mt-1 text-sm text-slate-500">Start here: review, chase, book, and unblock the day.</p>
       </div>
 
       <DashboardClientPanel demoActive={demoState.active} />

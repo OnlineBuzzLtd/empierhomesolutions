@@ -22,7 +22,6 @@
     "gasSafeNumber": "663578",
     "ratingValue": 5.0,
     "ratingCount": 25,
-    "financeAvailable": false,
     "guaranteeText": "Clear fixed quote before work starts",
     "brandLogos": [
       { "name": "Vaillant", "src": "/brands/vaillant.svg" },

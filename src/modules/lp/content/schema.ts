@@ -19,7 +19,6 @@ export const trustStripSchema = z.object({
   gasSafeNumber: z.string().min(4),
   ratingValue: z.number().min(0).max(5),
   ratingCount: z.number().int().min(0),
-  financeAvailable: z.boolean(),
   guaranteeText: z.string().min(4),
   brandLogos: z
     .array(
@@ -38,12 +37,6 @@ export const pricingSchema = z.object({
   installRangeMin: z.number().nonnegative(),
   installRangeMax: z.number().nonnegative(),
   pricingDisclaimer: z.string().min(10),
-  financeExample: z
-    .object({
-      monthlyFrom: z.number().nonnegative(),
-      summary: z.string().min(6),
-    })
-    .optional(),
 });
 
 export const faultItemSchema = z.object({
@@ -111,17 +104,6 @@ export const lpContentSchema = z.object({
   seo: seoSchema,
 });
 
-export const financeContentSchema = z.object({
-  slug: z.literal("finance"),
-  title: z.string().min(4),
-  description: z.string().min(8),
-  eligibility: z.array(z.string().min(4)).min(1),
-  representativeExample: z.string().min(12),
-  lenderPanelNote: z.string().min(8),
-  fcaDisclaimer: z.string().min(8),
-  seo: seoSchema,
-});
-
 export const aboutTrustContentSchema = z.object({
   slug: z.literal("about-trust"),
   title: z.string().min(4),
@@ -151,6 +133,5 @@ export const questionsAndAnswersContentSchema = z.object({
 });
 
 export type LpContentInput = z.infer<typeof lpContentSchema>;
-export type FinanceContentInput = z.infer<typeof financeContentSchema>;
 export type AboutTrustContentInput = z.infer<typeof aboutTrustContentSchema>;
 export type QuestionsAndAnswersContentInput = z.infer<typeof questionsAndAnswersContentSchema>;

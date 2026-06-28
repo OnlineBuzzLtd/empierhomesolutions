@@ -6,11 +6,17 @@ import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentU
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
 import { SiteContactCreateForm } from "@/modules/crm/components/forms/SiteContactCreateForm";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
+import { CustomerPromiseStrip } from "@/modules/crm/components/shared/CustomerPromiseStrip";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { buildCustomerPromiseSummary, choosePromiseSummary } from "@/modules/crm/lib/customer-promise";
+import { listCustomerPromises } from "@/modules/crm/lib/customer-promises";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatDate, formatDateTime } from "@/modules/crm/lib/format";
-import { getCustomerDetail } from "@/modules/crm/lib/data";
+import { getCustomerDetail, listUserProfiles } from "@/modules/crm/lib/data";
+
+type SearchParams = Record<string, string | string[] | undefined>;
 
 function buildCreateJobHref(input: {
   customerId: string;
@@ -27,15 +33,42 @@ function buildCreateJobHref(input: {
   return `/jobs?${params.toString()}`;
 }
 
-export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireCrmUser();
-  const { id } = await params;
-  const detail = await getCustomerDetail(id);
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function telHref(phone: string | null | undefined) {
+  const cleaned = phone?.replace(/[^\d+]/g, "");
+  return cleaned ? `tel:${cleaned}` : null;
+}
+
+function buildCallNoteDraft(customerName: string) {
+  return `Call with ${customerName}\nOutcome:\nNext action:\nOwner:\nDue:`;
+}
+
+export default async function CustomerDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<SearchParams>;
+}) {
+  const [session, { id }, queryParams, demoState] = await Promise.all([
+    requireCrmUser(),
+    params,
+    searchParams,
+    getCrmDemoState(),
+  ]);
+  const [detail, promises, users] = await Promise.all([
+    getCustomerDetail(id, demoState.mode),
+    listCustomerPromises({ customerId: id, status: "open", limit: 10 }, demoState.mode),
+    listUserProfiles(demoState.mode),
+  ]);
   if (!detail) {
     notFound();
   }
 
-  const { customer, jobs, notes, assets, attachments } = detail;
+  const { customer, jobs, leads, notes, assets, attachments } = detail;
   const sites = detail.sites ?? [];
   const siteContacts = detail.siteContacts ?? [];
   const primarySite = sites.find((site) => site.is_primary) ?? sites[0] ?? null;
@@ -50,6 +83,15 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
     siteId: primarySite?.id,
     siteContactId: primarySiteContact?.id,
   });
+  const callMode = firstParam(queryParams.call) === "1";
+  const customerTelHref = telHref(customer.phone);
+  const callNoteDraft = callMode ? buildCallNoteDraft(customer.full_name) : undefined;
+  const promise = choosePromiseSummary(
+    promises,
+    buildCustomerPromiseSummary(leads, {
+      channelLabel: customer.phone ? "Phone" : customer.email ? "Email" : "Not set",
+    }),
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -60,6 +102,53 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <span className="mx-2">›</span>
         <span className="font-medium text-slate-900">{customer.full_name}</span>
       </nav>
+
+      {callMode ? (
+        <SectionCard title="Call Handling">
+          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{customer.full_name}</p>
+              <p className="mt-1 text-sm text-slate-600">
+                {[customer.phone, customer.email, customer.postcode].filter(Boolean).join(" · ") || "No contact details saved."}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Check active work, write the call outcome, then set the next action before leaving the page.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {customerTelHref ? (
+                <a
+                  href={customerTelHref}
+                  className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                >
+                  Call customer
+                </a>
+              ) : null}
+              <a
+                href="#customer-call-note"
+                className="rounded-lg border border-cyan-200 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-50"
+              >
+                Log outcome
+              </a>
+              <Link
+                href={createJobHref}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Book job
+              </Link>
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      <CustomerPromiseStrip
+        promise={promise}
+        editContext={{
+          customerId: customer.id,
+          users,
+          invalidatePaths: ["/api/crm/promises", "/api/crm/dashboard/summary"],
+        }}
+      />
 
       <SectionCard title={customer.full_name} demoAnchor="customer-record">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -271,7 +360,17 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             ))}
           </ul>
           <div className="mt-4">
-            <NoteCreateForm entityType="customer" entityId={customer.id} />
+            {callMode ? (
+              <p className="mb-2 rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-2 text-sm text-cyan-900">
+                Add the call outcome, then save it to the customer timeline.
+              </p>
+            ) : null}
+            <NoteCreateForm
+              entityType="customer"
+              entityId={customer.id}
+              initialBody={callNoteDraft}
+              textareaId="customer-call-note"
+            />
           </div>
         </SectionCard>
 

@@ -2,6 +2,7 @@ import { getServerEnv, publicEnv } from "@/lib/env";
 import { getAllowedOrigins, toOrigin } from "@/lib/origin";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
+import { sendWebsiteLeadAlertSms } from "@/modules/crm/notifications/lead-alerts";
 import type { LeadCustomerMatchResult, LeadDedupeResult, LeadStatus } from "@/modules/crm/types";
 import type { Attribution } from "@/modules/tracking/attribution";
 import { resolveLandingPageTenantId, tenantIdFromSlug } from "@/modules/forms/api/landing-tenant";
@@ -314,6 +315,53 @@ async function createCustomer(
   return customer.id;
 }
 
+async function sendWebsiteLeadAlertBestEffort(
+  admin: ReturnType<typeof createCrmServiceRoleClient>,
+  input: {
+    tenantId: string;
+    leadId: string;
+    customerId: string | null;
+    cleanPayload: CleanLeadPayload;
+    submissionCount: number;
+  },
+) {
+  try {
+    const result = await sendWebsiteLeadAlertSms(admin, {
+      tenantId: input.tenantId,
+      leadId: input.leadId,
+      customerId: input.customerId,
+      name: input.cleanPayload.name,
+      phone: input.cleanPayload.phone,
+      postcode: input.cleanPayload.postcode,
+      service: input.cleanPayload.metadata.service,
+      issue: input.cleanPayload.issue,
+      leadType: input.cleanPayload.leadType,
+      location: input.cleanPayload.metadata.location,
+      submissionCount: input.submissionCount,
+    });
+
+    if (!result.ok) {
+      console.warn(
+        JSON.stringify({
+          event: "website_lead_alert_sms_failed",
+          warning: result.warning,
+          tenantId: input.tenantId,
+          leadId: input.leadId,
+        }),
+      );
+    }
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        event: "website_lead_alert_sms_failed",
+        warning: error instanceof Error ? error.message : "Lead alert SMS failed.",
+        tenantId: input.tenantId,
+        leadId: input.leadId,
+      }),
+    );
+  }
+}
+
 async function submitLeadToCrm(
   lead: LeadRequest,
   options: { tenantSlug?: string | null } = {},
@@ -490,6 +538,14 @@ async function submitLeadToCrm(
       body: duplicateLeadNotes,
     });
 
+    await sendWebsiteLeadAlertBestEffort(admin, {
+      tenantId,
+      leadId: dedupeCandidate.id,
+      customerId,
+      cleanPayload,
+      submissionCount: nextSubmissionCount,
+    });
+
     return { ok: true };
   }
 
@@ -542,6 +598,14 @@ async function submitLeadToCrm(
       body: leadNotes,
     },
   ]);
+
+  await sendWebsiteLeadAlertBestEffort(admin, {
+    tenantId,
+    leadId: createdLead.id,
+    customerId,
+    cleanPayload,
+    submissionCount: 1,
+  });
 
   return { ok: true };
 }

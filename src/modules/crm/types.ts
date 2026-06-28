@@ -20,6 +20,18 @@ export type LeadCustomerMatchResult = (typeof leadCustomerMatchResults)[number];
 export const leadDedupeResults = ["created", "updated_existing"] as const;
 export type LeadDedupeResult = (typeof leadDedupeResults)[number];
 
+export const customerPromiseStatuses = ["open", "completed", "cancelled"] as const;
+export type CustomerPromiseStatus = (typeof customerPromiseStatuses)[number];
+
+export const customerPromiseTypes = ["callback", "appointment", "quote", "invoice", "follow_up", "office_review", "other"] as const;
+export type CustomerPromiseType = (typeof customerPromiseTypes)[number];
+
+export const customerPromiseChannels = ["phone", "email", "sms", "whatsapp", "webchat", "voice", "office", "other"] as const;
+export type CustomerPromiseChannel = (typeof customerPromiseChannels)[number];
+
+export const customerPromiseOrigins = ["office", "ai", "system"] as const;
+export type CustomerPromiseOrigin = (typeof customerPromiseOrigins)[number];
+
 export const leadSources = [
   "webchat",
   "voice",
@@ -361,6 +373,35 @@ export type Lead = {
   re_engaged_at?: string | null;
   is_demo?: boolean;
   demo_scenario_key?: "core-walkthrough" | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CustomerPromise = {
+  id: string;
+  tenant_id: string;
+  customer_id: string | null;
+  lead_id: string | null;
+  job_id: string | null;
+  quote_id: string | null;
+  invoice_id: string | null;
+  platform_conversation_id: string | null;
+  platform_event_id: string | null;
+  promise_type: CustomerPromiseType;
+  title: string;
+  detail: string | null;
+  owner_user_id: string | null;
+  due_at: string | null;
+  channel: CustomerPromiseChannel;
+  status: CustomerPromiseStatus;
+  origin: CustomerPromiseOrigin;
+  idempotency_key: string | null;
+  completed_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  is_demo?: boolean;
+  demo_scenario_key?: "core-walkthrough" | string | null;
+  record_deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1102,7 +1143,7 @@ export type RequiredDocumentRule = {
 };
 
 export type CalendarItem = Appointment & {
-  source: "appointment" | "lead_follow_up" | "service_due" | "warranty_expiry";
+  source: "appointment" | "lead_follow_up" | "customer_promise" | "service_due" | "warranty_expiry";
   appointment_source?: string | null;
   customer?: Pick<Customer, "id" | "full_name" | "postcode"> | null;
   lead?: Pick<Lead, "id" | "status" | "source"> | null;
@@ -1145,6 +1186,7 @@ export type LeadWithRelations = Lead & {
   service?: Pick<Service, "id" | "name"> | null;
   job_type?: Pick<JobType, "id" | "name"> | null;
   owner?: Pick<UserProfile, "id" | "full_name" | "role"> | null;
+  promises?: CustomerPromise[];
   possible_duplicate_customer?: Pick<Customer, "id" | "full_name" | "phone" | "email"> | null;
 };
 
@@ -1188,6 +1230,7 @@ export type DashboardData = {
   todaysJobs: JobWithRelations[];
   unpaidInvoicesTotal: number;
   newLeadCount: number;
+  followUpDueCount: number;
   aiReceptionistReviewCount: number;
   recentCustomers: Customer[];
   activeJobs: JobWithRelations[];

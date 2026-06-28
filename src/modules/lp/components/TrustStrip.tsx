@@ -5,7 +5,6 @@ import type { TrustStripContent } from "@/modules/lp/types";
 type TrustStripProps = {
   trust: TrustStripContent;
   trustOrder?: "default" | "rating-first";
-  showFinance?: boolean;
   diagnosticFrom?: number;
 };
 
@@ -20,7 +19,6 @@ function formatGbp(value: number) {
 export function TrustStrip({
   trust,
   trustOrder = "default",
-  showFinance = true,
   diagnosticFrom,
 }: TrustStripProps) {
   const trustItems = [
@@ -36,18 +34,6 @@ export function TrustStrip({
       label: `${trust.ratingValue.toFixed(1)} (${trust.ratingCount} reviews)`,
       emphasize: false,
     },
-    ...(showFinance
-      ? [
-          {
-            key: "finance",
-            icon: <PoundSterling size={15} className="text-[var(--ehs-brand-dark)]" />,
-            label: trust.financeAvailable
-              ? "Finance available over 3, 5, 8, and 10 years"
-              : "Finance unavailable",
-            emphasize: false,
-          },
-        ]
-      : []),
     ...(typeof diagnosticFrom === "number"
       ? [
           {

@@ -41,7 +41,6 @@ export function RepairTemplate({ content, trustOrder }: RepairTemplateProps) {
       <TrustStrip
         trust={content.trust}
         trustOrder={trustOrder}
-        showFinance={false}
         diagnosticFrom={content.pricing.diagnosticFrom}
       />
       <FaultListSection faults={content.faults} />

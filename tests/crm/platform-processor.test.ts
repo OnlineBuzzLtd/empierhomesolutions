@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 describe("platform event processor", () => {
   it("returns no alias when the workspace does not exist", async () => {
     vi.resetModules();
+    vi.doMock("@/modules/crm/notifications/lead-alerts", () => ({
+      sendPlatformLeadAlertSms: vi.fn().mockResolvedValue({ ok: true }),
+    }));
     vi.doMock("@/modules/platform/lib/repository", () => ({
       resolveWorkspaceAliasForIncomingWorkspaceId: vi.fn().mockResolvedValue(null),
     }));
@@ -33,6 +36,79 @@ describe("platform event processor", () => {
     expect(result.commandsEnqueued).toBe(0);
   });
 
+  it("marks semantically invalid events as failed without executing commands", async () => {
+    vi.resetModules();
+
+    const alias = {
+      workspace_id: "22222222-2222-4222-8222-222222222222",
+      tenant_id: "11111111-1111-4111-8111-111111111111",
+      created_at: "2026-04-07T10:00:00.000Z",
+      updated_at: "2026-04-07T10:00:00.000Z",
+    };
+
+    const recordPlatformEvent = vi.fn().mockResolvedValue(undefined);
+    const enqueuePlatformCommand = vi.fn();
+    const updatePlatformCommandStatus = vi.fn();
+    const updatePlatformEventStatus = vi.fn().mockResolvedValue(undefined);
+    const executePlatformCommand = vi.fn();
+    const sendPlatformLeadAlertSms = vi.fn().mockResolvedValue({ ok: true });
+
+    vi.doMock("@/modules/platform/lib/repository", () => ({
+      resolveWorkspaceAliasForIncomingWorkspaceId: vi.fn().mockResolvedValue(alias),
+      recordPlatformEvent,
+      enqueuePlatformCommand,
+      updatePlatformCommandStatus,
+      updatePlatformEventStatus,
+    }));
+    vi.doMock("@/modules/platform/lib/command-executor", () => ({
+      executePlatformCommand,
+    }));
+    vi.doMock("@/modules/crm/notifications/lead-alerts", () => ({
+      sendPlatformLeadAlertSms,
+    }));
+
+    const { processPlatformEvent } = await import("@/modules/platform/lib/processor");
+
+    const result = await processPlatformEvent(
+      {} as never,
+      {
+        event_id: "11111111-1111-4111-8111-111111111111",
+        event_type: "BookingConfirmed",
+        event_version: 1,
+        workspace_id: alias.workspace_id,
+        occurred_at: "2026-04-07T10:00:00.000Z",
+        source_system: "agentic_runtime",
+        idempotency_key: "processor:invalid-booking",
+        correlation_id: null,
+        causation_id: null,
+        aggregate: {
+          type: "conversation",
+          id: "33333333-3333-4333-8333-333333333333",
+        },
+        payload: {
+          channel: "sms",
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      alias,
+      commandsEnqueued: 0,
+      deferred: true,
+    });
+    expect(recordPlatformEvent).toHaveBeenCalledTimes(1);
+    expect(updatePlatformEventStatus).toHaveBeenCalledWith(
+      {},
+      "11111111-1111-4111-8111-111111111111",
+      alias.tenant_id,
+      "failed",
+      "Invalid BookingConfirmed payload.",
+    );
+    expect(enqueuePlatformCommand).not.toHaveBeenCalled();
+    expect(executePlatformCommand).not.toHaveBeenCalled();
+    expect(sendPlatformLeadAlertSms).not.toHaveBeenCalled();
+  });
+
   it("processes commands outside the HTTP route wrapper", async () => {
     vi.resetModules();
 
@@ -57,6 +133,7 @@ describe("platform event processor", () => {
     const updatePlatformCommandStatus = vi.fn().mockResolvedValue(undefined);
     const updatePlatformEventStatus = vi.fn().mockResolvedValue(undefined);
     const executePlatformCommand = vi.fn().mockResolvedValue(undefined);
+    const sendPlatformLeadAlertSms = vi.fn().mockResolvedValue({ ok: true });
 
     vi.doMock("@/modules/platform/lib/repository", () => ({
       resolveWorkspaceAliasForIncomingWorkspaceId: vi.fn().mockResolvedValue(alias),
@@ -67,6 +144,9 @@ describe("platform event processor", () => {
     }));
     vi.doMock("@/modules/platform/lib/command-executor", () => ({
       executePlatformCommand,
+    }));
+    vi.doMock("@/modules/crm/notifications/lead-alerts", () => ({
+      sendPlatformLeadAlertSms,
     }));
 
     const { processPlatformEvent } = await import("@/modules/platform/lib/processor");
@@ -115,6 +195,7 @@ describe("platform event processor", () => {
       alias.tenant_id,
       "processed",
     );
+    expect(sendPlatformLeadAlertSms).toHaveBeenCalledTimes(1);
   });
 
   it("treats restart command failures as deferred instead of throwing", async () => {
@@ -141,6 +222,7 @@ describe("platform event processor", () => {
     const updatePlatformCommandStatus = vi.fn().mockResolvedValue(undefined);
     const updatePlatformEventStatus = vi.fn().mockResolvedValue(undefined);
     const executePlatformCommand = vi.fn().mockRejectedValue(new Error("link failed"));
+    const sendPlatformLeadAlertSms = vi.fn().mockResolvedValue({ ok: true });
 
     vi.doMock("@/modules/platform/lib/repository", () => ({
       resolveWorkspaceAliasForIncomingWorkspaceId: vi.fn().mockResolvedValue(alias),
@@ -151,6 +233,9 @@ describe("platform event processor", () => {
     }));
     vi.doMock("@/modules/platform/lib/command-executor", () => ({
       executePlatformCommand,
+    }));
+    vi.doMock("@/modules/crm/notifications/lead-alerts", () => ({
+      sendPlatformLeadAlertSms,
     }));
 
     const { processPlatformEvent } = await import("@/modules/platform/lib/processor");
@@ -196,5 +281,6 @@ describe("platform event processor", () => {
       "failed",
       "Deferred for replay.",
     );
+    expect(sendPlatformLeadAlertSms).not.toHaveBeenCalled();
   });
 });

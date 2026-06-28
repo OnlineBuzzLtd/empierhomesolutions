@@ -239,6 +239,57 @@ describe("platform events route", () => {
     });
   });
 
+  it("rejects semantically invalid AI event payloads before CRM processing", async () => {
+    const createCrmServiceRoleClient = vi.fn();
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: vi.fn().mockReturnValue({
+        platformSharedSecret: "test-secret",
+        demoConsoleAllowlist: [],
+      }),
+    }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServiceRoleClient,
+    }));
+
+    const route = await import("@/app/api/platform/events/route");
+    const response = await route.POST(
+      new Request("http://localhost/api/platform/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-platform-shared-secret": "test-secret",
+        },
+        body: JSON.stringify({
+          event_id: "aaaaaaaa-1111-4111-8111-111111111111",
+          event_type: "BookingConfirmed",
+          event_version: 1,
+          workspace_id: "22222222-2222-4222-8222-222222222222",
+          occurred_at: "2026-04-07T10:00:00.000Z",
+          source_system: "agentic_runtime",
+          idempotency_key: "scenario:contract-invalid",
+          correlation_id: null,
+          causation_id: null,
+          aggregate: {
+            type: "conversation",
+            id: "bbbbbbbb-2222-4222-8222-222222222222",
+          },
+          payload: {
+            channel: "sms",
+          },
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toMatchObject({
+      code: "platform_event_contract_invalid",
+      error: "Invalid BookingConfirmed payload.",
+    });
+    expect(body.issues[0].message).toContain("booking start time or booking reference");
+    expect(createCrmServiceRoleClient).not.toHaveBeenCalled();
+  });
+
   it("allows synthetic phone numbers for trusted demo webchat booking events", async () => {
     const alias = {
       workspace_id: "22222222-2222-4222-8222-222222222222",

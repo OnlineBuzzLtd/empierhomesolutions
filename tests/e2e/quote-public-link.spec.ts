@@ -14,7 +14,7 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Public quote preview — invalid token", () => {
   test("malformed token returns 404 (no leak)", async ({ page }) => {
-    const response = await page.goto("/q/not-a-real-uuid");
+    const response = await page.goto("/q/not-a-real-uuid", { waitUntil: "domcontentloaded" });
     // Next.js notFound() returns 404
     expect(response?.status()).toBe(404);
     // No quote details should be on the page
@@ -22,7 +22,7 @@ test.describe("Public quote preview — invalid token", () => {
   });
 
   test("well-formed but unknown token returns 404", async ({ page }) => {
-    const response = await page.goto("/q/00000000-0000-4000-8000-000000000000");
+    const response = await page.goto("/q/00000000-0000-4000-8000-000000000000", { waitUntil: "domcontentloaded" });
     expect(response?.status()).toBe(404);
     await expect(page.getByText(/QU-/)).toHaveCount(0);
   });

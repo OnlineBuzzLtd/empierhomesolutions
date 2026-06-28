@@ -6,6 +6,8 @@ import { DemoPanel } from "@/modules/crm/components/demo/DemoPanel";
 import { DemoModeProvider } from "@/modules/crm/components/demo/DemoModeProvider";
 import { DemoModeToggle } from "@/modules/crm/components/demo/DemoModeToggle";
 import { CrmClientRuntimeProvider, CrmInstantLink } from "@/modules/crm/components/client/CrmClientRuntime";
+import { CrmGlobalSearch } from "@/modules/crm/components/client/CrmGlobalSearch";
+import { NewEnquiryOverlay } from "@/modules/crm/components/client/NewEnquiryOverlay";
 import { CommsoftAccountMenu } from "@/modules/crm/components/commusoft/CommsoftAccountMenu";
 import {
   CommsoftBottomNav,
@@ -132,6 +134,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     <DemoModeProvider state={demoState}>
       <CrmClientRuntimeProvider tenantId={session.tenant?.id ?? null}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
+        {!isEngineer ? <NewEnquiryOverlay /> : null}
         <div className="flex min-h-screen">
           <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-white lg:flex">
             <div className="border-b border-slate-800/80 px-5 py-5">
@@ -208,6 +211,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
                     </div>
                   </div>
                 </div>
+                {!isEngineer ? (
+                  <div className="hidden min-w-0 flex-1 justify-center px-3 md:flex">
+                    <CrmGlobalSearch />
+                  </div>
+                ) : null}
                 <div className="flex shrink-0 items-center gap-2">
                   {session.tenant && tenantOptions.length > 1 ? (
                     <TenantSwitcher activeTenantId={session.tenant.id} options={tenantOptions} />

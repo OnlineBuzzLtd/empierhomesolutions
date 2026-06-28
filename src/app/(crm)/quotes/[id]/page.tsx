@@ -7,26 +7,31 @@ import { QuoteBuilder } from "@/modules/crm/components/forms/QuoteBuilder";
 import { PaymentPlanEditor } from "@/modules/crm/components/forms/PaymentPlanEditor";
 import { PublicLinkPanel } from "@/modules/crm/components/forms/PublicLinkPanel";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
+import { CustomerPromiseStrip } from "@/modules/crm/components/shared/CustomerPromiseStrip";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { StatusBadge } from "@/modules/crm/components/shared/StatusBadge";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { buildRecordPromiseSummary, choosePromiseSummary } from "@/modules/crm/lib/customer-promise";
+import { listCustomerPromises } from "@/modules/crm/lib/customer-promises";
+import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { formatCurrency, formatDate, formatDateTime } from "@/modules/crm/lib/format";
-import { getQuoteDetail, listAttachmentsForEntity, listCustomers, listJobs, listProducts } from "@/modules/crm/lib/data";
+import { getQuoteDetail, listAttachmentsForEntity, listCustomers, listJobs, listProducts, listUserProfiles } from "@/modules/crm/lib/data";
 import { invoiceScheduleStatusConfig, quoteStatusConfig } from "@/modules/crm/lib/status";
 import { createCrmServerClient } from "@/modules/crm/lib/supabase-server";
 import type { Package, PackageItem } from "@/modules/crm/types";
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireCrmUser();
-  const { id } = await params;
+  const [session, { id }, demoState] = await Promise.all([requireCrmUser(), params, getCrmDemoState()]);
   const supabase = await createCrmServerClient();
-  const [quote, attachments, customers, jobs, products, packagesQuery, tenantSettingsQuery] = await Promise.all([
-    getQuoteDetail(id),
+  const [quote, attachments, customers, jobs, products, promises, users, packagesQuery, tenantSettingsQuery] = await Promise.all([
+    getQuoteDetail(id, demoState.mode),
     listAttachmentsForEntity("quote", id),
-    listCustomers(),
-    listJobs(),
-    listProducts(),
+    listCustomers(demoState.mode),
+    listJobs(demoState.mode),
+    listProducts(demoState.mode),
+    listCustomerPromises({ quoteId: id, status: "open", limit: 10 }, demoState.mode),
+    listUserProfiles(demoState.mode),
     supabase
       .schema("crm")
       .from("packages")
@@ -45,6 +50,21 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   }
   const packages = (packagesQuery.data ?? []) as Array<Package & { items?: PackageItem[] }>;
   const showPerPackageVat = Boolean(tenantSettingsQuery.data?.show_per_package_vat);
+  const promise = choosePromiseSummary(
+    promises,
+    buildRecordPromiseSummary({
+      dueAt: quote.valid_until,
+      title: "Quote promise",
+      readyDetail: quote.status === "sent" ? "Customer has a live quote to review." : "Quote has a valid-until date.",
+      overdueTitle: "Quote expired",
+      overdueDetail: "Review, refresh, or chase this quote before relying on it with the customer.",
+      unsetTitle: "No quote promise set",
+      unsetDetail: "Set a valid-until date before sending this quote.",
+      ownerLabel: "Office",
+      channelLabel: quote.customer?.phone ? "Phone" : "Email",
+      dateOnly: true,
+    }),
+  );
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -55,6 +75,17 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         <span className="mx-2">›</span>
         <span className="font-medium text-slate-900">{quote.quote_number}</span>
       </nav>
+
+      <CustomerPromiseStrip
+        promise={promise}
+        editContext={{
+          customerId: quote.customer_id,
+          jobId: quote.job_id,
+          quoteId: quote.id,
+          users,
+          invalidatePaths: ["/api/crm/promises", "/api/crm/dashboard/summary"],
+        }}
+      />
 
       <SectionCard title={quote.quote_number} action={<StatusBadge config={quoteStatusConfig[quote.status]} />} demoAnchor="quote-record">
         <div className="grid gap-6 lg:grid-cols-2">

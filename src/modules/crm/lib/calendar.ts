@@ -1,5 +1,6 @@
 import { addDays, addMonths, addWeeks, addYears, parseISO, startOfDay } from "date-fns";
 import type { Appointment, CalendarItem, CustomerAsset, LeadStatus, UserProfile } from "@/modules/crm/types";
+import type { CustomerPromiseWithCustomer } from "@/modules/crm/lib/customer-promises";
 
 export function expandAppointmentOccurrences(appointment: Appointment, start: Date, end: Date) {
   const occurrences: Appointment[] = [];
@@ -67,6 +68,38 @@ export function buildLeadFollowUpItem(lead: {
   } satisfies CalendarItem;
 }
 
+export function buildCustomerPromiseCalendarItem(
+  promise: CustomerPromiseWithCustomer,
+  usersById: Map<string, UserProfile>,
+) {
+  const owner = promise.owner_user_id ? (usersById.get(promise.owner_user_id) ?? promise.owner ?? null) : null;
+  const customerName = promise.customer?.full_name ?? "Customer";
+  const entityLink = derivePromiseEntityLink(promise);
+
+  return {
+    id: `customer-promise-${promise.id}`,
+    customer_id: promise.customer_id,
+    lead_id: promise.lead_id,
+    job_id: promise.job_id,
+    assigned_to: promise.owner_user_id,
+    type: "follow_up",
+    title: `${promise.title} · ${customerName}`,
+    starts_at: promise.due_at ?? promise.updated_at,
+    ends_at: promise.due_at ?? promise.updated_at,
+    status: promise.status === "open" ? "scheduled" : promise.status,
+    reminder_offset_minutes: null,
+    recurrence_rule: null,
+    created_at: promise.created_at,
+    source: "customer_promise",
+    customer: promise.customer ?? null,
+    lead: promise.lead_id ? { id: promise.lead_id, status: "new", source: promise.origin } : null,
+    owner: owner ? { id: owner.id, full_name: owner.full_name, role: owner.role } : null,
+    recurrence_origin_id: promise.id,
+    entity_link: entityLink,
+    synthetic: true,
+  } satisfies CalendarItem;
+}
+
 export function buildAssetReminderItems(asset: CustomerAsset & { customer?: CalendarItem["customer"] }, start: Date, end: Date) {
   const items: CalendarItem[] = [];
   const serviceDue = asset.service_due_date ? startOfDay(parseISO(asset.service_due_date)) : null;
@@ -123,6 +156,25 @@ export function buildAssetReminderItems(asset: CustomerAsset & { customer?: Cale
   }
 
   return items;
+}
+
+function derivePromiseEntityLink(promise: CustomerPromiseWithCustomer) {
+  if (promise.lead_id) {
+    return `/leads?tab=todo&highlight=${encodeURIComponent(promise.lead_id)}`;
+  }
+  if (promise.job_id) {
+    return `/jobs/${promise.job_id}`;
+  }
+  if (promise.quote_id) {
+    return `/quotes/${promise.quote_id}`;
+  }
+  if (promise.invoice_id) {
+    return `/invoices/${promise.invoice_id}`;
+  }
+  if (promise.customer_id) {
+    return `/customers/${promise.customer_id}`;
+  }
+  return "/inbox";
 }
 
 function advanceRecurringDate(date: Date, rule: string) {

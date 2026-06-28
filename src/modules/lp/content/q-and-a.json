@@ -7,7 +7,7 @@
     {
       "id": "boiler-installations",
       "title": "Boiler Installations",
-      "summary": "Questions about boiler cost, finance, grants, and choosing the right boiler for your home.",
+      "summary": "Questions about boiler cost, grants, and choosing the right boiler for your home.",
       "faqs": [
         {
           "id": "install-cost",
@@ -15,14 +15,14 @@
           "answer": "Most boiler installations fall somewhere between around £2,000 and £5,000 depending on the boiler, controls, flue route, and whether it is a simple swap or a larger system change."
         },
         {
-          "id": "install-finance",
-          "question": "What is the most affordable way to get a new boiler?",
-          "answer": "The lowest-stress route is usually to choose an efficient boiler sized properly for the home and spread the cost where needed. Finance can help avoid delaying a replacement when the old boiler is unreliable."
+          "id": "install-planning",
+          "question": "What affects the cost of a new boiler?",
+          "answer": "The main cost factors are boiler output, controls, flue route, system layout, access, and whether the job is a simple swap or a larger system change."
         },
         {
           "id": "install-grant",
           "question": "Who may qualify for a boiler grant?",
-          "answer": "Grant eligibility depends on current government scheme rules, household circumstances, and the property’s energy profile. If there is a relevant route available, we can point homeowners in the right direction."
+          "answer": "Grant routes depend on current government scheme rules, household circumstances, and the property’s energy profile. If there is a relevant route available, we can point homeowners in the right direction."
         },
         {
           "id": "install-best",

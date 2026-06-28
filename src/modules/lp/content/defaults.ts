@@ -24,7 +24,6 @@ export const defaultLpContent: LpContentInput = {
     gasSafeNumber: "663578",
     ratingValue: 5,
     ratingCount: 25,
-    financeAvailable: true,
     guaranteeText: "12 month workmanship guarantee",
     brandLogos: [
       { name: "Vaillant", src: "/brands/vaillant.svg" },
@@ -40,11 +39,6 @@ export const defaultLpContent: LpContentInput = {
     installRangeMax: 5000,
     pricingDisclaimer:
       "Prices are shown plus VAT with the including-VAT total alongside. Final price depends on boiler make, access, and part availability.",
-    financeExample: {
-      monthlyFrom: 0,
-      summary:
-        "Finance available over 3, 5, 8, and 10 years. Interest rates are discussed at quote appointment.",
-    },
   },
   faults: [
     {

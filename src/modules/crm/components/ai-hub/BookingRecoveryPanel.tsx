@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
+import { findBookingRecoveryCustomerCandidates, findBookingRecoveryJobCandidates } from "@/modules/crm/lib/booking-recovery-matches";
+import type { Customer, JobWithRelations } from "@/modules/crm/types";
 import type { BookingRecoveryCase } from "@/modules/platform/lib/booking-recovery";
 
 function formatDateTime(value: string | null) {
@@ -25,7 +28,15 @@ async function resolveCase(id: string, body: Record<string, unknown>) {
   }
 }
 
-export function BookingRecoveryPanel({ cases }: { cases: BookingRecoveryCase[] }) {
+export function BookingRecoveryPanel({
+  cases,
+  customers = [],
+  jobs = [],
+}: {
+  cases: BookingRecoveryCase[];
+  customers?: Customer[];
+  jobs?: JobWithRelations[];
+}) {
   const [items, setItems] = useState(cases);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +89,10 @@ export function BookingRecoveryPanel({ cases }: { cases: BookingRecoveryCase[] }
       </div>
       {error ? <p className="mt-3 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       <div className="mt-4 space-y-3">
-        {items.map((item) => (
+        {items.map((item) => {
+          const customerCandidates = findBookingRecoveryCustomerCandidates(item, customers);
+          const jobCandidates = findBookingRecoveryJobCandidates(item, jobs);
+          return (
           <article key={item.id} className="rounded-xl border border-amber-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -90,6 +104,11 @@ export function BookingRecoveryPanel({ cases }: { cases: BookingRecoveryCase[] }
                 <p className="mt-1 text-xs font-medium text-slate-700">
                   {item.service ?? "Booking"} · {formatDateTime(item.startsAt)}
                 </p>
+                {item.conflictingCustomerId ? (
+                  <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                    Possible customer conflict. Review the match before linking this booking.
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 {item.eventId ? (
@@ -115,43 +134,119 @@ export function BookingRecoveryPanel({ cases }: { cases: BookingRecoveryCase[] }
               </div>
             </div>
             {item.eventId ? (
-              <div className="mt-4 grid gap-2 md:grid-cols-2">
-                <div className="flex gap-2">
-                  <input
-                    value={linkIds[item.id]?.customerId ?? ""}
-                    onChange={(event) => updateLinkId(item.id, "customerId", event.target.value)}
-                    placeholder="Existing customer ID"
-                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                    disabled={pendingId === item.id || !linkIds[item.id]?.customerId}
-                    onClick={() => run(item.id, { action: "link_existing_customer", customerId: linkIds[item.id]?.customerId })}
-                  >
-                    Link customer
-                  </button>
+              <>
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Match using</p>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {[item.customerName, item.phone, item.email, item.postcode].filter(Boolean).join(" · ") ||
+                      "No customer identity details were supplied by the AI booking."}
+                  </p>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700">Suggested customers</p>
+                      {customerCandidates.length === 0 ? (
+                        <p className="mt-2 text-xs text-slate-500">No close customer matches found.</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {customerCandidates.map(({ customer, reasons }) => (
+                            <div key={customer.id} className="rounded-lg bg-white px-3 py-2">
+                              <p className="text-sm font-semibold text-slate-900">{customer.full_name}</p>
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {[customer.phone, customer.email, customer.postcode].filter(Boolean).join(" · ")}
+                              </p>
+                              <p className="mt-0.5 text-xs text-slate-500">{reasons.join(", ")}</p>
+                              <button
+                                type="button"
+                                className="mt-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                                disabled={pendingId === item.id}
+                                onClick={() => run(item.id, { action: "link_existing_customer", customerId: customer.id })}
+                              >
+                                Link this customer
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <Link href="/customers" className="mt-2 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Browse customers
+                      </Link>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700">Suggested jobs</p>
+                      {jobCandidates.length === 0 ? (
+                        <p className="mt-2 text-xs text-slate-500">No close job matches found.</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {jobCandidates.map(({ job, reasons }) => (
+                            <div key={job.id} className="rounded-lg bg-white px-3 py-2">
+                              <p className="text-sm font-semibold text-slate-900">{job.title}</p>
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {[job.customer?.full_name, job.scheduled_date, job.status].filter(Boolean).join(" · ")}
+                              </p>
+                              <p className="mt-0.5 text-xs text-slate-500">{reasons.join(", ")}</p>
+                              <button
+                                type="button"
+                                className="mt-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                                disabled={pendingId === item.id}
+                                onClick={() => run(item.id, { action: "link_existing_job", jobId: job.id })}
+                              >
+                                Link this job
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <Link href="/jobs" className="mt-2 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Browse jobs
+                      </Link>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    value={linkIds[item.id]?.jobId ?? ""}
-                    onChange={(event) => updateLinkId(item.id, "jobId", event.target.value)}
-                    placeholder="Existing job ID"
-                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                    disabled={pendingId === item.id || !linkIds[item.id]?.jobId}
-                    onClick={() => run(item.id, { action: "link_existing_job", jobId: linkIds[item.id]?.jobId })}
-                  >
-                    Link job
-                  </button>
-                </div>
-              </div>
+
+                <details className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Advanced link by ID
+                  </summary>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    <div className="flex gap-2">
+                      <input
+                        value={linkIds[item.id]?.customerId ?? ""}
+                        onChange={(event) => updateLinkId(item.id, "customerId", event.target.value)}
+                        placeholder="Existing customer ID"
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                        disabled={pendingId === item.id || !linkIds[item.id]?.customerId}
+                        onClick={() => run(item.id, { action: "link_existing_customer", customerId: linkIds[item.id]?.customerId })}
+                      >
+                        Link customer
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={linkIds[item.id]?.jobId ?? ""}
+                        onChange={(event) => updateLinkId(item.id, "jobId", event.target.value)}
+                        placeholder="Existing job ID"
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                        disabled={pendingId === item.id || !linkIds[item.id]?.jobId}
+                        onClick={() => run(item.id, { action: "link_existing_job", jobId: linkIds[item.id]?.jobId })}
+                      >
+                        Link job
+                      </button>
+                    </div>
+                  </div>
+                </details>
+              </>
             ) : null}
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

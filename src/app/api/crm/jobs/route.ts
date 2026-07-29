@@ -15,8 +15,9 @@ export async function GET(request: Request) {
   }
 
   const pagination = paginationFromRequestUrl(request);
+  const customerId = new URL(request.url).searchParams.get("customerId");
   const demoState = await getCrmDemoState();
-  const items = await listJobs(demoState.mode, pagination);
+  const items = await listJobs(demoState.mode, pagination, { customerId });
   return jsonSuccess({ items, pagination: normalizeCrmPagination(pagination) });
 }
 

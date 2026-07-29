@@ -33,6 +33,7 @@ import type {
   PurchaseOrder,
   Quote,
   QuoteAcceptance,
+  QuoteStatus,
   QuoteTemplate,
   QuoteVersion,
   QuoteWithRelations,
@@ -1146,7 +1147,11 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   };
 }
 
-export async function listJobs(mode?: CrmMode, pagination?: CrmPaginationInput) {
+export async function listJobs(
+  mode?: CrmMode,
+  pagination?: CrmPaginationInput,
+  filters?: { customerId?: string | null },
+) {
   if (!getCrmEnv().enabled) {
     return [] as JobWithRelations[];
   }
@@ -1161,6 +1166,12 @@ export async function listJobs(mode?: CrmMode, pagination?: CrmPaginationInput) 
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   hideDeletedRecords(jobsQuery);
+  // Scoping to one customer lets callers (e.g. the quote form's job dropdown)
+  // fetch that customer's jobs directly instead of paging the whole job list
+  // and filtering client-side, which silently dropped jobs past the page size.
+  if (filters?.customerId) {
+    jobsQuery.eq("customer_id", filters.customerId);
+  }
   // Jobs behave like an inbox: the top of the list should be the most recently
   // submitted booking, not "what's next on the diary" (that's the Calendar
   // page's job). Tie-break on scheduled_date so two jobs created in the same
@@ -1286,7 +1297,11 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   };
 }
 
-export async function listQuotes(mode?: CrmMode, pagination?: CrmPaginationInput) {
+export async function listQuotes(
+  mode?: CrmMode,
+  pagination?: CrmPaginationInput,
+  filters?: { status?: QuoteStatus | null },
+) {
   if (!getCrmEnv().enabled) {
     return [] as QuoteWithRelations[];
   }
@@ -1298,6 +1313,11 @@ export async function listQuotes(mode?: CrmMode, pagination?: CrmPaginationInput
     .from("quotes")
     .select("id, tenant_id, job_id, customer_id, quote_number, document_type, current_version_number, status, total, valid_until, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name), job:jobs(id, title)");
   filterByMode(quotesQuery, context.mode, context.scenarioKey);
+  // The Draft/Sent/Accepted/Declined tabs previously never reached the query,
+  // so every tab showed the same unfiltered list.
+  if (filters?.status) {
+    quotesQuery.eq("status", filters.status);
+  }
   return runCrmList<QuoteWithRelations>(
     "listQuotes",
     applyCrmPagination(quotesQuery.order("created_at", { ascending: false }), pagination),

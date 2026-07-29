@@ -883,7 +883,11 @@ export function QuotesClientPanel({
   showCreatePanel: boolean;
   demoActive: boolean;
 }) {
-  const { data, error, loading } = useCrmApi<ListResponse<QuoteWithRelations>>(apiUrl("/api/crm/quotes", pagination));
+  // "all" (or no tab) must not send a status, otherwise the API filters to nothing.
+  const activeStatus = typeof params.status === "string" && params.status.toLowerCase() !== "all" ? params.status.toLowerCase() : null;
+  const { data, error, loading } = useCrmApi<ListResponse<QuoteWithRelations>>(
+    apiUrlWithParams("/api/crm/quotes", pagination, { status: activeStatus }),
+  );
   const quotes = data?.items ?? [];
 
   return (
@@ -910,7 +914,15 @@ export function QuotesClientPanel({
       {!data ? (
         <PanelState error={error} loadingLabel={loading ? "Loading quotes..." : "No quotes loaded."} />
       ) : quotes.length === 0 ? (
-        <EmptyState message={demoActive ? "No demo quotes for this walkthrough." : "No quotes yet. Create one from a job or start a blank quote."} />
+        <EmptyState
+          message={
+            demoActive
+              ? "No demo quotes for this walkthrough."
+              : activeStatus
+                ? `No ${activeStatus} quotes. Choose "All" to see every quote.`
+                : "No quotes yet. Create one from a job or start a blank quote."
+          }
+        />
       ) : (
         <div data-crm-screen-ready="true" className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {quotes.map((quote) => (

@@ -24,6 +24,8 @@ function createQueryDouble() {
     order: vi.fn(chain),
     range: vi.fn(chain),
     limit: vi.fn(chain),
+    is: vi.fn(chain),
+    in: vi.fn(chain),
     eq: vi.fn((column: string, value: unknown) => {
       eqCalls.push([column, value]);
       return query;
@@ -33,6 +35,8 @@ function createQueryDouble() {
 }
 
 async function loadListQuotes(queryDouble: ReturnType<typeof createQueryDouble>) {
+  vi.doUnmock("@/modules/crm/lib/data");
+  vi.doUnmock("@/modules/crm/lib/performance");
   vi.doMock("@/modules/crm/lib/env", () => ({
     getCrmEnv: () => ({ enabled: true }),
   }));
@@ -137,6 +141,53 @@ describe("quotes API status parameter", () => {
     expect(route.parseQuoteStatusFilter("declined")).toBe("declined");
     expect(route.parseQuoteStatusFilter("all")).toBeNull();
     expect(route.parseQuoteStatusFilter(null)).toBeNull();
+  });
+});
+
+describe("jobs list customer scoping", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  async function loadListJobs(queryDouble: ReturnType<typeof createQueryDouble>) {
+    // The route suite above mocks the data and performance modules; drop those
+    // so we exercise the real listJobs query and real pagination here.
+    vi.doUnmock("@/modules/crm/lib/data");
+    vi.doUnmock("@/modules/crm/lib/performance");
+    vi.doMock("@/modules/crm/lib/env", () => ({ getCrmEnv: () => ({ enabled: true }) }));
+    vi.doMock("@/modules/crm/lib/supabase-server", () => ({
+      createCrmServerClient: vi.fn().mockResolvedValue({
+        schema: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue(queryDouble.query) }),
+      }),
+      createCrmServiceRoleClient: vi.fn(),
+    }));
+    vi.doMock("@/modules/crm/lib/data-runner", () => ({
+      runCrmList: vi.fn().mockResolvedValue([]),
+      runCrmListStrict: vi.fn().mockResolvedValue([]),
+      runCrmSingle: vi.fn().mockResolvedValue(null),
+    }));
+    const { listJobs } = await import("@/modules/crm/lib/data");
+    return listJobs;
+  }
+
+  it("scopes the jobs query to one customer when asked", async () => {
+    const queryDouble = createQueryDouble();
+    const listJobs = await loadListJobs(queryDouble);
+
+    await listJobs("live", { pageSize: 200 }, { customerId: "cust-1" });
+
+    expect(queryDouble.eqCalls).toContainEqual(["customer_id", "cust-1"]);
+  });
+
+  it("returns every job when no customer is given", async () => {
+    const queryDouble = createQueryDouble();
+    const listJobs = await loadListJobs(queryDouble);
+
+    await listJobs("live");
+    await listJobs("live", undefined, { customerId: null });
+
+    expect(queryDouble.eqCalls.filter(([column]) => column === "customer_id")).toHaveLength(0);
   });
 });
 

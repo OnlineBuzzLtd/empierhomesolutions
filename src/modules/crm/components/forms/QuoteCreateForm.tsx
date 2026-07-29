@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Customer, Job, Product, Quote } from "@/modules/crm/types";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { LineItemsEditor } from "@/modules/crm/components/forms/LineItemsEditor";
@@ -40,7 +40,41 @@ export function QuoteCreateForm({
   includeChangeSummary?: boolean;
 }) {
   const [customerId, setCustomerId] = useState(initialQuote?.customer_id ?? "");
-  const availableJobs = filterJobsForCustomer(jobs, customerId);
+  // The server-rendered `jobs` prop is a capped page of ALL jobs, so filtering
+  // it client-side would silently miss a customer's jobs once the tenant has
+  // more jobs than that cap. Fetch the customer's own jobs instead, and fall
+  // back to the prop list if the request fails.
+  const [fetchedJobs, setFetchedJobs] = useState<Job[] | null>(null);
+  const [jobsLoading, setJobsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!customerId) {
+      setFetchedJobs(null);
+      return;
+    }
+    const controller = new AbortController();
+    setJobsLoading(true);
+    fetch(`/api/crm/jobs?customerId=${encodeURIComponent(customerId)}&pageSize=200`, {
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
+      .then((body) => {
+        setFetchedJobs(Array.isArray(body?.items) ? (body.items as Job[]) : []);
+      })
+      .catch((error: unknown) => {
+        if ((error as { name?: string })?.name !== "AbortError") {
+          setFetchedJobs(null);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setJobsLoading(false);
+        }
+      });
+    return () => controller.abort();
+  }, [customerId]);
+
+  const availableJobs = fetchedJobs ?? filterJobsForCustomer(jobs, customerId);
 
   return (
     <ApiForm endpoint={endpoint} submitLabel={submitLabel} className="space-y-3">
@@ -70,19 +104,21 @@ export function QuoteCreateForm({
           <select
             // Re-mount on customer change so a previously chosen job cannot stay
             // selected once it no longer belongs to the chosen customer.
-            key={customerId}
+            key={`${customerId}:${availableJobs.length}`}
             name="job_id"
             defaultValue={initialQuote?.job_id}
             required
-            disabled={!customerId}
+            disabled={!customerId || jobsLoading}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
           >
             <option value="">
               {!customerId
                 ? "Select a customer first…"
-                : availableJobs.length === 0
-                  ? "No jobs for this customer"
-                  : "Select job…"}
+                : jobsLoading
+                  ? "Loading jobs…"
+                  : availableJobs.length === 0
+                    ? "No jobs for this customer"
+                    : "Select job…"}
             </option>
             {availableJobs.map((job) => (
               <option key={job.id} value={job.id}>
@@ -90,7 +126,7 @@ export function QuoteCreateForm({
               </option>
             ))}
           </select>
-          {customerId && availableJobs.length === 0 ? (
+          {customerId && !jobsLoading && availableJobs.length === 0 ? (
             <p className="mt-1 text-xs text-slate-500">Create a job for this customer first, then quote against it.</p>
           ) : null}
         </div>

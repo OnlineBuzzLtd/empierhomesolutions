@@ -1147,7 +1147,11 @@ export async function getCustomerDetail(id: string, mode?: CrmMode) {
   };
 }
 
-export async function listJobs(mode?: CrmMode, pagination?: CrmPaginationInput) {
+export async function listJobs(
+  mode?: CrmMode,
+  pagination?: CrmPaginationInput,
+  filters?: { customerId?: string | null },
+) {
   if (!getCrmEnv().enabled) {
     return [] as JobWithRelations[];
   }
@@ -1162,6 +1166,12 @@ export async function listJobs(mode?: CrmMode, pagination?: CrmPaginationInput) 
     );
   filterByMode(jobsQuery, context.mode, context.scenarioKey);
   hideDeletedRecords(jobsQuery);
+  // Scoping to one customer lets callers (e.g. the quote form's job dropdown)
+  // fetch that customer's jobs directly instead of paging the whole job list
+  // and filtering client-side, which silently dropped jobs past the page size.
+  if (filters?.customerId) {
+    jobsQuery.eq("customer_id", filters.customerId);
+  }
   // Jobs behave like an inbox: the top of the list should be the most recently
   // submitted booking, not "what's next on the diary" (that's the Calendar
   // page's job). Tie-break on scheduled_date so two jobs created in the same

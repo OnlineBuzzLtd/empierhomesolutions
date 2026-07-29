@@ -1,6 +1,20 @@
+"use client";
+
+import { useState } from "react";
 import type { Customer, Job, Product, Quote } from "@/modules/crm/types";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { LineItemsEditor } from "@/modules/crm/components/forms/LineItemsEditor";
+
+// Jobs belong to a customer, so the job dropdown must only offer the selected
+// customer's jobs. Previously both selects were uncontrolled and the job list
+// rendered every job for every customer, which made picking the right job
+// guesswork and allowed a quote to be attached to another customer's job.
+export function filterJobsForCustomer(jobs: Job[], customerId: string): Job[] {
+  if (!customerId) {
+    return [];
+  }
+  return jobs.filter((job) => job.customer_id === customerId);
+}
 
 export function QuoteCreateForm({
   customers,
@@ -25,6 +39,9 @@ export function QuoteCreateForm({
   submitLabel?: string;
   includeChangeSummary?: boolean;
 }) {
+  const [customerId, setCustomerId] = useState(initialQuote?.customer_id ?? "");
+  const availableJobs = filterJobsForCustomer(jobs, customerId);
+
   return (
     <ApiForm endpoint={endpoint} submitLabel={submitLabel} className="space-y-3">
       {templateLabel || paymentTermsSummary || optionalExtras.length > 0 ? (
@@ -35,7 +52,13 @@ export function QuoteCreateForm({
         </div>
       ) : null}
       <div className="grid gap-3 md:grid-cols-2">
-        <select name="customer_id" defaultValue={initialQuote?.customer_id} required className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <select
+          name="customer_id"
+          value={customerId}
+          onChange={(event) => setCustomerId(event.target.value)}
+          required
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
           <option value="">Select customer…</option>
           {customers.map((customer) => (
             <option key={customer.id} value={customer.id}>
@@ -43,14 +66,34 @@ export function QuoteCreateForm({
             </option>
           ))}
         </select>
-        <select name="job_id" defaultValue={initialQuote?.job_id} required className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-          <option value="">Select job…</option>
-          {jobs.map((job) => (
-            <option key={job.id} value={job.id}>
-              {job.title}
+        <div>
+          <select
+            // Re-mount on customer change so a previously chosen job cannot stay
+            // selected once it no longer belongs to the chosen customer.
+            key={customerId}
+            name="job_id"
+            defaultValue={initialQuote?.job_id}
+            required
+            disabled={!customerId}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="">
+              {!customerId
+                ? "Select a customer first…"
+                : availableJobs.length === 0
+                  ? "No jobs for this customer"
+                  : "Select job…"}
             </option>
-          ))}
-        </select>
+            {availableJobs.map((job) => (
+              <option key={job.id} value={job.id}>
+                {job.title}
+              </option>
+            ))}
+          </select>
+          {customerId && availableJobs.length === 0 ? (
+            <p className="mt-1 text-xs text-slate-500">Create a job for this customer first, then quote against it.</p>
+          ) : null}
+        </div>
         <select name="document_type" defaultValue={initialQuote?.document_type ?? "quote"} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
           <option value="quote">Quote</option>
           <option value="estimate">Estimate</option>

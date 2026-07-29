@@ -4,6 +4,13 @@ import { snapshotQuoteVersion } from "@/modules/crm/lib/quotes";
 import { listQuotes } from "@/modules/crm/lib/data";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { normalizeCrmPagination } from "@/modules/crm/lib/performance";
+import { quoteStatuses, type QuoteStatus } from "@/modules/crm/types";
+
+// Only a known quote status filters the list; anything else (including the
+// "all" tab or a junk value) returns every quote rather than erroring.
+export function parseQuoteStatusFilter(value: string | null): QuoteStatus | null {
+  return quoteStatuses.includes(value as QuoteStatus) ? (value as QuoteStatus) : null;
+}
 
 export async function GET(request: Request) {
   const auth = await requireCrmApiUser();
@@ -12,8 +19,9 @@ export async function GET(request: Request) {
   }
 
   const pagination = paginationFromRequestUrl(request);
+  const status = parseQuoteStatusFilter(new URL(request.url).searchParams.get("status"));
   const demoState = await getCrmDemoState();
-  const items = await listQuotes(demoState.mode, pagination);
+  const items = await listQuotes(demoState.mode, pagination, { status });
   return jsonSuccess({ items, pagination: normalizeCrmPagination(pagination) });
 }
 

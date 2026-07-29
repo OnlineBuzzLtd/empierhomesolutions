@@ -33,6 +33,7 @@ import type {
   PurchaseOrder,
   Quote,
   QuoteAcceptance,
+  QuoteStatus,
   QuoteTemplate,
   QuoteVersion,
   QuoteWithRelations,
@@ -1286,7 +1287,11 @@ export async function getJobDetail(id: string, mode?: CrmMode) {
   };
 }
 
-export async function listQuotes(mode?: CrmMode, pagination?: CrmPaginationInput) {
+export async function listQuotes(
+  mode?: CrmMode,
+  pagination?: CrmPaginationInput,
+  filters?: { status?: QuoteStatus | null },
+) {
   if (!getCrmEnv().enabled) {
     return [] as QuoteWithRelations[];
   }
@@ -1298,6 +1303,11 @@ export async function listQuotes(mode?: CrmMode, pagination?: CrmPaginationInput
     .from("quotes")
     .select("id, tenant_id, job_id, customer_id, quote_number, document_type, current_version_number, status, total, valid_until, is_demo, demo_scenario_key, created_at, updated_at, customer:customers(id, full_name), job:jobs(id, title)");
   filterByMode(quotesQuery, context.mode, context.scenarioKey);
+  // The Draft/Sent/Accepted/Declined tabs previously never reached the query,
+  // so every tab showed the same unfiltered list.
+  if (filters?.status) {
+    quotesQuery.eq("status", filters.status);
+  }
   return runCrmList<QuoteWithRelations>(
     "listQuotes",
     applyCrmPagination(quotesQuery.order("created_at", { ascending: false }), pagination),

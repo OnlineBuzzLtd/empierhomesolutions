@@ -1,4 +1,4 @@
-import { customerSchema } from "@/modules/crm/lib/validation";
+import { customerPatchSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
@@ -14,8 +14,11 @@ function deriveFullName(input: { full_name?: string | null; first_name?: string 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = await request.json();
-  const parsed = customerSchema.partial().safeParse(body);
+  const body = await request.json().catch(() => null);
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return jsonError("Invalid customer payload.");
+  }
+  const parsed = customerPatchSchema.safeParse(body);
   if (!parsed.success) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid customer payload.");
   }

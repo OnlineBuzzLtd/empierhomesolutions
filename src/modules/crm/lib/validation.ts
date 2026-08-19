@@ -184,30 +184,64 @@ export const publicLinkRequestSchema = z.object({
   ttl_days: z.coerce.number().int().min(1).max(365).default(30),
 });
 
+// The raw customer field shape, with no refinement attached. Kept separate from
+// `customerSchema` because zod 4 throws at runtime on `.partial()` when the
+// object carries a refinement ("`.partial()` cannot be used on object schemas
+// containing refinements"), and TypeScript does not catch it. The customer PATCH
+// route used to call `customerSchema.partial()`, which made every customer edit
+// a non-JSON 500 that the UI reported as "Unexpected response."
+const customerFields = {
+  full_name: z.string().min(2).optional().nullable(),
+  first_name: z.string().optional().nullable(),
+  last_name: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  email: z.string().email().optional().or(z.literal("")).nullable(),
+  address_line1: z.string().optional().nullable(),
+  address_line2: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  postcode: z.string().optional().nullable(),
+  property_type: z.string().optional().nullable(),
+  occupancy_type: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
+  referral_notes: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+} as const;
+
+const nameKeys = ["full_name", "first_name", "last_name"] as const;
+
+function hasAnyName(value: Record<string, unknown>) {
+  return nameKeys.some((key) => String(value[key] ?? "").trim().length > 0);
+}
+
 export const customerSchema = z
   .object({
-    full_name: z.string().min(2).optional().nullable(),
-    first_name: z.string().optional().nullable(),
-    last_name: z.string().optional().nullable(),
-    phone: z.string().optional().nullable(),
-    email: z.string().email().optional().or(z.literal("")).nullable(),
-    address_line1: z.string().optional().nullable(),
-    address_line2: z.string().optional().nullable(),
-    city: z.string().optional().nullable(),
-    postcode: z.string().optional().nullable(),
-    property_type: z.string().optional().nullable(),
-    occupancy_type: z.string().optional().nullable(),
-    source: z.string().optional().nullable(),
-    referral_notes: z.string().optional().nullable(),
-    notes: z.string().optional().nullable(),
+    ...customerFields,
     archived: z.coerce.boolean().optional().default(false),
   })
   .superRefine((value, ctx) => {
-    const fullName = value.full_name?.trim() ?? "";
-    const firstName = value.first_name?.trim() ?? "";
-    const lastName = value.last_name?.trim() ?? "";
+    if (!hasAnyName(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["first_name"],
+        message: "Enter a name for the customer.",
+      });
+    }
+  });
 
-    if (fullName.length === 0 && firstName.length === 0 && lastName.length === 0) {
+// Partial shape for PATCH. Note `archived` deliberately carries no `.default()`
+// here: with a default, every PATCH that omits the field would silently write
+// `archived = false` and un-archive the customer.
+export const customerPatchSchema = z
+  .object({
+    ...customerFields,
+    archived: z.coerce.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    // A patch may legitimately touch only the phone or the postcode. Only
+    // enforce the name invariant when the caller is actually writing a name —
+    // otherwise clearing every name field would be allowed to slip through.
+    const touchesName = nameKeys.some((key) => value[key] !== undefined);
+    if (touchesName && !hasAnyName(value)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["first_name"],

@@ -1092,6 +1092,21 @@ export async function loadChannelTestRuntimeSnapshot(
   } satisfies ChannelTestRuntimeSnapshot;
 }
 
+async function getJson<T>(url: string, extraHeaders?: Record<string, string>) {
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { ...(extraHeaders ?? {}) },
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
+  if (!response.ok) {
+    throw new Error(payload.error ?? `CustomerJourneys request failed with ${response.status}.`);
+  }
+
+  return payload;
+}
+
 async function postJson<T>(url: string, body: Record<string, unknown>, extraHeaders?: Record<string, string>) {
   const response = await fetch(url, {
     method: "POST",
@@ -1307,4 +1322,128 @@ export async function closeCustomerJourneysWebchatSession(
     },
     buildRuntimeHeaders(link),
   );
+}
+
+export type CustomerJourneysConversationMessage = {
+  id: string;
+  direction: "inbound" | "outbound";
+  body: string;
+  channel: string | null;
+  createdAt: string | null;
+};
+
+export type CustomerJourneysConversationDetail = {
+  conversationId: string;
+  messages: CustomerJourneysConversationMessage[];
+  identity: {
+    fullName: string | null;
+    phoneNumber: string | null;
+    email: string | null;
+    postcode: string | null;
+    address: string | null;
+  };
+  service: {
+    serviceKey: string | null;
+    serviceName: string | null;
+    issueDescription: string | null;
+  };
+  currentState: string | null;
+};
+
+function asPlainRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function optionalString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+// Reads the full conversation from the CustomerJourneys runtime.
+//
+// Empire never persists webchat/SMS turns of its own — every message is proxied
+// to platform-api, which owns the transcript and the collected identity. Without
+// this read the CRM can only ever show the single message that happened to
+// trigger the handoff, with no name or number to call back on.
+export async function fetchCustomerJourneysConversation(
+  link: CustomerJourneysRuntimeLink | null,
+  conversationId: string,
+): Promise<CustomerJourneysConversationDetail | null> {
+  if (getCrmEnv().crmE2ePlatformFixturesEnabled) {
+    return null;
+  }
+  if (!link || !link.customerjourneys_tenant_id || !getRuntimeBaseUrl(link)) {
+    return null;
+  }
+
+  const baseUrl = getRuntimeBaseUrl(link)!;
+  const url = `${baseUrl}/v1/conversations/${encodeURIComponent(conversationId)}?tenantId=${encodeURIComponent(
+    link.customerjourneys_tenant_id,
+  )}`;
+
+  const payload = await getJson<Record<string, unknown>>(url, buildRuntimeHeaders(link));
+
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const bookingState = asPlainRecord(payload.bookingState);
+  const collected = asPlainRecord(bookingState.collectedData);
+  const identity = asPlainRecord(collected.identity);
+  const service = asPlainRecord(collected.service);
+
+  return {
+    conversationId,
+    messages: messages.flatMap((entry) => {
+      const record = asPlainRecord(entry);
+      const body = optionalString(record.body);
+      if (!body) return [];
+      return [
+        {
+          id: String(record.id ?? ""),
+          direction: record.direction === "outbound" ? "outbound" : "inbound",
+          body,
+          channel: optionalString(record.channel),
+          createdAt: optionalString(record.createdAt) ?? optionalString(record.created_at),
+        },
+      ];
+    }),
+    identity: {
+      fullName: optionalString(identity.fullName),
+      phoneNumber: optionalString(identity.phoneNumber),
+      email: optionalString(identity.email),
+      postcode: optionalString(identity.postcode),
+      address: optionalString(identity.address) ?? optionalString(identity.addressLine1),
+    },
+    service: {
+      serviceKey: optionalString(service.serviceKey),
+      serviceName: optionalString(service.serviceName),
+      issueDescription: optionalString(service.issueDescription),
+    },
+    currentState: optionalString(bookingState.currentState),
+  };
+}
+
+// Renders a conversation as a plain-text transcript for the enquiry record, so
+// the office sees what the customer actually said rather than the one line that
+// happened to trigger the handoff. Bounded so a long thread can't bloat the
+// lead row.
+export function summariseConversationForLead(
+  detail: CustomerJourneysConversationDetail | null,
+  fallback: string,
+  maxChars = 4000,
+) {
+  const lines = (detail?.messages ?? []).map(
+    (message) => `${message.direction === "inbound" ? "Customer" : "AI"}: ${message.body}`,
+  );
+  if (lines.length === 0) {
+    return fallback;
+  }
+
+  // Keep the most recent turns when trimming — the tail is where the unresolved
+  // request lives.
+  let transcript = lines.join("\n");
+  while (transcript.length > maxChars && lines.length > 1) {
+    lines.shift();
+    transcript = `[earlier messages trimmed]\n${lines.join("\n")}`;
+  }
+  return transcript.slice(0, maxChars);
 }

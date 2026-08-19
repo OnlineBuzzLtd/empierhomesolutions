@@ -30,7 +30,7 @@
     ]
   },
   "pricing": {
-    "diagnosticFrom": 79,
+    "diagnosticFrom": 95,
     "repairRangeMin": 320,
     "repairRangeMax": 680,
     "installRangeMin": 120,

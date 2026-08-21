@@ -67,6 +67,37 @@ describe("conversation detail parsing", () => {
     vi.unstubAllGlobals();
   });
 
+  it("calls the internal-service route, not the permissioned public one", async () => {
+    // The public GET /v1/conversations/:id is guarded by
+    // requirePermission("leads:read"), and the internal-service auth branch sets
+    // request.auth = null — so a service token can NEVER satisfy it and always
+    // gets 403 "Missing permission leads:read". Shipping against that URL made
+    // the enquiry transcript silently unavailable in production.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ conversation: {}, messages: [], bookingState: {} }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.doMock("@/modules/crm/lib/env", () => ({
+      getCrmEnv: () => ({ crmE2ePlatformFixturesEnabled: false }),
+    }));
+
+    const { fetchCustomerJourneysConversation } = await import("@/modules/crm/lib/customerjourneys");
+    await fetchCustomerJourneysConversation(
+      {
+        customerjourneys_tenant_id: "cj-tenant-1",
+        platform_api_base_url: "https://platform.example",
+        auth_mode: "internal_service",
+      } as never,
+      "conv-1",
+    );
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toBe("https://platform.example/v1/internal/crm/tenants/cj-tenant-1/conversations/conv-1");
+    expect(url).not.toContain("/v1/conversations/");
+
+    vi.unstubAllGlobals();
+  });
+
   it("returns null rather than throwing when the tenant has no runtime link", async () => {
     vi.doMock("@/modules/crm/lib/env", () => ({
       getCrmEnv: () => ({ crmE2ePlatformFixturesEnabled: false }),

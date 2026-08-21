@@ -1378,9 +1378,15 @@ export async function fetchCustomerJourneysConversation(
   }
 
   const baseUrl = getRuntimeBaseUrl(link)!;
-  const url = `${baseUrl}/v1/conversations/${encodeURIComponent(conversationId)}?tenantId=${encodeURIComponent(
+  // Must be the /v1/internal/crm/... route, not the public /v1/conversations/:id.
+  // The public one is guarded by requirePermission("leads:read"), and the
+  // internal-service auth branch sets request.auth = null — so a service token
+  // can never satisfy it and always gets 403 "Missing permission leads:read".
+  // The internal route is guarded by requireInternalService and returns the
+  // identical { conversation, messages, bookingState } payload.
+  const url = `${baseUrl}/v1/internal/crm/tenants/${encodeURIComponent(
     link.customerjourneys_tenant_id,
-  )}`;
+  )}/conversations/${encodeURIComponent(conversationId)}`;
 
   const payload = await getJson<Record<string, unknown>>(url, buildRuntimeHeaders(link));
 

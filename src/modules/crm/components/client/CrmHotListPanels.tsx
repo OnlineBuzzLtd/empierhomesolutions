@@ -451,6 +451,8 @@ function LeadBookingDrawerContent({
         <InfoLine label="Preferred" value={[lead.preferred_date_text, lead.preferred_time_window].filter(Boolean).join(" · ") || "No preference captured"} />
       </div>
 
+      <LeadConversationPanel leadId={lead.id} />
+
       <CustomerPromiseStrip
         promise={promise}
         editContext={{
@@ -644,6 +646,101 @@ function InfoLine({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-0.5 text-sm text-slate-800">{value}</p>
+    </div>
+  );
+}
+
+type ConversationMessage = {
+  id: string;
+  direction: "inbound" | "outbound";
+  body: string;
+  createdAt: string | null;
+};
+
+// Full AI conversation behind an enquiry.
+//
+// The lead row only ever carries a summary, so when the agent hands a chat over
+// the office previously saw one line with no idea what was said before it. The
+// transcript lives in the CustomerJourneys runtime; this fetches it lazily when
+// the drawer opens so the enquiry list stays fast.
+function LeadConversationPanel({ leadId }: { leadId: string }) {
+  // The loaded lead id is part of the result rather than reset synchronously in
+  // the effect: a stale result for a previously selected enquiry must never be
+  // rendered against the current one, and resetting via setState inside the
+  // effect body causes a cascading render.
+  const [result, setResult] = useState<
+    | { leadId: string; status: "empty"; reason: string }
+    | { leadId: string; status: "ready"; messages: ConversationMessage[] }
+    | null
+  >(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(`/api/crm/leads/${leadId}/conversation`)
+      .then((response) => response.json().catch(() => ({})))
+      .then((payload) => {
+        if (cancelled) return;
+        const messages = payload?.conversation?.messages;
+        if (Array.isArray(messages) && messages.length > 0) {
+          setResult({ leadId, status: "ready", messages });
+        } else {
+          setResult({ leadId, status: "empty", reason: String(payload?.reason ?? "no_messages") });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setResult({ leadId, status: "empty", reason: "runtime_error" });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId]);
+
+  const state = result?.leadId === leadId ? result : ({ status: "loading" } as const);
+
+  if (state.status === "loading") {
+    return (
+      <div className="rounded-lg border border-slate-200 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Conversation</p>
+        <p className="mt-2 text-sm text-slate-500">Loading conversation...</p>
+      </div>
+    );
+  }
+
+  if (state.status === "empty") {
+    return (
+      <div className="rounded-lg border border-slate-200 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Conversation</p>
+        <p className="mt-2 text-sm text-slate-500">
+          {state.reason === "no_linked_conversation"
+            ? "This enquiry did not come from an AI conversation."
+            : "The conversation could not be loaded right now."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Conversation</p>
+      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+        {state.messages.map((message, index) => (
+          <div
+            key={message.id || `${message.direction}-${index}`}
+            className={
+              message.direction === "inbound"
+                ? "rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-900"
+                : "rounded-lg bg-sky-50 px-3 py-2 text-sm text-slate-700"
+            }
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {message.direction === "inbound" ? "Customer" : "AI"}
+            </p>
+            <p className="mt-0.5 whitespace-pre-wrap">{message.body}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

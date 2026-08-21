@@ -32,7 +32,7 @@ export const defaultLpContent: LpContentInput = {
     ],
   },
   pricing: {
-    diagnosticFrom: 79,
+    diagnosticFrom: 95,
     repairRangeMin: 95,
     repairRangeMax: 450,
     installRangeMin: 1995,

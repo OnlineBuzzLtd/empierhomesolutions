@@ -4,7 +4,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   appendCustomerJourneysWebchatMessage,
+  fetchCustomerJourneysConversation,
   getCustomerJourneysRuntimeLink,
+  summariseConversationForLead,
+  type CustomerJourneysConversationDetail,
+  type CustomerJourneysRuntimeLink,
 } from "@/modules/crm/lib/customerjourneys";
 import { getCrmEnv } from "@/modules/crm/lib/env";
 import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
@@ -71,6 +75,18 @@ function extractUkPostcodeFromText(value: string | null) {
   return match?.[0]?.toUpperCase() ?? null;
 }
 
+// A public webchat message is only treated as test traffic when the customer
+// says so unambiguously. The previous rule was `/\btest\b/i` over the whole
+// message, which flagged genuine customers writing things like "the boiler
+// failed its test" or "I need a gas safety test" — those rows then got excluded
+// from availability checks and swept up by test-data cleanup.
+const EXPLICIT_TEST_MESSAGE =
+  /^\s*(?:this\s+is\s+(?:a|just\s+a)\s+test|test\s+message|testing\s+the\s+(?:chat|bot|system)|ignore[\s,-]+test)\b/i;
+
+export function isTestConversation(inboundText: string) {
+  return EXPLICIT_TEST_MESSAGE.test(inboundText);
+}
+
 function eventTypeForWebchatOutcome(outcome: string | null, bookingState: string | null): PlatformEventType | null {
   if (bookingState === "booking_confirmed" || outcome === "booking_confirmed") return "BookingConfirmed";
   if (outcome === "handoff_required") return "EscalationRaised";
@@ -84,6 +100,7 @@ async function processPublicWebchatOutcome(input: {
   conversationId: string;
   inboundBody: string;
   session: unknown;
+  link: CustomerJourneysRuntimeLink | null;
 }) {
   if (!input.customerJourneysTenantId) return;
 
@@ -100,12 +117,46 @@ async function processPublicWebchatOutcome(input: {
   const inboundText = cleanString(message.body) ?? input.inboundBody;
   const responseText = cleanString(replyMessage.body);
   const occurredAt = cleanString(replyMessage.createdAt) ?? cleanString(message.createdAt) ?? new Date().toISOString();
-  const customerPhone = findStringDeep(input.session, ["phoneNumber", "phone_number", "customer_phone", "customerPhone"]) ?? extractUkPhoneFromText(inboundText);
+
+  // `POST /v1/webchat/messages` returns only the two messages in this turn — it
+  // carries neither the transcript nor the identity the agent collected earlier
+  // in the conversation. Without this read, an escalated enquiry reaches the CRM
+  // as a single line ("I want a time on Thursday") with no name or number, and
+  // the office has no way to follow up. Best-effort: a runtime blip must not
+  // cost us the enquiry, so on failure we fall back to the old single-turn
+  // behaviour rather than throwing.
+  let detail: CustomerJourneysConversationDetail | null = null;
+  try {
+    detail = await fetchCustomerJourneysConversation(input.link, input.conversationId);
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        event: "public_webchat_conversation_fetch_failed",
+        conversationId: input.conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
+
+  const customerPhone =
+    detail?.identity.phoneNumber ??
+    findStringDeep(input.session, ["phoneNumber", "phone_number", "customer_phone", "customerPhone"]) ??
+    extractUkPhoneFromText(inboundText);
   const customerPostcode =
-    findStringDeep(input.session, ["postcode", "customer_postcode", "servicePostcode"]) ?? extractUkPostcodeFromText(inboundText);
-  const customerEmail = findStringDeep(input.session, ["email", "customer_email", "customerEmail", "identity_email"]);
-  const customerName = findStringDeep(input.session, ["fullName", "full_name", "customer_name", "customerName"]);
-  const service = findStringDeep(input.session, ["serviceName", "service_name", "serviceKey", "service_key", "title"]);
+    detail?.identity.postcode ??
+    findStringDeep(input.session, ["postcode", "customer_postcode", "servicePostcode"]) ??
+    extractUkPostcodeFromText(inboundText);
+  const customerEmail =
+    detail?.identity.email ?? findStringDeep(input.session, ["email", "customer_email", "customerEmail", "identity_email"]);
+  const customerName =
+    detail?.identity.fullName ?? findStringDeep(input.session, ["fullName", "full_name", "customer_name", "customerName"]);
+  const customerAddress = detail?.identity.address ?? null;
+  const service =
+    detail?.service.serviceName ??
+    detail?.service.serviceKey ??
+    findStringDeep(input.session, ["serviceName", "service_name", "serviceKey", "service_key", "title"]);
+
+  const transcript = summariseConversationForLead(detail, inboundText);
 
   const envelope: PlatformEventEnvelope = {
     event_id: randomUUID(),
@@ -114,7 +165,11 @@ async function processPublicWebchatOutcome(input: {
     workspace_id: input.customerJourneysTenantId,
     occurred_at: occurredAt,
     source_system: "agentic_runtime",
-    idempotency_key: `public-webchat:${input.conversationId}:${eventType}`,
+    // Include the occurrence timestamp so a later escalation in the same
+    // conversation is not silently deduped against the first one. Previously the
+    // key was conversation+type alone, so only the first handoff was ever
+    // recorded even when the customer escalated again with new information.
+    idempotency_key: `public-webchat:${input.conversationId}:${eventType}:${occurredAt}`,
     correlation_id: input.conversationId,
     aggregate: {
       type: "conversation",
@@ -132,18 +187,22 @@ async function processPublicWebchatOutcome(input: {
       identity_email: customerEmail,
       customer_postcode: customerPostcode,
       postcode: customerPostcode,
+      customer_address: customerAddress,
       service,
-      issue: inboundText,
-      message_summary: inboundText,
+      issue: transcript,
+      problem_description: transcript,
+      message_summary: transcript,
+      latest_customer_message: inboundText,
       response_text: responseText,
       reason: cleanString(replyMetadata.fallbackReason) ?? outcome ?? eventType,
       trigger: outcome ?? eventType,
       lead_score: eventType === "ConversationQualified" ? 80 : undefined,
-      is_test: /\btest\b/i.test(inboundText),
+      is_test: isTestConversation(inboundText),
       metadata: {
         public_webchat_source: PUBLIC_WEBCHAT_SOURCE,
         outcome,
         booking_state: currentState,
+        transcript_message_count: detail?.messages.length ?? 0,
       },
     },
   };
@@ -215,6 +274,7 @@ export async function POST(request: Request) {
         conversationId: parsed.data.conversationId,
         inboundBody: parsed.data.body,
         session,
+        link,
       }).catch((error) => {
         console.warn(
           JSON.stringify({

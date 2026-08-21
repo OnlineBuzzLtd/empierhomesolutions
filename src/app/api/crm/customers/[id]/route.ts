@@ -1,4 +1,4 @@
-import { customerSchema } from "@/modules/crm/lib/validation";
+import { customerPatchSchema } from "@/modules/crm/lib/validation";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
@@ -14,8 +14,11 @@ function deriveFullName(input: { full_name?: string | null; first_name?: string 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = await request.json();
-  const parsed = customerSchema.partial().safeParse(body);
+  const body = await request.json().catch(() => null);
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return jsonError("Invalid customer payload.");
+  }
+  const parsed = customerPatchSchema.safeParse(body);
   if (!parsed.success) {
     return jsonError(parsed.error.issues[0]?.message ?? "Invalid customer payload.");
   }
@@ -32,9 +35,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ? { full_name: deriveFullName(parsed.data) }
       : {}),
   };
-  const { data, error } = await supabase.schema("crm").from("customers").update(updatePayload).eq("id", id).select("*").single();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("customers")
+    .update(updatePayload)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
   if (error) {
     return jsonError(error.message, 500);
+  }
+  // `.single()` used to raise PGRST116 ("Cannot coerce the result to a single
+  // JSON object") whenever the update matched no row — a stale tab, a deleted
+  // customer, or a row RLS hides from this tenant. That surfaced to the operator
+  // as another opaque 500. Missing is a 404, not a server fault.
+  if (!data) {
+    return jsonError("Customer not found.", 404);
   }
 
   await upsertCustomFieldValues({

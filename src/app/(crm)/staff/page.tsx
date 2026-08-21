@@ -3,6 +3,7 @@ import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { SetupNotice } from "@/modules/crm/components/shared/SetupNotice";
 import { ApiForm } from "@/modules/crm/components/forms/ApiForm";
 import { DemoAnchor } from "@/modules/crm/components/demo/DemoAnchor";
+import { UserStatusToggle } from "@/modules/crm/components/settings/UserStatusToggle";
 import { getCrmSession, requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
 import { getCrmDemoEmptyMessage } from "@/modules/crm/lib/demo";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -10,7 +11,11 @@ import { formatDate } from "@/modules/crm/lib/format";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
 import { listStaffDirectory } from "@/modules/crm/lib/data";
 
-export default async function StaffPage() {
+export default async function StaffPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const setup = getCrmSetupState();
   if (!setup.configured && setup.message) {
     return <SetupNotice message={setup.message} />;
@@ -19,26 +24,57 @@ export default async function StaffPage() {
   await requireCrmUser();
   const fullSession = await getCrmSession();
   const demoState = await getCrmDemoState();
-  const staff = await listStaffDirectory(demoState.mode);
+  const params = await searchParams;
+  const showInactive = (Array.isArray(params.inactive) ? params.inactive[0] : params.inactive) === "1";
+  const staff = await listStaffDirectory(demoState.mode, showInactive);
   const canManage = userCanManageSettings(fullSession.profile?.role);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Team</h1>
-        <p className="mt-1 text-sm text-slate-500">Engineers, office users, contact details, and qualifications.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Team</h1>
+          <p className="mt-1 text-sm text-slate-500">Engineers, office users, contact details, and qualifications.</p>
+        </div>
+        <a
+          href={showInactive ? "/staff" : "/staff?inactive=1"}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          {showInactive ? "Hide inactive" : "Show inactive"}
+        </a>
       </div>
 
-      {staff.length === 0 ? <EmptyState message={demoState.active ? getCrmDemoEmptyMessage("staff profiles") : "No staff profiles found yet."} /> : null}
+      {staff.length === 0 ? (
+        <EmptyState
+          message={
+            demoState.active
+              ? getCrmDemoEmptyMessage("staff profiles")
+              : showInactive
+                ? "No staff profiles found yet."
+                : "No active team members. Use Show inactive to see deactivated people."
+          }
+        />
+      ) : null}
 
       <DemoAnchor name="staff-directory">
         <div className="grid gap-6 xl:grid-cols-2">
         {staff.map((member) => (
           <SectionCard key={member.id} title={member.full_name}>
             <div className="space-y-4">
+              {canManage ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-sm text-slate-600">
+                    Status: <span className="font-medium text-slate-900">{member.active ? "Active" : "Inactive"}</span>
+                  </p>
+                  <UserStatusToggle userId={member.user_id} active={member.active} />
+                </div>
+              ) : null}
+
               <div className="grid gap-2 text-sm text-slate-600 md:grid-cols-2">
                 <p>Role: <span className="font-medium capitalize text-slate-900">{member.role}</span></p>
-                <p>Status: <span className="font-medium text-slate-900">{member.active ? "Active" : "Inactive"}</span></p>
+                {canManage ? null : (
+                  <p>Status: <span className="font-medium text-slate-900">{member.active ? "Active" : "Inactive"}</span></p>
+                )}
                 <p>Email: {member.email || "Not set"}</p>
                 <p>Phone: {member.phone || "Not set"}</p>
                 <p>Hours: {member.agreed_hours || "Not set"}</p>

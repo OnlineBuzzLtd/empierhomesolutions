@@ -1572,7 +1572,13 @@ export async function createSignedAttachmentUrl(path: string) {
   return data?.signedUrl ?? null;
 }
 
-export const listStaffDirectory = cache(async function listStaffDirectory(mode?: CrmMode) {
+export const listStaffDirectory = cache(async function listStaffDirectory(
+  mode?: CrmMode,
+  // Inactive members stay out of the Team list by default so it shows the people
+  // actually working. They are never deleted — deactivation is reversible and
+  // preserves historic job assignments and certifications.
+  includeInactive = false,
+) {
   if (!getCrmEnv().enabled) {
     return [] as StaffDirectoryEntry[];
   }
@@ -1581,6 +1587,9 @@ export const listStaffDirectory = cache(async function listStaffDirectory(mode?:
   const supabase = await createCrmServerClient();
   const profilesQuery = supabase.schema("crm").from("user_profiles").select("*");
   filterByMode(profilesQuery, context.mode, context.scenarioKey);
+  if (!includeInactive) {
+    profilesQuery.eq("active", true);
+  }
   const certificationsQuery = supabase.schema("crm").from("user_certifications").select("*");
   filterByMode(certificationsQuery, context.mode, context.scenarioKey);
   const [{ data: profiles }, { data: certifications }] = await Promise.all([

@@ -41,6 +41,38 @@ export async function PATCH(
     return jsonError("You cannot deactivate your own account.", 400);
   }
 
+  // Deactivating the last manager/admin locks the whole tenant out of user
+  // administration: crm.is_manager_or_admin requires an ACTIVE membership, so
+  // once the final one is switched off nobody can switch anybody back on. Block
+  // it here rather than leaving a tenant stranded needing a service-role script.
+  if (parsed.data.active === false) {
+    const { data: activeManagers, error: managersError } = await supabase
+      .schema("crm")
+      .from("tenant_memberships")
+      .select("user_id")
+      .eq("tenant_id", tenant.id)
+      .eq("active", true)
+      .in("role", ["management", "admin"]);
+
+    if (managersError) {
+      return jsonError(managersError.message, 500);
+    }
+
+    const remaining = (activeManagers ?? []).filter(
+      (row: { user_id: string }) => row.user_id !== userId,
+    );
+    const targetIsManager = (activeManagers ?? []).some(
+      (row: { user_id: string }) => row.user_id === userId,
+    );
+
+    if (targetIsManager && remaining.length === 0) {
+      return jsonError(
+        "This is the last active admin. Promote another user to admin before deactivating this one.",
+        400,
+      );
+    }
+  }
+
   const [{ data: profile, error: profileError }, { error: membershipError }] = await Promise.all([
     supabase
       .schema("crm")

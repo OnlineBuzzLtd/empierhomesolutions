@@ -231,7 +231,7 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
         guaranteeText: "Clear fixed quote before work starts",
       },
       pricing: {
-        diagnosticFrom: 79,
+        diagnosticFrom: 95,
         repairRangeMin: 350,
         repairRangeMax: 700,
         installRangeMin: 120,
@@ -296,7 +296,7 @@ function buildGeneratedLpContent(service: ServiceSlug, location: LocationEntry) 
       guaranteeText: "12-month workmanship guarantee",
     },
     pricing: {
-      diagnosticFrom: 79,
+      diagnosticFrom: 95,
       repairRangeMin: 95,
       repairRangeMax: 450,
       installRangeMin: 1995,

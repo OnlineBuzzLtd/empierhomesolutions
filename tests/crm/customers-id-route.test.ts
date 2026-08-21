@@ -29,7 +29,7 @@ type PatchHarness = {
   update: ReturnType<typeof vi.fn>;
 };
 
-async function patchCustomer(payload: unknown | string): Promise<PatchHarness> {
+async function patchCustomer(payload: unknown | string, opts?: { missing?: boolean }): Promise<PatchHarness> {
   const row = {
     id: CUSTOMER_ID,
     tenant_id: "tenant-1",
@@ -46,8 +46,8 @@ async function patchCustomer(payload: unknown | string): Promise<PatchHarness> {
     updated_at: "2026-08-19T10:00:00.000Z",
   };
 
-  const single = vi.fn().mockResolvedValue({ data: row, error: null });
-  const select = vi.fn().mockReturnValue({ single });
+  const maybeSingle = vi.fn().mockResolvedValue({ data: opts?.missing ? null : row, error: null });
+  const select = vi.fn().mockReturnValue({ maybeSingle });
   const eq = vi.fn().mockReturnValue({ select });
   const update = vi.fn().mockReturnValue({ eq });
   const from = vi.fn().mockReturnValue({ update });
@@ -160,6 +160,16 @@ describe("PATCH /api/crm/customers/[id]", () => {
 
     expect(response.status).toBe(400);
     expect(body.error).toBe("Enter a name for the customer.");
+  });
+
+  it("404s for a customer that does not exist rather than a raw 500", async () => {
+    // `.single()` raised PGRST116 ("Cannot coerce the result to a single JSON
+    // object") when the update matched nothing — a stale tab, a deleted
+    // customer, or a row RLS hides. The operator saw another opaque 500.
+    const { response, body } = await patchCustomer({ phone: "07700 900222" }, { missing: true });
+
+    expect(response.status).toBe(404);
+    expect(body.error).toBe("Customer not found.");
   });
 
   it("returns a JSON 400 for a malformed body rather than throwing", async () => {

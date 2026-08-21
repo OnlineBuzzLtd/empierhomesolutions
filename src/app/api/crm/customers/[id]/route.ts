@@ -35,9 +35,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ? { full_name: deriveFullName(parsed.data) }
       : {}),
   };
-  const { data, error } = await supabase.schema("crm").from("customers").update(updatePayload).eq("id", id).select("*").single();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("customers")
+    .update(updatePayload)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
   if (error) {
     return jsonError(error.message, 500);
+  }
+  // `.single()` used to raise PGRST116 ("Cannot coerce the result to a single
+  // JSON object") whenever the update matched no row — a stale tab, a deleted
+  // customer, or a row RLS hides from this tenant. That surfaced to the operator
+  // as another opaque 500. Missing is a 404, not a server fault.
+  if (!data) {
+    return jsonError("Customer not found.", 404);
   }
 
   await upsertCustomFieldValues({

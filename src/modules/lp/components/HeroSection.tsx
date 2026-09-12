@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -18,7 +18,7 @@ import { trackCallClick } from "@/modules/tracking/pushDataLayer";
 type HeroSectionProps = {
   hero: HeroContent;
   cta: CTAContent;
-  proofLine?: string;
+  proofLine?: ReactNode;
 };
 
 export function HeroSection({ hero, cta, proofLine }: HeroSectionProps) {

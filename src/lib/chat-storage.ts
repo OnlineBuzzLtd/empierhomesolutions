@@ -68,3 +68,8 @@ export function setConversationId(id: string): void {
 export function clearConversationId(): void {
   safeRemove(CONVERSATION_ID_KEY);
 }
+
+/** Remove conversation IDs written by versions deployed before fresh-chat isolation. */
+export function clearLegacyConversationId(): void {
+  clearConversationId();
+}

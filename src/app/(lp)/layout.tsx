@@ -8,10 +8,15 @@ import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { StickyCallBar } from "@/modules/lp/components/StickyCallBar";
 import { AnalyticsTracker } from "@/modules/tracking/AnalyticsTracker";
+import { getAbFlags } from "@/modules/lp/abFlags";
+import { GoogleReviewsProvider } from "@/modules/lp/reviews/GoogleReviewsProvider";
 
 export default function LpLayout({ children }: { children: ReactNode }) {
+  const flags = getAbFlags();
+
   return (
-    <ChatToggleProvider>
+    <GoogleReviewsProvider enabled={flags.reviews === "on"}>
+      <ChatToggleProvider>
       <main className="min-h-screen bg-[var(--ehs-surface)] pb-[calc(88px+env(safe-area-inset-bottom))] lg:pb-0">
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3.5">
@@ -123,7 +128,8 @@ export default function LpLayout({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <AnalyticsTracker />
       </Suspense>
-      <AiChatBubble />
-    </ChatToggleProvider>
+      <AiChatBubble preflightEnabled={flags.webchatPreflight === "on"} />
+      </ChatToggleProvider>
+    </GoogleReviewsProvider>
   );
 }

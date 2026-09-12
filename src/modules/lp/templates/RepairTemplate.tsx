@@ -6,6 +6,8 @@ import { FaultListSection } from "@/modules/lp/components/FaultListSection";
 import { HeroSection } from "@/modules/lp/components/HeroSection";
 import { PricingSection } from "@/modules/lp/components/PricingSection";
 import { TrustStrip } from "@/modules/lp/components/TrustStrip";
+import { GoogleReviewsSection } from "@/modules/lp/reviews/GoogleReviewsSection";
+import { LiveGoogleRating } from "@/modules/lp/reviews/LiveGoogleRating";
 
 const FaqSection = dynamic(() =>
   import("@/modules/lp/components/FaqSection").then((module) => module.FaqSection),
@@ -23,7 +25,16 @@ type RepairTemplateProps = {
 };
 
 export function RepairTemplate({ content, trustOrder }: RepairTemplateProps) {
-  const heroProofLine = `Gas Safe ${content.trust.gasSafeNumber} | ${content.trust.ratingValue.toFixed(1)} (${content.trust.ratingCount} reviews) | ${businessDetails.emergencyHours}`;
+  const heroProofLine = (
+    <>
+      Gas Safe {content.trust.gasSafeNumber} |&nbsp;
+      <LiveGoogleRating
+        fallbackRating={content.trust.ratingValue}
+        fallbackCount={content.trust.ratingCount}
+      />
+      &nbsp;| {businessDetails.emergencyHours}
+    </>
+  );
   const leadType = content.service === "power-flushing" ? "power-flush" : "repair";
   const heading = content.service === "power-flushing" ? "Book your power flushing visit" : undefined;
   const pricingLabels =
@@ -43,6 +54,7 @@ export function RepairTemplate({ content, trustOrder }: RepairTemplateProps) {
         trustOrder={trustOrder}
         diagnosticFrom={content.pricing.diagnosticFrom}
       />
+      <GoogleReviewsSection />
       <FaultListSection faults={content.faults} />
       <PricingSection pricing={content.pricing} labels={pricingLabels} />
       <ProofCardsSection cards={content.proofCards} />

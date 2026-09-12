@@ -6,6 +6,7 @@ import { businessDetails } from "@/lib/business";
 import { publicEnv } from "@/lib/env";
 import { Section } from "@/modules/ui/Section";
 import { loadAboutTrustContent } from "@/modules/lp/content/loadContent";
+import { LiveGoogleRating } from "@/modules/lp/reviews/LiveGoogleRating";
 
 export const revalidate = 3600;
 
@@ -70,10 +71,14 @@ export default function AboutTrustPage() {
             <h2 className="text-lg font-semibold text-[var(--ehs-brand-dark)]">Guarantees and proof</h2>
             <p className="mt-2 text-sm text-slate-700">{content.guaranteePolicy}</p>
             <ul className="mt-3 space-y-2 text-sm text-slate-700">
-              {content.reviewProof.map((proof) => (
+              {content.reviewProof.map((proof, index) => (
                 <li key={proof} className="flex items-start gap-2">
                   <BadgeCheck size={16} className="mt-0.5 shrink-0 text-[var(--ehs-brand-accent)]" />
-                  <span>{proof}</span>
+                  <span>
+                    {index === 0 ? (
+                      <>Rated <LiveGoogleRating fallbackRating={5} fallbackCount={25} /> on Google</>
+                    ) : proof}
+                  </span>
                 </li>
               ))}
             </ul>

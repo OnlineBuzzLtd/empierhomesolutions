@@ -10,6 +10,8 @@ import { createCrmServiceRoleClient } from "@/modules/crm/lib/supabase-server";
 import { resolveLandingPageTenantId } from "@/modules/forms/api/landing-tenant";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { validateRequestOrigin } from "@/lib/origin";
+import { getAbFlags } from "@/modules/lp/abFlags";
+import { webchatPreflightSchema } from "@/modules/lp/webchat-preflight";
 
 // Turnstile is intentionally NOT required on the chat. The chat has built-in
 // friction (per-IP rate limit of 4 sessions/minute and 30 messages/5min)
@@ -22,10 +24,11 @@ const sessionRequestSchema = z.object({
   visitorId: z.string().trim().min(8, "Visitor ID is required."),
   openingMessage: z.string().trim().min(1, "Opening message is required.").max(2000),
   fullName: z.string().trim().max(120).optional(),
-  email: z.union([z.literal(""), z.string().email().max(254)]).optional(),
+  email: z.union([z.literal(""), z.string().trim().email().max(254)]).optional(),
   phone: z.string().trim().max(32).optional(),
   postcode: z.string().trim().max(16).optional(),
   pagePath: z.string().trim().max(2048).optional(),
+  startNewConversation: z.boolean().optional(),
   attribution: z
     .object({
       utm_source: z.string().max(120).optional(),
@@ -89,6 +92,22 @@ export async function POST(request: Request) {
     );
   }
 
+  const preflight = getAbFlags().webchatPreflight === "on"
+    ? webchatPreflightSchema.safeParse(parsed.data)
+    : null;
+  if (preflight && !preflight.success) {
+    return NextResponse.json(
+      { ok: false, error: { code: "contact_details_required", message: "Name, mobile number, email, and your question are required." } },
+      { status: 400 },
+    );
+  }
+
+  const fullName = preflight?.success ? preflight.data.fullName : parsed.data.fullName?.trim() || undefined;
+  const email = preflight?.success ? preflight.data.email : parsed.data.email?.trim() || undefined;
+  const phone = preflight?.success ? preflight.data.phone : parsed.data.phone?.trim() || undefined;
+  const openingMessage = preflight?.success ? preflight.data.openingMessage : parsed.data.openingMessage;
+  const startNewConversation = preflight?.success ? true : parsed.data.startNewConversation;
+
   try {
     const env = getCrmEnv();
     const admin = env.crmE2ePlatformFixturesEnabled
@@ -103,9 +122,11 @@ export async function POST(request: Request) {
 
     const session = await createCustomerJourneysWebchatSession(link, {
       identifierValue: parsed.data.visitorId,
-      fullName: parsed.data.fullName?.trim() || undefined,
-      email: parsed.data.email?.trim() || undefined,
-      openingMessage: parsed.data.openingMessage,
+      fullName,
+      email,
+      phoneNumber: phone,
+      openingMessage,
+      startNewConversation,
       source: PUBLIC_WEBCHAT_SOURCE,
     });
 
@@ -113,12 +134,9 @@ export async function POST(request: Request) {
       JSON.stringify({
         event: "public_webchat_session_created",
         tenantId,
-        ip,
-        pagePath: parsed.data.pagePath,
-        attribution: parsed.data.attribution,
-        hasFullName: Boolean(parsed.data.fullName),
-        hasEmail: Boolean(parsed.data.email),
-        hasPhone: Boolean(parsed.data.phone),
+        hasFullName: Boolean(fullName),
+        hasEmail: Boolean(email),
+        hasPhone: Boolean(phone),
         hasPostcode: Boolean(parsed.data.postcode),
       }),
     );
@@ -131,8 +149,7 @@ export async function POST(request: Request) {
     console.error(
       JSON.stringify({
         event: "public_webchat_session_failed",
-        ip,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.name : "unknown_error",
       }),
     );
     return NextResponse.json(

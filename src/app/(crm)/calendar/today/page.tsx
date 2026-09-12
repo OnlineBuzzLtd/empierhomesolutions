@@ -28,7 +28,7 @@ export default async function CalendarTodayPage() {
         ].map((job) => [job.id, job]),
       ).values(),
     );
-    return <CommsoftDiary jobs={jobs} completedJobs={data.completedAssignedJobs ?? []} />;
+    return <CommsoftDiary jobs={jobs} />;
   }
 
   return <EngineerDashboard data={data} engineerName={session.profile.full_name} />;

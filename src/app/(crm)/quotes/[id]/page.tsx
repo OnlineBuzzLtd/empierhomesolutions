@@ -90,7 +90,15 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
       <SectionCard title={quote.quote_number} action={<StatusBadge config={quoteStatusConfig[quote.status]} />} demoAnchor="quote-record">
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
-            <p className="text-sm font-semibold text-slate-900">{quote.customer?.full_name}</p>
+            <p className="text-sm font-semibold text-slate-900">
+              {quote.customer_id && quote.customer?.full_name ? (
+                <Link href={`/customers/${quote.customer_id}`} className="text-blue-700 hover:underline">
+                  {quote.customer.full_name}
+                </Link>
+              ) : (
+                quote.customer?.full_name
+              )}
+            </p>
             <p className="mt-1 text-sm text-slate-600">{quote.customer?.address_line1}</p>
             <p className="text-sm text-slate-600">{quote.customer?.postcode}</p>
             <p className="mt-3 text-sm text-slate-600">

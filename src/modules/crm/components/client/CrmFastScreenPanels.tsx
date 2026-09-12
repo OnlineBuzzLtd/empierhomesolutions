@@ -445,7 +445,7 @@ export function DiaryClientPanel() {
 
   return (
     <div data-crm-screen-ready="true">
-      <CommsoftDiary jobs={jobs} completedJobs={data.data.completedAssignedJobs ?? []} />
+      <CommsoftDiary jobs={jobs} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { customerPatchSchema } from "@/modules/crm/lib/validation";
+import { toLeadSourceEnum } from "@/modules/crm/lib/lead-source";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { jsonError, jsonSuccess, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
@@ -34,6 +35,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     ...(parsed.data.full_name !== undefined || parsed.data.first_name !== undefined || parsed.data.last_name !== undefined
       ? { full_name: deriveFullName(parsed.data) }
       : {}),
+    // Keep the reporting enum in step with the free-text source. Until now the
+    // enum was only ever set at lead creation, so correcting a customer's source
+    // after the fact ("TBC" -> "Leaflet") left reports grouping it under the old
+    // value.
+    ...(parsed.data.source !== undefined ? { source_enum: toLeadSourceEnum(parsed.data.source) } : {}),
   };
   const { data, error } = await supabase
     .schema("crm")

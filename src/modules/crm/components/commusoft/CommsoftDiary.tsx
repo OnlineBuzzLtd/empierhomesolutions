@@ -8,14 +8,24 @@ import type { EngineerDashboardJob } from "@/modules/crm/types";
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function buildDateStrip(centerDate: Date, count = 7) {
+// The strip used to be pinned to today-2 .. today+4 with no way to move it, so
+// an engineer could never reach a job more than two days old to open its report.
+// The diary payload already spans -30/+60 days (getEngineerDashboardData); only
+// the UI was the limit. `stripStart` is the first visible day and the arrows
+// shift it a week at a time.
+const STRIP_DAYS = 7;
+const DEFAULT_LOOKBACK_DAYS = 2;
+
+export function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+export function buildDateStrip(start: Date, count = STRIP_DAYS) {
   const days: Date[] = [];
-  const start = new Date(centerDate);
-  start.setDate(start.getDate() - 2);
   for (let i = 0; i < count; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    days.push(d);
+    days.push(addDays(start, i));
   }
   return days;
 }
@@ -24,17 +34,25 @@ function toLocalDateString(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function CommsoftDiary({
-  jobs,
-  completedJobs = [],
-}: {
-  jobs: EngineerDashboardJob[];
-  completedJobs?: EngineerDashboardJob[];
-}) {
+export function CommsoftDiary({ jobs }: { jobs: EngineerDashboardJob[] }) {
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(toLocalDateString(today));
+  const [stripStart, setStripStart] = useState(() => addDays(today, -DEFAULT_LOOKBACK_DAYS));
 
-  const strip = buildDateStrip(today);
+  const strip = buildDateStrip(stripStart);
+  const stripStartKey = toLocalDateString(stripStart);
+  const stripEndKey = toLocalDateString(addDays(stripStart, STRIP_DAYS - 1));
+  const todayKey = toLocalDateString(today);
+  const showingToday = stripStartKey <= todayKey && todayKey <= stripEndKey;
+
+  function shiftStrip(days: number) {
+    setStripStart((current) => addDays(current, days));
+  }
+
+  function jumpToToday() {
+    setStripStart(addDays(today, -DEFAULT_LOOKBACK_DAYS));
+    setSelectedDate(todayKey);
+  }
 
   const jobsForDate = jobs.filter((job) => job.scheduled_date === selectedDate);
 
@@ -45,9 +63,31 @@ export function CommsoftDiary({
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-slate-900">Diary</h1>
         </div>
-        <div className="flex gap-2">
-          <button className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600">
-            List ▾
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => shiftStrip(-STRIP_DAYS)}
+            aria-label="Earlier week"
+            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            ‹
+          </button>
+          {showingToday ? null : (
+            <button
+              type="button"
+              onClick={jumpToToday}
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Today
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => shiftStrip(STRIP_DAYS)}
+            aria-label="Later week"
+            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            ›
           </button>
         </div>
       </div>
@@ -57,7 +97,7 @@ export function CommsoftDiary({
         {strip.map((d) => {
           const ds = toLocalDateString(d);
           const isSelected = ds === selectedDate;
-          const isToday = ds === toLocalDateString(today);
+          const isToday = ds === todayKey;
           return (
             <button
               key={ds}
@@ -100,18 +140,6 @@ export function CommsoftDiary({
             ))}
           </div>
         )}
-        {completedJobs.length > 0 ? (
-          <div className="mt-6 pb-6">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
-              Recent completed
-            </p>
-            <div className="space-y-3">
-              {completedJobs.slice(0, 6).map((job) => (
-                <DiaryJobRow key={`completed-${job.id}`} job={job} />
-              ))}
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );

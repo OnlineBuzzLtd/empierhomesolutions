@@ -1,4 +1,5 @@
 import { customerSchema } from "@/modules/crm/lib/validation";
+import { toLeadSourceEnum } from "@/modules/crm/lib/lead-source";
 import { extractCustomFieldValues, upsertCustomFieldValues } from "@/modules/crm/lib/custom-fields";
 import { jsonError, jsonSuccess, paginationFromRequestUrl, requireCrmApiUser } from "@/modules/crm/lib/api";
 import { enqueueCrmPlatformEvent, publishPendingPlatformOutboxEvents } from "@/modules/platform/lib/outbox";
@@ -155,6 +156,7 @@ export async function POST(request: Request) {
       postcode: data.postcode,
       archived: data.archived,
       source: data.source,
+      source_enum: toLeadSourceEnum(data.source),
     },
   });
   await publishPendingPlatformOutboxEvents(supabase);

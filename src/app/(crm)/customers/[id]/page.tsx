@@ -10,6 +10,7 @@ import { CustomerPromiseStrip } from "@/modules/crm/components/shared/CustomerPr
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { leadSourceOptions } from "@/modules/crm/lib/lead-source";
 import { buildCustomerPromiseSummary, choosePromiseSummary } from "@/modules/crm/lib/customer-promise";
 import { listCustomerPromises } from "@/modules/crm/lib/customer-promises";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -204,6 +205,21 @@ export default async function CustomerDetailPage({
               defaultValue={customer.postcode ?? ""}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
+            <label className="grid gap-1 text-sm text-slate-700">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Where did they hear about us?</span>
+              <input
+                name="source"
+                list="customer-source-options"
+                defaultValue={customer.source ?? ""}
+                placeholder="e.g. Leaflet drop, Google, Facebook, Word of mouth"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <datalist id="customer-source-options">
+                {leadSourceOptions.map((option) => (
+                  <option key={option.value} value={option.label} />
+                ))}
+              </datalist>
+            </label>
             <textarea
               name="notes"
               defaultValue={customer.notes ?? ""}

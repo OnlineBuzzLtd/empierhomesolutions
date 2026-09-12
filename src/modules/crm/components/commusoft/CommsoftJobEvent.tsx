@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CommsoftJobActions } from "@/modules/crm/components/commusoft/CommsoftJobActions";
+import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
 import { EngineerFieldSummaryCard } from "@/modules/crm/components/jobs/EngineerFieldSummaryCard";
 import { buildEngineerFieldSummary } from "@/modules/crm/lib/engineer-field";
 import { formatDate, formatDateTime, formatScheduledTime } from "@/modules/crm/lib/format";
@@ -210,6 +211,29 @@ export function CommsoftJobEvent({
             <p className="mt-1 text-sm text-slate-800">{formatDateTime(job.started_at)}</p>
           </div>
         ) : null}
+
+        {/* Notes — the office writes these for the engineer (access codes, "customer
+            is deaf, knock loudly", parts already ordered). They were loaded and passed
+            in but never rendered here, so engineers on this view never saw them;
+            only the classic view did. */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 mb-3 shadow-sm" data-testid="engineer-job-notes">
+          <p className="text-xs font-semibold text-slate-500">Notes ({notes.length})</p>
+          {notes.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">No notes on this job yet.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {notes.map((note) => (
+                <li key={note.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="whitespace-pre-wrap text-sm text-slate-800">{note.body}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-wide text-slate-500">{formatDateTime(note.created_at)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <NoteCreateForm entityType="job" entityId={job.id} />
+          </div>
+        </div>
       </div>
     </div>
   );

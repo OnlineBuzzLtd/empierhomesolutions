@@ -14,7 +14,8 @@ import {
 import { createCustomerPromiseWithClient, listCustomerPromises } from "@/modules/crm/lib/customer-promises";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { normalizeCrmPagination } from "@/modules/crm/lib/performance";
-import type { LeadCustomerMatchResult, LeadSource } from "@/modules/crm/types";
+import type { LeadCustomerMatchResult } from "@/modules/crm/types";
+import { toLeadSourceEnum } from "@/modules/crm/lib/lead-source";
 
 function parseTab(value: string | null): EnquiryTab {
   return value === "done" || value === "all" ? value : "todo";
@@ -58,18 +59,6 @@ function cleanPhone(value: unknown) {
   return phone && phone.length > 0 ? phone : null;
 }
 
-function toLeadSourceEnum(source: string | null | undefined): LeadSource {
-  const normalized = (source ?? "").toLowerCase();
-  if (normalized.includes("whatsapp")) return "whatsapp";
-  if (normalized.includes("sms")) return "sms";
-  if (normalized.includes("email")) return "email";
-  if (normalized.includes("google")) return "google_lead";
-  if (normalized.includes("meta") || normalized.includes("facebook")) return "meta_lead";
-  if (normalized.includes("webchat")) return "webchat";
-  if (normalized.includes("form") || normalized.includes("landing")) return "landing_form";
-  if (normalized.includes("manual") || normalized.length === 0) return "manual";
-  return "other";
-}
 
 function buildManualCustomerInput(body: Record<string, unknown>, lead: { source?: string | null; notes?: string | null }): ManualLeadCustomerInput {
   return {

@@ -1,4 +1,7 @@
 import Image from "next/image";
+import type { Metadata } from "next";
+import { publicEnv } from "@/lib/env";
+import { lpSocialImage } from "@/modules/lp/social-image";
 import Link from "next/link";
 import { CheckCircle2, Clock3, House, PhoneCall, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
@@ -9,6 +12,12 @@ import { getAbFlags } from "@/modules/lp/abFlags";
 import { GoogleReviewsProvider } from "@/modules/lp/reviews/GoogleReviewsProvider";
 import { GoogleReviewsSection } from "@/modules/lp/reviews/GoogleReviewsSection";
 import { LiveGoogleRating } from "@/modules/lp/reviews/LiveGoogleRating";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(publicEnv.siteUrl),
+  openGraph: { type: "website", siteName: businessDetails.name, images: [lpSocialImage] },
+  twitter: { card: "summary_large_image", images: [lpSocialImage] },
+};
 
 const coreServices = [
   {

@@ -181,7 +181,9 @@ export function AiChatBubble({ preflightEnabled = false }: { preflightEnabled?: 
           fullName: contact?.fullName,
           phone: contact?.phone,
           email: contact?.email,
-          startNewConversation: preflightEnabled,
+          // The runtime resumes by visitor ID. Clearing browser storage alone
+          // cannot stop it reopening an expired or completed conversation.
+          startNewConversation: preflightEnabled || !existingConversationId,
           pagePath: window.location.pathname + window.location.search,
         }),
       });
@@ -208,7 +210,7 @@ export function AiChatBubble({ preflightEnabled = false }: { preflightEnabled?: 
       }
 
       activeConversationRef.current = normalized.conversationId;
-      if (!preflightEnabled) setConversationId(normalized.conversationId);
+      if (!preflightEnabled) setConversationId(normalized.conversationId, normalized.bookingState?.currentState ?? null);
       setSession({
         conversationId: normalized.conversationId,
         messages: [],
@@ -325,6 +327,9 @@ export function AiChatBubble({ preflightEnabled = false }: { preflightEnabled?: 
       });
       const nextBookingState = asRecord(turnRecord.bookingState).currentState;
       if (typeof nextBookingState === "string") setBookingState(nextBookingState);
+      if (!preflightEnabled) {
+        setConversationId(conversationId, typeof nextBookingState === "string" ? nextBookingState : bookingState);
+      }
     } catch (sendError) {
       if (activeConversationRef.current !== conversationId) return;
       setError(sendError instanceof Error ? sendError.message : "Message couldn't be delivered.");
@@ -332,7 +337,7 @@ export function AiChatBubble({ preflightEnabled = false }: { preflightEnabled?: 
     } finally {
       if (activeConversationRef.current === conversationId) setBusy(false);
     }
-  }, [busy, draft, session]);
+  }, [bookingState, busy, draft, preflightEnabled, session]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {

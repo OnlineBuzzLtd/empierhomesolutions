@@ -8,6 +8,7 @@
 
 const VISITOR_ID_KEY = "empire_chat_visitor_id";
 const CONVERSATION_ID_KEY = "empire_chat_conversation_id";
+const MAX_CONVERSATION_AGE_MS = 24 * 60 * 60 * 1000;
 
 function safeGet(key: string): string | null {
   try {
@@ -58,11 +59,37 @@ export function getOrCreateVisitorId(): string {
 }
 
 export function getConversationId(): string | null {
-  return safeGet(CONVERSATION_ID_KEY);
+  const stored = safeGet(CONVERSATION_ID_KEY);
+  if (!stored) return null;
+  try {
+    const record: unknown = JSON.parse(stored);
+    if (typeof record === "object" && record !== null && "id" in record && "lastActivityAt" in record) {
+      const state = "state" in record ? record.state : null;
+      const age = typeof record.lastActivityAt === "number" ? Date.now() - record.lastActivityAt : NaN;
+      if (typeof record.id === "string" && record.id.length > 0 && Number.isFinite(age)
+        && age >= 0 && age < MAX_CONVERSATION_AGE_MS
+        && (state === null || typeof state === "string") && !isEndedConversation(state)) {
+        return record.id;
+      }
+    }
+  } catch {
+    // Older clients stored just an ID. Its age is unknown, so start afresh.
+  }
+  clearConversationId();
+  return null;
 }
 
-export function setConversationId(id: string): void {
-  safeSet(CONVERSATION_ID_KEY, id);
+function isEndedConversation(state: string | null): boolean {
+  return state === "handoff" || state === "handoff_required" || state === "booking_confirmed"
+    || Boolean(state?.startsWith("confirmed")) || state === "closed" || state === "cancelled";
+}
+
+export function setConversationId(id: string, state: string | null = null): void {
+  if (isEndedConversation(state)) {
+    clearConversationId();
+    return;
+  }
+  safeSet(CONVERSATION_ID_KEY, JSON.stringify({ id, lastActivityAt: Date.now(), state }));
 }
 
 export function clearConversationId(): void {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { publicEnv } from "@/lib/env";
+import { lpSocialImage } from "@/modules/lp/social-image";
 import { getAbFlags } from "@/modules/lp/abFlags";
 import { getAllLocationEntries } from "@/modules/lp/content/locationCatalog";
 import { ALLOWED_SERVICES, loadLpContent, normalizeLocationSlug } from "@/modules/lp/content/loadContent";
@@ -64,6 +65,7 @@ export async function generateMetadata({ params, searchParams }: RouteProps): Pr
       description: content.seo.description,
       url: canonicalUrl,
       type: "website",
+      images: [lpSocialImage],
     },
   };
 }

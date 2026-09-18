@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { leadSourceOptions } from "@/modules/crm/lib/lead-source";
 
 // Regression cover for the customer PATCH route.
 //
@@ -126,6 +127,28 @@ describe("PATCH /api/crm/customers/[id]", () => {
 
     expect(update).toHaveBeenCalledTimes(1);
     expect(update.mock.calls[0][0]).not.toHaveProperty("archived");
+  });
+
+  it.each([
+    { source: "Leaflet drop", source_enum: "other" },
+    { source: "Google", source_enum: "google_lead" },
+    { source: null, source_enum: "manual" },
+  ])("keeps the reporting source in sync for $source", async (payload) => {
+    const { response, update } = await patchCustomer({ source: payload.source });
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(payload);
+  });
+
+  it("leaves the reporting source unchanged when source is omitted", async () => {
+    const { update } = await patchCustomer({ phone: "07700 900222" });
+
+    expect(update.mock.calls[0][0]).not.toHaveProperty("source_enum");
+  });
+
+  it.each(leadSourceOptions)("maps the source picker label $label to $value", async ({ label, value }) => {
+    const { update } = await patchCustomer({ source: label });
+    expect(update).toHaveBeenCalledWith({ source: label, source_enum: value });
   });
 
   it("still writes archived when the caller sends it", async () => {

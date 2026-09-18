@@ -1,9 +1,11 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CommsoftDiary, addDays, buildDateStrip } from "@/modules/crm/components/commusoft/CommsoftDiary";
 import { CommsoftJobEvent } from "@/modules/crm/components/commusoft/CommsoftJobEvent";
 import type { EngineerDashboardJob, JobWithRelations, Note } from "@/modules/crm/types";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 // Engineer-view fixes from the 2026-09-12 operator list:
 //   - "Remove recently completed from engineer diary view"

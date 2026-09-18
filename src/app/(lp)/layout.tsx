@@ -1,4 +1,7 @@
 import { Suspense, type ReactNode } from "react";
+import type { Metadata } from "next";
+import { publicEnv } from "@/lib/env";
+import { lpSocialImage } from "@/modules/lp/social-image";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, House, PhoneCall } from "lucide-react";
@@ -10,6 +13,12 @@ import { StickyCallBar } from "@/modules/lp/components/StickyCallBar";
 import { AnalyticsTracker } from "@/modules/tracking/AnalyticsTracker";
 import { getAbFlags } from "@/modules/lp/abFlags";
 import { GoogleReviewsProvider } from "@/modules/lp/reviews/GoogleReviewsProvider";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(publicEnv.siteUrl),
+  openGraph: { type: "website", siteName: businessDetails.name, images: [lpSocialImage] },
+  twitter: { card: "summary_large_image", images: [lpSocialImage] },
+};
 
 export default function LpLayout({ children }: { children: ReactNode }) {
   const flags = getAbFlags();

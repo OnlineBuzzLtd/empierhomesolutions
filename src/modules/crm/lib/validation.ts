@@ -250,6 +250,21 @@ export const customerPatchSchema = z
     }
   });
 
+const siteFields = {
+  label: z.string().trim().min(2).max(120),
+  address_line1: z.string().trim().max(250).nullable().optional(),
+  address_line2: z.string().trim().max(250).nullable().optional(),
+  city: z.string().trim().max(120).nullable().optional(),
+  postcode: z.string().trim().max(16).nullable().optional(),
+  access_notes: z.string().trim().max(4000).nullable().optional(),
+  parking_notes: z.string().trim().max(4000).nullable().optional(),
+  is_primary: z.preprocess((value) => value === "on" || value === "true" ? true : value === "false" ? false : value, z.boolean()).optional(),
+};
+
+export const siteSchema = z.object({ customer_id: z.string().uuid(), ...siteFields }).strict();
+// Sites cannot be reassigned to another customer through an edit.
+export const sitePatchSchema = z.object(siteFields).partial().strict();
+
 export const siteContactSchema = z.object({
   site_id: z.string().uuid(),
   full_name: z.string().min(2),

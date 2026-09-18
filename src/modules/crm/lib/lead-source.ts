@@ -9,6 +9,8 @@ import { leadSources, type LeadSource } from "@/modules/crm/types";
 // reporting silently disagrees with what the record says.
 export function toLeadSourceEnum(source: string | null | undefined): LeadSource {
   const normalized = (source ?? "").toLowerCase().trim();
+  const option = leadSourceOptions.find((option) => option.label.toLowerCase() === normalized);
+  if (option) return option.value;
   if ((leadSources as readonly string[]).includes(normalized)) return normalized as LeadSource;
   if (normalized.includes("whatsapp")) return "whatsapp";
   if (normalized.includes("sms")) return "sms";

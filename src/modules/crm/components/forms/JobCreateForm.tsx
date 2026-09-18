@@ -72,7 +72,7 @@ export function JobCreateForm({
           <option value="">Primary / default customer site</option>
           {sites.map((site) => (
             <option key={site.id} value={site.id}>
-              {site.customer?.full_name ?? "Customer"} · {site.label}
+              {site.customer?.full_name ?? "Customer"} · {site.label}{site.postcode ? ` · ${site.postcode}` : ""}
             </option>
           ))}
         </select>

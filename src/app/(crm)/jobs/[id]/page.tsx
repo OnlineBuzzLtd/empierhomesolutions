@@ -96,6 +96,14 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         <Link href="/jobs" className="hover:text-blue-700">
           Jobs
         </Link>
+        {job.customer_id && job.customer?.full_name ? (
+          <>
+            <span className="mx-2">›</span>
+            <Link href={`/customers/${job.customer_id}`} className="hover:text-blue-700">
+              {job.customer.full_name}
+            </Link>
+          </>
+        ) : null}
         <span className="mx-2">›</span>
         <span className="font-medium text-slate-900">{job.title}</span>
       </nav>
@@ -221,7 +229,16 @@ async function AdminJobView({
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
-              <p className="text-sm text-slate-700">Customer: {job.customer?.full_name ?? "Not set"}</p>
+              <p className="text-sm text-slate-700">
+                Customer:{" "}
+                {job.customer_id && job.customer?.full_name ? (
+                  <Link href={`/customers/${job.customer_id}`} className="font-medium text-blue-700 hover:underline">
+                    {job.customer.full_name}
+                  </Link>
+                ) : (
+                  "Not set"
+                )}
+              </p>
               <p className="text-sm text-slate-700">Phone: {job.customer?.phone ?? "Not set"}</p>
               <p className="text-sm text-slate-700">Site: {job.site?.label ?? "Primary customer address"}</p>
               <p className="text-sm text-slate-700">Address: {directionsAddress}</p>

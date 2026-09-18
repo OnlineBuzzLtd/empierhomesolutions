@@ -19,11 +19,6 @@ export function buildLocalBusinessJsonLd(content: LpContent, phoneNumber: string
         value: businessDetails.gasSafeNumber,
       },
     ],
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: content.trust.ratingValue,
-      reviewCount: content.trust.ratingCount,
-    },
     address: {
       "@type": "PostalAddress",
       addressRegion: content.seo.addressRegion,

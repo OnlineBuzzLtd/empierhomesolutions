@@ -79,7 +79,15 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       <SectionCard title={invoice.invoice_number} action={<StatusBadge config={invoiceStatusConfig[invoice.status]} />} demoAnchor="invoice-record">
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
-            <p className="text-sm font-semibold text-slate-900">{invoice.customer?.full_name}</p>
+            <p className="text-sm font-semibold text-slate-900">
+              {invoice.customer_id && invoice.customer?.full_name ? (
+                <Link href={`/customers/${invoice.customer_id}`} className="text-blue-700 hover:underline">
+                  {invoice.customer.full_name}
+                </Link>
+              ) : (
+                invoice.customer?.full_name
+              )}
+            </p>
             <p className="mt-1 text-sm text-slate-600">{invoice.customer?.address_line1}</p>
             <p className="text-sm text-slate-600">{invoice.customer?.postcode}</p>
             <p className="mt-3 text-sm text-slate-600">{invoiceKindLabels[invoice.invoice_kind ?? "standard"] ?? "Invoice"}</p>

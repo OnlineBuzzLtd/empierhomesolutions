@@ -44,6 +44,12 @@ export function SiteFooter() {
             <Link href="/areas-we-cover" className="hover:text-white">
               Areas We Cover
             </Link>
+            <Link href="/privacy" className="hover:text-white">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-white">
+              Terms
+            </Link>
             <Link href="/lp/power-flushing/uxbridge" className="hover:text-white">
               Power Flushing
             </Link>

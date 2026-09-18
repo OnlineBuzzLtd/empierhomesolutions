@@ -5,11 +5,14 @@ import { DeleteTrailButton } from "@/modules/crm/components/client/DeleteTrailBu
 import { AttachmentUploadForm } from "@/modules/crm/components/forms/AttachmentUploadForm";
 import { NoteCreateForm } from "@/modules/crm/components/forms/NoteCreateForm";
 import { SiteContactCreateForm } from "@/modules/crm/components/forms/SiteContactCreateForm";
+import { SiteCreateForm } from "@/modules/crm/components/forms/SiteCreateForm";
+import { getCrmEnv } from "@/modules/crm/lib/env";
 import { AttachmentList } from "@/modules/crm/components/shared/AttachmentList";
 import { CustomerPromiseStrip } from "@/modules/crm/components/shared/CustomerPromiseStrip";
 import { EmptyState } from "@/modules/crm/components/shared/EmptyState";
 import { SectionCard } from "@/modules/crm/components/shared/SectionCard";
 import { requireCrmUser, userCanManageSettings } from "@/modules/crm/lib/auth";
+import { leadSourceOptions } from "@/modules/crm/lib/lead-source";
 import { buildCustomerPromiseSummary, choosePromiseSummary } from "@/modules/crm/lib/customer-promise";
 import { listCustomerPromises } from "@/modules/crm/lib/customer-promises";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
@@ -70,6 +73,8 @@ export default async function CustomerDetailPage({
 
   const { customer, jobs, leads, notes, assets, attachments } = detail;
   const sites = detail.sites ?? [];
+  const canManageSites = getCrmEnv().multiSiteEnabled
+    && ["management", "admin", "sales"].includes(session.profile?.role ?? "");
   const siteContacts = detail.siteContacts ?? [];
   const primarySite = sites.find((site) => site.is_primary) ?? sites[0] ?? null;
   const primarySiteContact =
@@ -204,6 +209,21 @@ export default async function CustomerDetailPage({
               defaultValue={customer.postcode ?? ""}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
+            <label className="grid gap-1 text-sm text-slate-700">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Where did they hear about us?</span>
+              <input
+                name="source"
+                list="customer-source-options"
+                defaultValue={customer.source ?? ""}
+                placeholder="e.g. Leaflet drop, Google, Facebook, Word of mouth"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <datalist id="customer-source-options">
+                {leadSourceOptions.map((option) => (
+                  <option key={option.value} value={option.label} />
+                ))}
+              </datalist>
+            </label>
             <textarea
               name="notes"
               defaultValue={customer.notes ?? ""}
@@ -307,10 +327,29 @@ export default async function CustomerDetailPage({
                       {site.parking_notes || "No parking notes."}
                     </p>
                   </div>
+                  {canManageSites ? (
+                    <div className="mt-4 space-y-3">
+                      {!site.is_primary ? (
+                        <ApiForm endpoint={`/api/crm/sites/${site.id}`} method="PATCH" submitLabel="Set primary">
+                          <input type="hidden" name="is_primary" value="true" />
+                        </ApiForm>
+                      ) : null}
+                      <details>
+                        <summary className="cursor-pointer text-sm font-semibold text-blue-700">Edit site</summary>
+                        <div className="mt-3"><SiteCreateForm customerId={customer.id} site={site} /></div>
+                      </details>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
+          {canManageSites ? (
+            <details className="mt-4 border-t border-slate-100 pt-4">
+              <summary className="cursor-pointer text-sm font-semibold text-blue-700">Add another site</summary>
+              <div className="mt-3"><SiteCreateForm customerId={customer.id} /></div>
+            </details>
+          ) : null}
         </SectionCard>
 
         <SectionCard title={`Site Contacts (${siteContacts.length})`}>

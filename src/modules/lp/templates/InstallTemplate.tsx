@@ -5,6 +5,8 @@ import { CoverageSection } from "@/modules/lp/components/CoverageSection";
 import { HeroSection } from "@/modules/lp/components/HeroSection";
 import { PricingSection } from "@/modules/lp/components/PricingSection";
 import { TrustStrip } from "@/modules/lp/components/TrustStrip";
+import { GoogleReviewsSection } from "@/modules/lp/reviews/GoogleReviewsSection";
+import { LiveGoogleRating } from "@/modules/lp/reviews/LiveGoogleRating";
 
 const FaqSection = dynamic(() =>
   import("@/modules/lp/components/FaqSection").then((module) => module.FaqSection),
@@ -22,12 +24,22 @@ type InstallTemplateProps = {
 };
 
 export function InstallTemplate({ content, trustOrder }: InstallTemplateProps) {
-  const heroProofLine = `Gas Safe ${content.trust.gasSafeNumber} | ${content.trust.ratingValue.toFixed(1)} (${content.trust.ratingCount} reviews) | ${businessDetails.emergencyHours}`;
+  const heroProofLine = (
+    <>
+      Gas Safe {content.trust.gasSafeNumber} |&nbsp;
+      <LiveGoogleRating
+        fallbackRating={content.trust.ratingValue}
+        fallbackCount={content.trust.ratingCount}
+      />
+      &nbsp;| {businessDetails.emergencyHours}
+    </>
+  );
 
   return (
     <>
       <HeroSection hero={content.hero} cta={content.cta} proofLine={heroProofLine} />
       <TrustStrip trust={content.trust} trustOrder={trustOrder} />
+      <GoogleReviewsSection />
       <PricingSection pricing={content.pricing} />
       <ProofCardsSection cards={content.proofCards} />
       <CoverageSection coverage={content.coverage} />

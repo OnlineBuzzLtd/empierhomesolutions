@@ -1,6 +1,7 @@
 import { Clock3, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
 import type { TrustStripContent } from "@/modules/lp/types";
+import { LiveGoogleRating } from "@/modules/lp/reviews/LiveGoogleRating";
 
 type TrustStripProps = {
   trust: TrustStripContent;
@@ -82,7 +83,12 @@ export function TrustStrip({
                 }
               >
                 {item.icon}
-                {item.label}
+                {item.key === "rating" ? (
+                  <LiveGoogleRating
+                    fallbackRating={trust.ratingValue}
+                    fallbackCount={trust.ratingCount}
+                  />
+                ) : item.label}
               </p>
             ))}
           </div>

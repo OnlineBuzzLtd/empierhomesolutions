@@ -1,10 +1,23 @@
 import Image from "next/image";
+import type { Metadata } from "next";
+import { publicEnv } from "@/lib/env";
+import { lpSocialImage } from "@/modules/lp/social-image";
 import Link from "next/link";
 import { CheckCircle2, Clock3, House, PhoneCall, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
 import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
 import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
+import { getAbFlags } from "@/modules/lp/abFlags";
+import { GoogleReviewsProvider } from "@/modules/lp/reviews/GoogleReviewsProvider";
+import { GoogleReviewsSection } from "@/modules/lp/reviews/GoogleReviewsSection";
+import { LiveGoogleRating } from "@/modules/lp/reviews/LiveGoogleRating";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(publicEnv.siteUrl),
+  openGraph: { type: "website", siteName: businessDetails.name, images: [lpSocialImage] },
+  twitter: { card: "summary_large_image", images: [lpSocialImage] },
+};
 
 const coreServices = [
   {
@@ -78,8 +91,11 @@ const bannerItems = [
 ];
 
 export default function HomePage() {
+  const flags = getAbFlags();
+
   return (
-    <ChatToggleProvider>
+    <GoogleReviewsProvider enabled={flags.reviews === "on"}>
+      <ChatToggleProvider>
       <main className="min-h-screen bg-[var(--ehs-surface)]">
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3.5">
@@ -258,13 +274,20 @@ export default function HomePage() {
                     }
                   >
                     {item.icon}
-                    {item.label}
+                    {item.key === "rating" ? (
+                      <LiveGoogleRating
+                        fallbackRating={businessDetails.googleRatingValue}
+                        fallbackCount={businessDetails.googleReviewCount}
+                      />
+                    ) : item.label}
                   </p>
                 ))}
               </div>
             </div>
           </div>
         </section>
+
+        <GoogleReviewsSection />
 
         <section id="services" className="bg-white px-4 py-14">
           <div className="mx-auto w-full max-w-6xl">
@@ -349,7 +372,8 @@ export default function HomePage() {
 
         <SiteFooter />
       </main>
-      <AiChatBubble />
-    </ChatToggleProvider>
+      <AiChatBubble preflightEnabled={flags.webchatPreflight === "on"} />
+      </ChatToggleProvider>
+    </GoogleReviewsProvider>
   );
 }

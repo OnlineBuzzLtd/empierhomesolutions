@@ -60,8 +60,7 @@ export async function POST(request: Request) {
     console.error(
       JSON.stringify({
         event: "public_webchat_close_failed",
-        conversationId: parsed.data.conversationId,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.name : "unknown_error",
       }),
     );
     return NextResponse.json(

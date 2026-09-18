@@ -4,6 +4,7 @@ import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
 import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { buildLpPath, locationGroups, normalizeLocationSlug } from "@/modules/lp/content/locationCatalog";
+import { getAbFlags } from "@/modules/lp/abFlags";
 
 const campaignServices: { service: ServiceSlug; label: string }[] = [
   { service: "boiler-repair", label: "Boiler Repair" },
@@ -22,6 +23,8 @@ const displayColumns = [
 const locationGroupMap = new Map(locationGroups.map((group) => [group.postcodeArea, group.locations]));
 
 export default function AreasWeCoverPage() {
+  const flags = getAbFlags();
+
   return (
     <ChatToggleProvider>
       <main className="min-h-screen bg-[var(--ehs-surface)]">
@@ -107,7 +110,7 @@ export default function AreasWeCoverPage() {
       </section>
       <SiteFooter />
       </main>
-      <AiChatBubble />
+      <AiChatBubble preflightEnabled={flags.webchatPreflight === "on"} />
     </ChatToggleProvider>
   );
 }

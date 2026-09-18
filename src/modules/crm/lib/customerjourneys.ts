@@ -271,6 +271,7 @@ function createFixtureWebchatSession(input: {
   identifierValue: string;
   fullName?: string;
   email?: string;
+  phoneNumber?: string;
   openingMessage: string;
 }) {
   const conversationId = randomUUID();
@@ -280,7 +281,7 @@ function createFixtureWebchatSession(input: {
   const bookingAppointmentId = randomUUID();
   const customerName = input.fullName?.trim() || "Webchat Test Customer";
   const customerEmail = input.email?.trim() || (input.identifierValue.includes("@") ? input.identifierValue : null);
-  const customerPhone = null;
+  const customerPhone = input.phoneNumber?.trim() || null;
   const bookingStartsAt = "2026-04-10T10:00:00.000Z";
   const bookingEndsAt = "2026-04-10T11:00:00.000Z";
   const bookingTitle = "Booked visit: Thu 10:00-11:00";
@@ -1147,7 +1148,9 @@ export async function createCustomerJourneysWebchatSession(
     identifierValue: string;
     fullName?: string;
     email?: string;
+    phoneNumber?: string;
     openingMessage: string;
+    startNewConversation?: boolean;
     source?: string;
     metadata?: Record<string, unknown>;
   },
@@ -1166,7 +1169,9 @@ export async function createCustomerJourneysWebchatSession(
       identifierValue: input.identifierValue,
       fullName: input.fullName,
       email: input.email,
+      phoneNumber: input.phoneNumber,
       openingMessage: input.openingMessage,
+      startNewConversation: input.startNewConversation,
       metadata: input.metadata ?? {},
       ...(input.source ? { source: input.source } : {}),
     },

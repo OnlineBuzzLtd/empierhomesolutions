@@ -13,6 +13,8 @@ const publicEnvSchema = z.object({
 const serverEnvSchema = z.object({
   FORM_WEBHOOK_URL: z.string().url(),
   CONVERSION_API_SECRET: z.string().min(8),
+  GOOGLE_PLACES_API_KEY: z.string().min(1).optional(),
+  GOOGLE_PLACE_ID: z.string().min(1).optional(),
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
   TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
@@ -65,6 +67,8 @@ function parseServerEnv() {
   const result = serverEnvSchema.safeParse({
     FORM_WEBHOOK_URL: process.env.FORM_WEBHOOK_URL,
     CONVERSION_API_SECRET: process.env.CONVERSION_API_SECRET,
+    GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY,
+    GOOGLE_PLACE_ID: process.env.GOOGLE_PLACE_ID,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
@@ -86,6 +90,8 @@ function parseServerEnv() {
   return {
     formWebhookUrl: result.data.FORM_WEBHOOK_URL,
     conversionApiSecret: result.data.CONVERSION_API_SECRET,
+    googlePlacesApiKey: result.data.GOOGLE_PLACES_API_KEY,
+    googlePlaceId: result.data.GOOGLE_PLACE_ID,
     upstashRedisUrl: result.data.UPSTASH_REDIS_REST_URL,
     upstashRedisToken: result.data.UPSTASH_REDIS_REST_TOKEN,
     turnstileSecretKey: result.data.TURNSTILE_SECRET_KEY,

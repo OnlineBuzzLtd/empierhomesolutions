@@ -73,8 +73,10 @@ export default async function CustomerDetailPage({
 
   const { customer, jobs, leads, notes, assets, attachments } = detail;
   const sites = detail.sites ?? [];
-  const canManageSites = getCrmEnv().multiSiteEnabled
-    && ["management", "admin", "sales"].includes(session.profile?.role ?? "");
+  const env = getCrmEnv();
+  const hasSiteEditRole = ["management", "admin", "sales"].includes(session.profile?.role ?? "");
+  const canEditSites = hasSiteEditRole && (env.siteEditingEnabled || env.multiSiteEnabled);
+  const canManageSites = hasSiteEditRole && env.multiSiteEnabled;
   const siteContacts = detail.siteContacts ?? [];
   const primarySite = sites.find((site) => site.is_primary) ?? sites[0] ?? null;
   const primarySiteContact =
@@ -179,6 +181,17 @@ export default async function CustomerDetailPage({
             submitLabel="Update Customer"
             className="grid gap-3"
           >
+            <p className="text-sm text-slate-600">
+              Customer and job site addresses are saved separately.
+              {canEditSites && sites.length > 0 ? (
+                <>
+                  {" "}To change where an engineer should attend,{" "}
+                  <a href="#customer-sites" className="font-semibold text-blue-700 underline">
+                    edit the site address below
+                  </a>.
+                </>
+              ) : null}
+            </p>
             <input
               name="full_name"
               defaultValue={customer.full_name}
@@ -296,8 +309,12 @@ export default async function CustomerDetailPage({
         </SectionCard>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div id="customer-sites" className="grid scroll-mt-6 gap-6 xl:grid-cols-2">
         <SectionCard title={`Sites (${sites.length})`}>
+          <p className="mb-3 text-sm text-slate-600">
+            Engineers use the address of the site linked to their job. Editing a site updates the
+            address shown on all jobs linked to it.
+          </p>
           {sites.length === 0 ? (
             <EmptyState message="No structured sites recorded yet." />
           ) : (
@@ -327,9 +344,9 @@ export default async function CustomerDetailPage({
                       {site.parking_notes || "No parking notes."}
                     </p>
                   </div>
-                  {canManageSites ? (
+                  {canEditSites ? (
                     <div className="mt-4 space-y-3">
-                      {!site.is_primary ? (
+                      {canManageSites && !site.is_primary ? (
                         <ApiForm endpoint={`/api/crm/sites/${site.id}`} method="PATCH" submitLabel="Set primary">
                           <input type="hidden" name="is_primary" value="true" />
                         </ApiForm>

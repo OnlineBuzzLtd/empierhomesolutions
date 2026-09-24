@@ -44,6 +44,7 @@ export function getCrmEnv() {
   const cronSecret = normalizeEnv(process.env.CRON_SECRET);
 
   return {
+    siteEditingEnabled: process.env.CRM_SITE_EDITING_ENABLED !== "false",
     multiSiteEnabled: process.env.CRM_MULTISITE_ENABLED === "true",
     url,
     publishableKey,

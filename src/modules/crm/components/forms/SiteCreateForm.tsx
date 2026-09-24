@@ -7,6 +7,7 @@ export function SiteCreateForm({ customerId, site }: { customerId: string; site?
       endpoint={site ? `/api/crm/sites/${site.id}` : "/api/crm/sites"}
       method={site ? "PATCH" : "POST"}
       submitLabel={site ? "Save Site" : "Add Site"}
+      invalidatePaths={["/api/crm/customers", "/api/crm/jobs", "/api/crm/dashboard/summary"]}
       className="space-y-3"
     >
       {!site ? <input type="hidden" name="customer_id" value={customerId} /> : null}

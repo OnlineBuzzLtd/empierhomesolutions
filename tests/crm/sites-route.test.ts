@@ -3,13 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const CUSTOMER = "11111111-1111-4111-8111-111111111111";
 const SITE = "22222222-2222-4222-8222-222222222222";
 const TENANT = "33333333-3333-4333-8333-333333333333";
-const h = vi.hoisted(() => ({ auth: vi.fn(), from: vi.fn(), rpc: vi.fn(), enabled: true }));
+const h = vi.hoisted(() => ({ auth: vi.fn(), from: vi.fn(), rpc: vi.fn(), enabled: true, editing: true }));
 vi.mock("@/modules/crm/lib/api", () => ({
   requireCrmApiUser: h.auth,
   jsonError: (error: string, status = 400) => Response.json({ error }, { status }),
   jsonSuccess: (data: object) => Response.json({ ok: true, ...data }),
 }));
-vi.mock("@/modules/crm/lib/env", () => ({ getCrmEnv: () => ({ multiSiteEnabled: h.enabled }) }));
+vi.mock("@/modules/crm/lib/env", () => ({
+  getCrmEnv: () => ({ multiSiteEnabled: h.enabled, siteEditingEnabled: h.editing }),
+}));
 import { POST } from "@/app/api/crm/sites/route";
 import { PATCH, DELETE } from "@/app/api/crm/sites/[id]/route";
 
@@ -36,6 +38,7 @@ describe("site management routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.enabled = true;
+    h.editing = true;
     h.auth.mockResolvedValue({
       session: {
         tenant: { id: TENANT },
@@ -101,11 +104,50 @@ describe("site management routes", () => {
     expect(h.from).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves primary status when only the address changes", async () => {
+  it("edits the primary site's address with multi-site off, preserving its identity and primary status", async () => {
+    h.enabled = false;
+    const address = {
+      address_line1: "2 Example Road",
+      address_line2: "Flat 1",
+      city: "Uxbridge",
+      postcode: "UB8 1AA",
+      access_notes: "Use the front door",
+      parking_notes: "Driveway",
+    };
+    const saved = { id: SITE, customer_id: CUSTOMER, is_primary: true, ...address };
+    const site = query({ data: saved, error: null });
+    h.from.mockReturnValue(site);
+    const response = await PATCH(request("PATCH", { ...address, postcode: " UB8 1AA " }), ctx);
+    expect(response!.status).toBe(200);
+    expect(await response!.json()).toEqual({ ok: true, site: saved });
+    expect(h.auth).toHaveBeenCalledWith(["management", "admin", "sales"]);
+    expect(h.from).toHaveBeenCalledExactlyOnceWith("sites");
+    expect(site.update).toHaveBeenCalledExactlyOnceWith(address);
+    expect(site.eq.mock.calls).toEqual([
+      ["id", SITE],
+      ["tenant_id", TENANT],
+    ]);
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false, "true", "false"])(
+    "rejects primary changes (%s), including mixed address edits, while multi-site is off",
+    async (is_primary) => {
+      h.enabled = false;
+      const response = await PATCH(request("PATCH", { is_primary, address_line1: "2 Example Road" }), ctx);
+      expect(response!.status).toBe(404);
+      expect(h.from).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows clearing optional site address fields", async () => {
+    h.enabled = false;
     const site = query({ data: { id: SITE }, error: null });
     h.from.mockReturnValue(site);
-    await PATCH(request("PATCH", { postcode: " UB8 1AA " }), ctx);
-    expect(site.update).toHaveBeenCalledWith({ postcode: "UB8 1AA" });
+    expect((await PATCH(request("PATCH", { address_line2: "", parking_notes: null }), ctx))!.status).toBe(
+      200,
+    );
+    expect(site.update).toHaveBeenCalledWith({ address_line2: "", parking_notes: null });
   });
 
   it.each([{ customer_id: CUSTOMER }, { tenant_id: TENANT }, {}])(
@@ -138,14 +180,35 @@ describe("site management routes", () => {
     expect((await DELETE(request("DELETE"), ctx))!.status).toBe(409);
   });
 
-  it("gates all mutations until the migration is deployed", async () => {
+  it("keeps creation and deletion gated when only address editing is enabled", async () => {
     h.enabled = false;
     expect((await POST(request("POST", {})))!.status).toBe(404);
-    expect((await PATCH(request("PATCH", {}), ctx))!.status).toBe(404);
     expect((await DELETE(request("DELETE"), ctx))!.status).toBe(404);
     expect(h.from).not.toHaveBeenCalled();
     expect(h.rpc).not.toHaveBeenCalled();
   });
+
+  it("blocks address edits when both flags are off (rollback)", async () => {
+    h.enabled = false;
+    h.editing = false;
+    expect((await PATCH(request("PATCH", { postcode: "UB8 1AA" }), ctx))!.status).toBe(404);
+    expect(h.from).not.toHaveBeenCalled();
+  });
+
+  it("preserves existing multi-site editing when the address rollout is off", async () => {
+    h.editing = false;
+    h.from.mockReturnValue(query({ data: { id: SITE }, error: null }));
+    expect((await PATCH(request("PATCH", { postcode: "UB8 1AA" }), ctx))!.status).toBe(200);
+  });
+
+  it.each([null, [], { postcode: "X".repeat(17) }, { id: SITE }])(
+    "rejects invalid edits with multi-site off: %j",
+    async (body) => {
+      h.enabled = false;
+      expect((await PATCH(request("PATCH", body), ctx))!.status).toBe(400);
+      expect(h.from).not.toHaveBeenCalled();
+    },
+  );
 
   it("stops at authorization failures", async () => {
     h.auth.mockResolvedValue({ error: Response.json({ error: "Forbidden" }, { status: 403 }) });

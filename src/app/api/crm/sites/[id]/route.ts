@@ -9,12 +9,20 @@ type Context = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: Context) {
   const auth = await requireCrmApiUser(["management", "admin", "sales"]);
   if ("error" in auth) return auth.error;
-  if (!getCrmEnv().multiSiteEnabled) return jsonError("Site management is not enabled.", 404);
+  const env = getCrmEnv();
+  if (!env.siteEditingEnabled && !env.multiSiteEnabled) {
+    return jsonError("Site editing is not enabled.", 404);
+  }
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) return jsonError("Invalid site ID.");
   const parsed = sitePatchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError(parsed.error.issues[0]?.message ?? "Invalid site payload.");
   if (!Object.keys(parsed.data).length) return jsonError("No site changes supplied.");
+  // Address and notes edits work on the existing schema. Changing primaries
+  // still needs the multi-site migration's uniqueness constraint and trigger.
+  if (parsed.data.is_primary !== undefined && !env.multiSiteEnabled) {
+    return jsonError("Changing the primary site is not enabled.", 404);
+  }
 
   const { supabase, tenant } = auth.session;
   const { data, error } = await supabase

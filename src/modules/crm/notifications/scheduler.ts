@@ -190,6 +190,23 @@ export async function dispatchDueNotifications(
   for (const row of ((data ?? []) as ScheduledNotificationRow[]).filter((candidate) => {
     return !candidate.next_attempt_at || new Date(candidate.next_attempt_at).getTime() <= now.getTime();
   })) {
+    // The shared owner is changed only after the legacy cron is disabled and drained.
+    if (
+      process.env.CRM_V2_DISPATCH_HANDOFF_ENABLED === "true" &&
+      row.tenant_id === "11111111-1111-4111-8111-111111111111"
+    ) {
+      const { data: owner, error: ownerError } = await supabase
+        .schema("crm")
+        .from("tenant_settings")
+        .select("v2_dispatcher_owner")
+        .eq("tenant_id", row.tenant_id)
+        .maybeSingle();
+      if (ownerError) throw ownerError; // Fail closed during a migration/configuration mismatch.
+      if (owner?.v2_dispatcher_owner === "v2") {
+        skipped++;
+        continue;
+      }
+    }
     const attempts = row.attempts + 1;
     try {
       if (row.is_test && !options.allowTestDispatch) {
@@ -209,7 +226,13 @@ export async function dispatchDueNotifications(
         continue;
       }
 
-      if (await isContactOptedOut(supabase, { tenantId: row.tenant_id, contact: row.recipient, channel: row.channel })) {
+      if (
+        await isContactOptedOut(supabase, {
+          tenantId: row.tenant_id,
+          contact: row.recipient,
+          channel: row.channel,
+        })
+      ) {
         const { error: updateError } = await supabase
           .schema("crm")
           .from("scheduled_notifications")

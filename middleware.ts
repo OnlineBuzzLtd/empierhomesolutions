@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateCrmSession } from "@/modules/crm/lib/supabase-middleware";
 import { applySecurityHeaders, generateNonce } from "@/lib/security-headers";
+import { handleCrmV2Cutover } from "@/lib/crm-v2-cutover";
 import { resolveTenantFromHost } from "@/lib/tenant-host";
 
 const CRM_PROTECTED_PATH_PATTERN =
@@ -13,6 +14,8 @@ function shouldRunCrmSession(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const nonce = generateNonce();
   const pathname = request.nextUrl.pathname;
+  const cutover = await handleCrmV2Cutover(request);
+  if (cutover) return applySecurityHeaders(request, cutover, nonce);
 
   // Tenant resolver (Phase 3.1 of the enterprise multi-tenant hardening
   // plan). We parse the host header here so every request arrives at the

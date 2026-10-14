@@ -28,6 +28,8 @@ type QuoteFormProps = {
   location?: string;
   leadType?: "repair" | "install" | "power-flush";
   heading?: string;
+  /** Overrides the wrapping section's layout classes, e.g. to sit inside a column. */
+  className?: string;
 };
 
 export function QuoteForm({
@@ -35,6 +37,7 @@ export function QuoteForm({
   location,
   leadType = "repair",
   heading = "Book now - request a callback",
+  className,
 }: QuoteFormProps) {
   const [submitState, setSubmitState] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -166,7 +169,7 @@ export function QuoteForm({
   });
 
   return (
-    <Section title={heading} subtitle="Share your details and we will call you back.">
+    <Section title={heading} subtitle="Share your details and we will call you back." className={className}>
       <form
         id="lead-form"
         className="space-y-4 rounded-xl border border-slate-200 border-t-4 border-t-[var(--ehs-brand-accent)] bg-white p-5 shadow-[var(--ehs-card-shadow)]"

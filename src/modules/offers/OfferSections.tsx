@@ -1,5 +1,6 @@
-import { CalendarCheck, Headset, MessageCircle, PhoneCall, PoundSterling, ShieldCheck, Trash2, Wrench } from "lucide-react";
+import { CalendarCheck, Headset, MessageCircle, PoundSterling, ShieldCheck, Trash2, Wrench } from "lucide-react";
 import { businessDetails } from "@/lib/business";
+import { OfferCallLink } from "@/modules/offers/OfferCallLink";
 import { Section } from "@/modules/ui/Section";
 
 const serviceIncludes = [
@@ -11,56 +12,74 @@ const serviceIncludes = [
   { label: "Same or next day booking", icon: CalendarCheck },
 ];
 
-export function ServiceIncludesSection() {
+const steps = [
+  { title: "Claim your offer", body: "Call us or send the short form. It takes under a minute." },
+  { title: "We confirm the price", body: "We call you back, agree a time and confirm the price before any work starts." },
+  { title: "A Gas Safe engineer visits", body: "Our own engineer does the work, explains what they did and leaves your home tidy." },
+];
+
+export function HowItWorksSection() {
   return (
-    <Section title="All our services include" subtitle="Experienced engineers. Get it right first time.">
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        {serviceIncludes.map(({ label, icon: Icon }) => (
+    <Section title="How it works" subtitle="Three simple steps, no surprises.">
+      <ol className="grid gap-3 md:grid-cols-3 md:gap-4">
+        {steps.map((step, index) => (
           <li
-            key={label}
-            className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-4 text-center text-sm font-semibold text-[var(--ehs-brand-dark)] shadow-[var(--ehs-card-shadow)]"
+            key={step.title}
+            className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--ehs-card-shadow)] md:block md:p-5"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--ehs-brand-accent-soft)]">
-              <Icon size={20} aria-hidden className="text-[var(--ehs-brand-accent)]" />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--ehs-brand-accent)] text-sm font-bold text-white">
+              {index + 1}
             </span>
-            {label}
+            <div>
+              <h3 className="text-base font-bold text-[var(--ehs-brand-dark)] md:mt-3">{step.title}</h3>
+              <p className="mt-1 text-sm text-slate-600">{step.body}</p>
+            </div>
           </li>
         ))}
-      </ul>
+      </ol>
     </Section>
   );
 }
 
-export function OfferContactBand() {
+export function ServiceIncludesStrip() {
+  return (
+    <section className="border-y border-slate-200 bg-white">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6">
+        <p className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">All our services include</p>
+        <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
+          {serviceIncludes.map(({ label, icon: Icon }) => (
+            <li key={label} className="flex items-center gap-2 text-sm font-semibold text-[var(--ehs-brand-dark)]">
+              <Icon size={18} aria-hidden className="shrink-0 text-[var(--ehs-brand-accent)]" />
+              {label}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+export function OfferCtaBand({ title = "Ready to book?" }: { title?: string }) {
   return (
     <section className="bg-[var(--ehs-brand-dark)] text-white">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:grid-cols-[1.2fr_1fr] md:items-center md:py-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-10 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ehs-brand-accent-soft)]">
-            Get a free quote today
-          </p>
-          <p className="mt-1 text-3xl font-bold tracking-tight md:text-4xl">{businessDetails.primaryPhoneDisplay}</p>
-          <p className="mt-2 text-sm text-slate-200">
+          <h2 className="text-2xl font-bold md:text-3xl">{title}</h2>
+          <p className="mt-1 text-sm text-slate-300">
             Gas Safe registered ({businessDetails.gasSafeNumber}) and fully insured. Covering{" "}
             {businessDetails.coverageRegions.join(", ")}.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <a
-            href={`tel:${businessDetails.primaryPhoneRaw}`}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--ehs-brand-accent)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-          >
-            <PhoneCall size={16} aria-hidden />
-            Call now
-          </a>
+        <div className="grid gap-3 sm:grid-cols-2 md:shrink-0">
+          <OfferCallLink className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--ehs-brand-accent)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90" />
           <a
             href={businessDetails.whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/40 bg-white px-4 py-3 text-sm font-semibold text-[var(--ehs-brand-dark)] transition hover:opacity-90"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-[var(--ehs-brand-dark)] transition hover:opacity-90"
           >
             <MessageCircle size={16} aria-hidden />
-            Message us on WhatsApp
+            WhatsApp us
           </a>
         </div>
       </div>

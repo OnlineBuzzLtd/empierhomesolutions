@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { OfferPriceCard } from "@/modules/offers/OfferPriceCard";
-import { formatOfferPrice, getOffer, isOfferLive, offers, offerView } from "@/modules/offers/offers";
+import { daysLeftToBook, formatOfferPrice, getOffer, isOfferLive, offers, offerView } from "@/modules/offers/offers";
 
 function offer(slug: string) {
   const found = getOffer(slug);
@@ -27,6 +27,21 @@ describe("heating offers", () => {
     // 30 October 2026 is after the clocks go back, so UK time is GMT.
     expect(isOfferLive(flush, new Date("2026-10-30T23:59:00Z"))).toBe(true);
     expect(isOfferLive(flush, new Date("2026-10-31T00:00:00Z"))).toBe(false);
+  });
+
+  it("counts the UK days left to book, including the final day", () => {
+    const flush = offer("power-flush");
+    expect(daysLeftToBook(flush, new Date("2026-10-14T09:00:00Z"))).toBe(17);
+    // BST ends on 25 October, so 23:30 UTC on 29 October is still 29 October in the UK.
+    expect(daysLeftToBook(flush, new Date("2026-10-29T23:30:00Z"))).toBe(2);
+    expect(daysLeftToBook(flush, new Date("2026-10-30T08:00:00Z"))).toBe(1);
+    expect(daysLeftToBook(flush, new Date("2026-10-31T00:00:00Z"))).toBe(0);
+    expect(daysLeftToBook(offer("boiler-service"), new Date("2026-10-14T09:00:00Z"))).toBeNull();
+  });
+
+  it("counts by UK date while clocks are on BST", () => {
+    // 23:30 UTC on 14 October is 00:30 BST on 15 October: one day fewer left.
+    expect(daysLeftToBook(offer("power-flush"), new Date("2026-10-14T23:30:00Z"))).toBe(16);
   });
 
   it("never expires the standing £79 prices", () => {

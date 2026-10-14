@@ -1,12 +1,24 @@
-import type { FAQItem, HeroContent } from "@/modules/lp/types";
+import type { FAQItem } from "@/modules/lp/types";
 
 export type OfferSlug = "boiler-repair" | "boiler-service" | "power-flush";
+
+/** Icon keys resolved to lucide icons by the offer components. */
+export type OfferIcon = "wrench" | "flame" | "droplets";
+
+type OfferHero = {
+  eyebrow: string;
+  headline: string;
+  subline: string;
+};
+
+type OfferReason = { title: string; body: string };
 
 export type Offer = {
   slug: OfferSlug;
   /** Short card title, as printed on the flyer. */
   title: string;
   tagline: string;
+  icon: OfferIcon;
   /** Price label shown above the amount, e.g. "From" or "Only". */
   priceLead?: string;
   /** Net price in pounds, before VAT. Omitted for discount-only offers. */
@@ -19,14 +31,15 @@ export type Offer = {
   bookBy?: string;
   priceNote: string;
   included: string[];
-  hero: Pick<HeroContent, "eyebrow" | "headline" | "subline" | "heroImage">;
+  hero: OfferHero;
+  reasons: { title: string; items: OfferReason[] };
   /** Recorded on the CRM enquiry so the office knows which offer was claimed. */
   lead: { leadType: "repair" | "power-flush"; service: string };
   faqs: FAQItem[];
   seo: { title: string; description: string };
   /** Copy that replaces the offer once its book-by date has passed. */
   ended?: {
-    hero: Pick<HeroContent, "eyebrow" | "headline" | "subline">;
+    hero: OfferHero;
     seo: { title: string; description: string };
     priceNote: string;
     /** FAQ ids that only make sense while the offer is running. */
@@ -39,6 +52,7 @@ export const offers: Offer[] = [
     slug: "boiler-repair",
     title: "Boiler repairs",
     tagline: "Get it fixed from",
+    icon: "wrench",
     priceLead: "From",
     priceNet: 79,
     priceNote: "Fast, reliable repairs to get your heating back on track.",
@@ -52,13 +66,15 @@ export const offers: Offer[] = [
       eyebrow: "Heating offer",
       headline: "Boiler repairs from £79 + VAT",
       subline:
-        "Fault finding, diagnosis and labour for minor repairs from a Gas Safe engineer, with same day or next day booking.",
-      heroImage: {
-        src: "/images/boiler-engineer.jpg",
-        alt: "Empire Home Solutions engineer repairing a boiler",
-        width: 720,
-        height: 480,
-      },
+        "No heating or hot water? A Gas Safe engineer will find the fault and fix minor repairs with labour included, with same day or next day booking.",
+    },
+    reasons: {
+      title: "Faults we fix every week",
+      items: [
+        { title: "No heating or hot water", body: "We trace the fault and get your boiler running again." },
+        { title: "Boiler lockouts and error codes", body: "We diagnose the code and fix the cause, not just reset it." },
+        { title: "Low pressure and leaks", body: "We find where the pressure is going and stop it." },
+      ],
     },
     lead: { leadType: "repair", service: "Offer: boiler repair from £79 + VAT" },
     faqs: [
@@ -89,6 +105,7 @@ export const offers: Offer[] = [
     slug: "boiler-service",
     title: "Full boiler service",
     tagline: "Keep your home safe and efficient",
+    icon: "flame",
     priceLead: "Only",
     priceNet: 79,
     priceNote: "Better performance, greater peace of mind.",
@@ -102,13 +119,15 @@ export const offers: Offer[] = [
       eyebrow: "Heating offer",
       headline: "Full boiler service only £79 + VAT",
       subline:
-        "Keep your home safe and efficient. A yearly service helps prevent breakdowns and keeps your manufacturer warranty valid.",
-      heroImage: {
-        src: "/images/plumber-smiling.jpg",
-        alt: "Empire Home Solutions engineer ready to service a boiler",
-        width: 720,
-        height: 480,
-      },
+        "Keep your home safe and efficient before winter. A yearly service helps prevent breakdowns and keeps your manufacturer warranty valid.",
+    },
+    reasons: {
+      title: "Why service your boiler every year",
+      items: [
+        { title: "Stay safe", body: "We check your boiler is burning safely and venting properly." },
+        { title: "Avoid winter breakdowns", body: "Small faults are caught early, before they leave you without heat." },
+        { title: "Keep your warranty", body: "Most manufacturers need a yearly service to keep the warranty valid." },
+      ],
     },
     lead: { leadType: "repair", service: "Offer: full boiler service £79 + VAT" },
     faqs: [
@@ -126,7 +145,7 @@ export const offers: Offer[] = [
       {
         id: "offer-service-booking",
         question: "How do I book?",
-        answer: "Call us, message us on WhatsApp, or send the form below and we will confirm a time that suits you.",
+        answer: "Call us, message us on WhatsApp, or send the form and we will confirm a time that suits you.",
       },
     ],
     seo: {
@@ -139,10 +158,11 @@ export const offers: Offer[] = [
     slug: "power-flush",
     title: "Power flush",
     tagline: "Improve, protect, save",
+    icon: "droplets",
     discountLabel: "£100 off",
     discountExtra: "+ a free boiler service",
     bookBy: "2026-10-30",
-    priceNote: "Limited time offer: £100 off a power flush plus a free boiler service.",
+    priceNote: "£100 off a power flush plus a free boiler service.",
     included: [
       "Removes sludge, rust and limescale",
       "Restores heating efficiency for lower energy bills",
@@ -153,13 +173,15 @@ export const offers: Offer[] = [
       eyebrow: "Limited time offer",
       headline: "£100 off a power flush + a free boiler service",
       subline:
-        "Clear out sludge, rust and limescale so your radiators heat evenly and your boiler works less hard.",
-      heroImage: {
-        src: "/images/powerflush-shane.jpg",
-        alt: "Empire Home Solutions engineer carrying out a power flush",
-        width: 720,
-        height: 480,
-      },
+        "Clear out the sludge, rust and limescale so your radiators heat evenly and your boiler works less hard. We service your boiler on the same visit.",
+    },
+    reasons: {
+      title: "Signs your system needs a power flush",
+      items: [
+        { title: "Cold spots on radiators", body: "Radiators warm at the top but stay cold at the bottom." },
+        { title: "A noisy boiler", body: "Banging or kettling sounds from sludge restricting the flow." },
+        { title: "Slow to heat up", body: "Rooms take longer to warm and your energy bills creep up." },
+      ],
     },
     lead: { leadType: "power-flush", service: "Offer: power flush £100 off + free boiler service" },
     faqs: [
@@ -191,7 +213,7 @@ export const offers: Offer[] = [
         eyebrow: "Heating and Gas Engineers",
         headline: "Power flushing from a Gas Safe engineer",
         subline:
-          "Clear out sludge, rust and limescale so your radiators heat evenly and your boiler works less hard.",
+          "Clear out the sludge, rust and limescale so your radiators heat evenly and your boiler works less hard.",
       },
       seo: {
         title: "Power Flushing | Empire Home Solutions",
@@ -204,6 +226,36 @@ export const offers: Offer[] = [
   },
 ];
 
+export function getOffer(slug: string): Offer | null {
+  return offers.find((offer) => offer.slug === slug) ?? null;
+}
+
+/** Today's calendar date in the UK as YYYY-MM-DD. */
+function ukDate(now: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/**
+ * True until the end of the offer's book-by day in UK time. Offers without a
+ * book-by date are standing prices and never expire.
+ */
+export function isOfferLive(offer: Offer, now: Date = new Date()): boolean {
+  return !offer.bookBy || ukDate(now) <= offer.bookBy;
+}
+
+/** UK calendar days left to book, counting the final day; null for standing offers. */
+export function daysLeftToBook(offer: Offer, now: Date = new Date()): number | null {
+  if (!offer.bookBy) return null;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const days = (Date.parse(`${offer.bookBy}T00:00:00Z`) - Date.parse(`${ukDate(now)}T00:00:00Z`)) / dayMs + 1;
+  return Math.max(0, days);
+}
+
 /** The copy to show for an offer right now, falling back once it has ended. */
 export function offerView(offer: Offer, now: Date = new Date()) {
   const live = isOfferLive(offer, now);
@@ -213,30 +265,11 @@ export function offerView(offer: Offer, now: Date = new Date()) {
   const { ended } = offer;
   return {
     live,
-    hero: { ...offer.hero, ...ended.hero },
+    hero: ended.hero,
     seo: ended.seo,
     priceNote: ended.priceNote,
     faqs: offer.faqs.filter((faq) => !ended.dropFaqIds.includes(faq.id)),
   };
-}
-
-export function getOffer(slug: string): Offer | null {
-  return offers.find((offer) => offer.slug === slug) ?? null;
-}
-
-/**
- * True until the end of the offer's book-by day in UK time. Offers without a
- * book-by date are standing prices and never expire.
- */
-export function isOfferLive(offer: Offer, now: Date = new Date()): boolean {
-  if (!offer.bookBy) return true;
-  const todayInUk = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-  return todayInUk <= offer.bookBy;
 }
 
 export function formatBookBy(offer: Offer): string | null {

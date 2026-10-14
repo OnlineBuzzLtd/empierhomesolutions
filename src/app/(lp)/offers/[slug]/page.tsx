@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { businessDetails } from "@/lib/business";
+import { ArrowRight } from "lucide-react";
 import { publicEnv } from "@/lib/env";
 import { lpSocialImage } from "@/modules/lp/social-image";
 import { FaqSection } from "@/modules/lp/components/FaqSection";
-import { HeroSection } from "@/modules/lp/components/HeroSection";
 import { QuoteForm } from "@/modules/lp/components/QuoteForm";
 import { GoogleReviewsSection } from "@/modules/lp/reviews/GoogleReviewsSection";
-import { LiveGoogleRating } from "@/modules/lp/reviews/LiveGoogleRating";
-import { OfferPriceCard } from "@/modules/offers/OfferPriceCard";
-import { OfferContactBand, ServiceIncludesSection } from "@/modules/offers/OfferSections";
-import { getOffer, offers, offerView } from "@/modules/offers/offers";
+import { OfferCallLink } from "@/modules/offers/OfferCallLink";
+import { OfferHero } from "@/modules/offers/OfferHero";
+import { OfferPrice, offerIcons } from "@/modules/offers/OfferPriceCard";
+import { HowItWorksSection, OfferCtaBand, ServiceIncludesStrip } from "@/modules/offers/OfferSections";
+import { getOffer, offers, offerView, type Offer } from "@/modules/offers/offers";
 import { Section } from "@/modules/ui/Section";
 
 export const revalidate = 3600;
@@ -39,6 +39,89 @@ export async function generateMetadata({ params }: RouteProps): Promise<Metadata
   };
 }
 
+function ReasonsSection({ offer }: { offer: Offer }) {
+  return (
+    <Section title={offer.reasons.title}>
+      <div className="grid gap-4 md:grid-cols-3">
+        {offer.reasons.items.map((reason) => (
+          <article
+            key={reason.title}
+            className="rounded-2xl border border-slate-200 border-t-4 border-t-[var(--ehs-brand-accent)] bg-white p-5 shadow-[var(--ehs-card-shadow)]"
+          >
+            <h3 className="text-base font-bold text-[var(--ehs-brand-dark)]">{reason.title}</h3>
+            <p className="mt-1 text-sm text-slate-600">{reason.body}</p>
+          </article>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function ClaimSection({ offer, now }: { offer: Offer; now: Date }) {
+  const view = offerView(offer, now);
+  return (
+    <section className="bg-[var(--ehs-panel)]">
+      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-10 md:py-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+        <aside className="rounded-2xl bg-[var(--ehs-brand-dark)] p-6 text-white shadow-[var(--ehs-card-shadow)] lg:sticky lg:top-36">
+          <p className="text-xs font-bold uppercase tracking-wider text-[var(--ehs-brand-accent-soft)]">
+            {view.live ? "You are claiming" : "You are booking"}
+          </p>
+          <h2 className="mt-1 text-2xl font-bold">{offer.title}</h2>
+          <div className="mt-4">
+            <OfferPrice offer={offer} now={now} tone="dark" />
+          </div>
+          <hr className="my-5 border-white/15" />
+          <p className="text-sm text-slate-200">
+            Send the form and we will call you back to agree a time. Prefer to talk now?
+          </p>
+          <OfferCallLink className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-[var(--ehs-brand-dark)] transition hover:opacity-90" />
+        </aside>
+        <QuoteForm
+          className="max-w-none px-0 py-0 md:py-0"
+          service={offer.lead.service}
+          leadType={offer.lead.leadType}
+          heading={view.live ? "Claim this offer" : "Request a callback"}
+        />
+      </div>
+    </section>
+  );
+}
+
+function MoreOffers({ current }: { current: Offer }) {
+  return (
+    <Section title="More heating offers">
+      <div className="grid gap-4 md:grid-cols-2">
+        {offers
+          .filter((item) => item.slug !== current.slug)
+          .map((item) => {
+            const Icon = offerIcons[item.icon];
+            return (
+              <Link
+                key={item.slug}
+                href={`/offers/${item.slug}`}
+                prefetch={false}
+                className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--ehs-card-shadow)] transition hover:border-[var(--ehs-brand-accent)]"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--ehs-brand-dark)] text-white">
+                  <Icon size={24} aria-hidden />
+                </span>
+                <span className="flex-1">
+                  <span className="block text-base font-bold text-[var(--ehs-brand-dark)]">{item.title}</span>
+                  <span className="block text-sm text-slate-600">{offerView(item).hero.headline}</span>
+                </span>
+                <ArrowRight
+                  size={20}
+                  aria-hidden
+                  className="shrink-0 text-[var(--ehs-brand-accent)] transition group-hover:translate-x-1"
+                />
+              </Link>
+            );
+          })}
+      </div>
+    </Section>
+  );
+}
+
 export default async function OfferPage({ params }: RouteProps) {
   const offer = getOffer((await params).slug);
   if (!offer) {
@@ -47,68 +130,18 @@ export default async function OfferPage({ params }: RouteProps) {
 
   const now = new Date();
   const view = offerView(offer, now);
-  const otherOffers = offers.filter((item) => item.slug !== offer.slug);
 
   return (
     <>
-      <HeroSection
-        hero={{
-          ...view.hero,
-          primaryCta: "Call Now",
-          secondaryCta: "Book Now",
-          responseTimeBadge: businessDetails.emergencyHours,
-        }}
-        cta={{ callLabel: "Call Now", quoteLabel: view.live ? "Claim this offer" : "Book Now" }}
-        proofLine={
-          <>
-            Gas Safe {businessDetails.gasSafeNumber} |&nbsp;
-            <LiveGoogleRating
-              fallbackRating={businessDetails.googleRatingValue}
-              fallbackCount={businessDetails.googleReviewCount}
-            />
-            &nbsp;| {businessDetails.emergencyHours}
-          </>
-        }
-      />
-
-      <Section title="What you get" subtitle="Prices are shown plus VAT with the including-VAT total alongside.">
-        <div className="grid gap-6 md:grid-cols-[minmax(0,380px)_1fr] md:items-start">
-          <OfferPriceCard offer={offer} now={now} />
-          <div className="rounded-xl border border-slate-200 border-t-4 border-t-[var(--ehs-brand-accent)] bg-white p-5 text-sm leading-relaxed text-slate-700 shadow-[var(--ehs-card-shadow)] md:text-base">
-            <p>{view.hero.subline}</p>
-            <p className="mt-3">
-              Every job is carried out by our own Gas Safe registered engineers. We confirm the price with you before
-              any work starts, so there are no surprises.
-            </p>
-            <p className="mt-3 font-semibold text-[var(--ehs-brand-dark)]">
-              Call {businessDetails.primaryPhoneDisplay} or send the form below and we will be in touch to book you in.
-            </p>
-          </div>
-        </div>
-      </Section>
-
-      <ServiceIncludesSection />
+      <OfferHero offer={offer} now={now} />
+      <ServiceIncludesStrip />
+      <ReasonsSection offer={offer} />
+      <HowItWorksSection />
       <GoogleReviewsSection />
+      <ClaimSection offer={offer} now={now} />
       <FaqSection faqs={view.faqs} />
-      <OfferContactBand />
-      <QuoteForm
-        service={offer.lead.service}
-        leadType={offer.lead.leadType}
-        heading={view.live ? "Claim this offer - request a callback" : undefined}
-      />
-
-      <Section title="More heating offers">
-        <div className="grid gap-4 md:grid-cols-2">
-          {otherOffers.map((item) => (
-            <OfferPriceCard key={item.slug} offer={item} now={now} href={`/offers/${item.slug}`} />
-          ))}
-        </div>
-        <p className="mt-6 text-sm">
-          <Link href="/offers" prefetch={false} className="font-semibold text-[var(--ehs-brand-accent)] underline">
-            See all our heating offers
-          </Link>
-        </p>
-      </Section>
+      <MoreOffers current={offer} />
+      <OfferCtaBand />
     </>
   );
 }

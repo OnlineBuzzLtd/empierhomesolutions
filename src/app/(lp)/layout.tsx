@@ -74,6 +74,12 @@ export default function LpLayout({ children }: { children: ReactNode }) {
                 Home
               </Link>
               <Link
+                href="/offers"
+                className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md bg-[var(--ehs-brand-accent)] px-2 py-1 font-semibold text-white hover:opacity-90"
+              >
+                Offers
+              </Link>
+              <Link
                 href="/lp/boiler-repair/uxbridge"
                 className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
               >

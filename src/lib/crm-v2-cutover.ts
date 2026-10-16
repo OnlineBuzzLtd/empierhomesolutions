@@ -23,18 +23,19 @@ export async function handleCrmV2Cutover(request: NextRequest): Promise<NextResp
   const quotesEnabled = process.env.CRM_V2_QUOTES_ENABLED === "true";
   const ingressEnabled = process.env.CRM_V2_INGRESS_ENABLED === "true";
   if (
-    (quotesEnabled && /^\/(?:q|quotes)(?:\/|$)/.test(path)) ||
+    (quotesEnabled && /^\/(?:q|quotes|invoices)(?:\/|$)/.test(path)) ||
     (ingressEnabled && /^\/booking\//.test(path))
   ) {
     return NextResponse.redirect(new URL(path + request.nextUrl.search, origin), 307);
   }
   if (
     quotesEnabled &&
-    (/^\/api\/crm\/quotes(?:\/|$)/.test(path) || /^\/api\/crm\/jobs\/[^/]+\/draft-quote$/.test(path))
+    (/^\/api\/crm\/(?:quotes|invoices|invoice-schedules|payments)(?:\/|$)/.test(path) ||
+      /^\/api\/crm\/jobs\/[^/]+\/draft-quote$/.test(path))
   ) {
     return NextResponse.json(
       {
-        error: "Quotes are now managed in the new CRM. Open the link to continue.",
+        error: "Quotes and invoices are now managed in the new CRM. Open the link to continue.",
         redirect_url: new URL("/quotes", origin).toString(),
       },
       { status: 409, headers: { "cache-control": "no-store" } },

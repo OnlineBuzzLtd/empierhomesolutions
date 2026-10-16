@@ -28,7 +28,18 @@ describe("staged CRM cut-over", () => {
       expect((await handleCrmV2Cutover(req(path)))?.headers.get("location")).toBe(
         `https://new.example.test${path}`,
       );
-    for (const path of ["/api/crm/quotes/id", "/api/crm/quotes/id/convert", "/api/crm/jobs/id/draft-quote"])
+    for (const path of ["/invoices", "/invoices/uuid"])
+      expect((await handleCrmV2Cutover(req(path)))?.headers.get("location")).toBe(
+        `https://new.example.test${path}`,
+      );
+    for (const path of [
+      "/api/crm/quotes/id",
+      "/api/crm/quotes/id/convert",
+      "/api/crm/jobs/id/draft-quote",
+      "/api/crm/invoices/id",
+      "/api/crm/payments",
+      "/api/crm/invoice-schedules/id",
+    ])
       expect((await handleCrmV2Cutover(req(path, { method: "POST" })))?.status).toBe(409);
   });
   it("forwards one signed request without changing its body or provider headers", async () => {

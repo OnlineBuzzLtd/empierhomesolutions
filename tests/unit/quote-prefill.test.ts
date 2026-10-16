@@ -15,7 +15,11 @@ import {
 
 const JOB_ID = "11111111-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const CUSTOMER_ID = "22222222-cccc-4ccc-8ccc-cccccccccccc";
-const job = { id: JOB_ID, customer_id: CUSTOMER_ID, customer: { id: CUSTOMER_ID, full_name: "Hannah Mercer" } };
+const job = {
+  id: JOB_ID,
+  customer_id: CUSTOMER_ID,
+  customer: { id: CUSTOMER_ID, full_name: "Hannah Mercer" },
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -41,7 +45,9 @@ describe("quote prefill from a job link", () => {
 
   it("keeps the job and the open form when switching template", () => {
     expect(quoteCreateHref({ jobId: JOB_ID })).toBe(`/quotes?new=1&job=${JOB_ID}`);
-    expect(quoteCreateHref({ templateId: "t1", jobId: JOB_ID })).toBe(`/quotes?new=1&template=t1&job=${JOB_ID}`);
+    expect(quoteCreateHref({ templateId: "t1", jobId: JOB_ID })).toBe(
+      `/quotes?new=1&template=t1&job=${JOB_ID}`,
+    );
     expect(quoteCreateHref({})).toBe("/quotes?new=1");
   });
 
@@ -67,9 +73,12 @@ describe("quote prefill from a job link", () => {
     const requested: string[] = [];
     vi.stubGlobal("fetch", async (url: string) => {
       requested.push(url);
-      return new Response(JSON.stringify({ items: [{ id: JOB_ID, customer_id: CUSTOMER_ID, title: "Boiler swap" }] }), {
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ items: [{ id: JOB_ID, customer_id: CUSTOMER_ID, title: "Boiler swap" }] }),
+        {
+          headers: { "content-type": "application/json" },
+        },
+      );
     });
     const { QuoteCreateForm } = await import("@/modules/crm/components/forms/QuoteCreateForm");
 

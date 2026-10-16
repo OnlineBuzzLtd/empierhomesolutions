@@ -16,7 +16,13 @@ export function wantsQuoteCreatePanel(params: SearchParams) {
 
 // Template chips must keep the job, otherwise switching template drops the
 // prefill the user arrived with.
-export function quoteCreateHref({ templateId, jobId }: { templateId?: string | null; jobId?: string | null }) {
+export function quoteCreateHref({
+  templateId,
+  jobId,
+}: {
+  templateId?: string | null;
+  jobId?: string | null;
+}) {
   const search = new URLSearchParams({ new: "1" });
   if (templateId) search.set("template", templateId);
   if (jobId) search.set("job", jobId);
@@ -26,14 +32,20 @@ export function quoteCreateHref({ templateId, jobId }: { templateId?: string | n
 type CustomerOption = Pick<Customer, "id" | "full_name">;
 type PrefillJob = { id: string; customer_id: string; customer?: CustomerOption | null };
 
-export function applyJobToQuoteDraft(draft: Partial<Quote> | undefined, job: PrefillJob | null): Partial<Quote> | undefined {
+export function applyJobToQuoteDraft(
+  draft: Partial<Quote> | undefined,
+  job: PrefillJob | null,
+): Partial<Quote> | undefined {
   if (!job) return draft;
   return { ...draft, customer_id: job.customer_id, job_id: job.id };
 }
 
 // The customer dropdown is a capped page; make sure the job's customer is an
 // option so the preselection is visible and submitted.
-export function withJobCustomer<T extends CustomerOption>(customers: T[], job: PrefillJob | null): Array<T | CustomerOption> {
+export function withJobCustomer<T extends CustomerOption>(
+  customers: T[],
+  job: PrefillJob | null,
+): Array<T | CustomerOption> {
   if (!job?.customer || customers.some((customer) => customer.id === job.customer_id)) return customers;
   return [{ id: job.customer_id, full_name: job.customer.full_name }, ...customers];
 }

@@ -28,7 +28,7 @@ export function OfferPrice({ offer, now, tone = "light" }: { offer: Offer; now: 
   const strong = tone === "dark" ? "text-white" : "text-[var(--ehs-brand-dark-strong)]";
   const muted = tone === "dark" ? "text-slate-300" : "text-slate-600";
 
-  if (price) {
+  if (price && live) {
     return (
       <div>
         {offer.priceLead ? (
@@ -46,7 +46,7 @@ export function OfferPrice({ offer, now, tone = "light" }: { offer: Offer; now: 
         <p className={cn("text-xs font-semibold uppercase tracking-wider", muted)}>Save</p>
         <p className={cn("text-4xl font-extrabold tracking-tight md:text-5xl", strong)}>{offer.discountLabel}</p>
         {offer.discountExtra ? <p className={cn("mt-1 text-base font-semibold", strong)}>{offer.discountExtra}</p> : null}
-        {bookBy ? <p className={cn("mt-1 text-sm", muted)}>Book before {bookBy}</p> : null}
+        {bookBy ? <p className={cn("mt-1 text-sm", muted)}>Book by {bookBy} (inclusive, UK time)</p> : null}
       </div>
     );
   }

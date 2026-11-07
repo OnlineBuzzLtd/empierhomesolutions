@@ -1,3 +1,4 @@
+import { isEmpireWebsiteHost, ENQUIRY_FORM } from "@/modules/education/policy";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -20,6 +21,9 @@ const closeRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (isEmpireWebsiteHost(new URL(request.url).host)) {
+    return NextResponse.json({ ok: false, error: { code: "education_only", message: "Please reload the page to ask about our services, or use the enquiry form." }, enquiryUrl: ENQUIRY_FORM }, { status: 410, headers: { "cache-control": "no-store" } });
+  }
   const originCheck = validateRequestOrigin(request);
   if (!originCheck.ok) {
     return NextResponse.json(

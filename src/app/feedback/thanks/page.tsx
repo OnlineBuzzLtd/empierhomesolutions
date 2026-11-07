@@ -1,5 +1,5 @@
-export default function FeedbackThanksPage({ searchParams }: { searchParams?: { status?: string } }) {
-  const invalid = searchParams?.status === "invalid";
+export default async function FeedbackThanksPage({ searchParams }: { searchParams?: Promise<{ status?: string }> }) {
+  const invalid = (await searchParams)?.status === "invalid";
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">

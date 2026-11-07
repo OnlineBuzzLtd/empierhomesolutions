@@ -85,7 +85,9 @@ export function LineItemsEditor({
         </div>
       ) : null}
       {items.map((item, index) => (
-        <div key={`${index}-${item.description}`} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_96px_120px_auto]">
+        // Key on position only: a key that includes the description re-mounts
+        // the row on every keystroke and drops focus from the input.
+        <div key={`row-${index}`} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_96px_120px_auto]">
           <input
             value={item.description}
             onChange={(event) => updateItem(index, { description: event.target.value })}

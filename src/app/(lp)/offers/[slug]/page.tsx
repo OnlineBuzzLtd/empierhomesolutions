@@ -14,7 +14,7 @@ import { HowItWorksSection, OfferCtaBand, ServiceIncludesStrip } from "@/modules
 import { getOffer, offers, offerView, type Offer } from "@/modules/offers/offers";
 import { Section } from "@/modules/ui/Section";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 type RouteProps = {
   params: Promise<{ slug: string }>;
@@ -64,7 +64,7 @@ function ClaimSection({ offer, now }: { offer: Offer; now: Date }) {
       <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-10 md:py-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
         <aside className="rounded-2xl bg-[var(--ehs-brand-dark)] p-6 text-white shadow-[var(--ehs-card-shadow)] lg:sticky lg:top-36">
           <p className="text-xs font-bold uppercase tracking-wider text-[var(--ehs-brand-accent-soft)]">
-            {view.live ? "You are claiming" : "You are booking"}
+            {view.live ? "You are enquiring about" : "Service enquiry"}
           </p>
           <h2 className="mt-1 text-2xl font-bold">{offer.title}</h2>
           <div className="mt-4">
@@ -78,7 +78,8 @@ function ClaimSection({ offer, now }: { offer: Offer; now: Date }) {
         </aside>
         <QuoteForm
           className="max-w-none px-0 py-0 md:py-0"
-          service={offer.lead.service}
+          offerId={offer.slug}
+          service={view.live ? offer.lead.service : offer.title}
           leadType={offer.lead.leadType}
           heading={view.live ? "Claim this offer" : "Request a callback"}
         />

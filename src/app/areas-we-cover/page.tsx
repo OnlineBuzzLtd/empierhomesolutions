@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ServiceSlug } from "@/modules/lp/types";
-import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
+import { WebsiteChat } from "@/modules/lp/components/WebsiteChat";
 import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { buildLpPath, locationGroups, normalizeLocationSlug } from "@/modules/lp/content/locationCatalog";
@@ -110,7 +110,7 @@ export default function AreasWeCoverPage() {
       </section>
       <SiteFooter />
       </main>
-      <AiChatBubble preflightEnabled={flags.webchatPreflight === "on"} />
+      <WebsiteChat preflightEnabled={flags.webchatPreflight === "on"} />
     </ChatToggleProvider>
   );
 }

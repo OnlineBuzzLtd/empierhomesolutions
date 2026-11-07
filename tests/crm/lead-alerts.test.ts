@@ -72,6 +72,25 @@ describe("lead alert SMS", () => {
     expect(normalizeUkSmsRecipient("+44 7792 754234")).toBe("+447792754234");
   });
 
+  it("stops paused Empire website alerts before reserving or sending, preserving other tenants", async () => {
+    process.env.CRM_V2_DISPATCH_PAUSED = "true";
+    const { supabase, insertPayloads } = makeSupabaseMock();
+    const sendSms = vi.fn(async () => ({ ok: true as const }));
+    const input = {
+      tenantId: "11111111-1111-4111-8111-111111111111",
+      leadId: "lead-1", customerId: "customer-1", name: "Example",
+      phone: "07700900123", postcode: "UB8 1AA", submissionCount: 1,
+    };
+    expect(await sendWebsiteLeadAlertSms(supabase as never, input, sendSms)).toEqual({
+      ok: true, skipped: true, reason: "legacy_dispatch_paused",
+    });
+    expect(supabase.schema).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(insertPayloads).toHaveLength(0);
+    expect(await sendWebsiteLeadAlertSms(supabase as never, { ...input, tenantId: "other-tenant" }, sendSms)).toEqual({ ok: true });
+    expect(sendSms).toHaveBeenCalledOnce();
+  });
+
   it("formats useful website and AI lead details", () => {
     expect(
       buildLeadAlertSmsBody({

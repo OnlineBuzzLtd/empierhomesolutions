@@ -194,7 +194,7 @@ export const offers: Offer[] = [
       {
         id: "offer-flush-deadline",
         question: "When does the offer end?",
-        answer: "Book before 30 October 2026 to get £100 off your power flush and a free boiler service.",
+        answer: "Book by 30 October 2026 (inclusive, UK time) to get £100 off your power flush and a free boiler service.",
       },
       {
         id: "offer-flush-price",
@@ -206,7 +206,7 @@ export const offers: Offer[] = [
     seo: {
       title: "£100 Off a Power Flush + Free Boiler Service | Empire Home Solutions",
       description:
-        "Limited time: £100 off a power flush plus a free boiler service when you book before 30 October 2026. Gas Safe engineers.",
+        "Limited time: £100 off a power flush plus a free boiler service when you book by 30 October 2026 (inclusive, UK time). Gas Safe engineers.",
     },
     ended: {
       hero: {
@@ -221,7 +221,7 @@ export const offers: Offer[] = [
           "Power flushing to remove sludge, rust and limescale and restore heating efficiency. Gas Safe engineers.",
       },
       priceNote: "Power flushing to remove sludge and restore your heating.",
-      dropFaqIds: ["offer-flush-deadline"],
+      dropFaqIds: ["offer-flush-deadline", "offer-flush-price"],
     },
   },
 ];

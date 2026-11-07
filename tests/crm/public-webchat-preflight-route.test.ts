@@ -1,3 +1,4 @@
+// Legacy flow remains available to other tenants. Empire has a separate retirement test.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createSession = vi.fn();
@@ -35,7 +36,7 @@ async function loadRoute() {
 }
 
 function request(payload: Record<string, unknown>) {
-  return new Request("http://localhost/api/public/webchat/sessions", {
+  return new Request("https://example-tenant.crm.customerjourneys.ai/api/public/webchat/sessions", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),

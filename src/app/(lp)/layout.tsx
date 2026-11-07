@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, House, PhoneCall } from "lucide-react";
 import { businessDetails } from "@/lib/business";
-import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
+import { WebsiteChat } from "@/modules/lp/components/WebsiteChat";
 import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { StickyCallBar } from "@/modules/lp/components/StickyCallBar";
@@ -143,7 +143,7 @@ export default function LpLayout({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <AnalyticsTracker />
       </Suspense>
-      <AiChatBubble preflightEnabled={flags.webchatPreflight === "on"} />
+      <WebsiteChat preflightEnabled={flags.webchatPreflight === "on"} />
       </ChatToggleProvider>
     </GoogleReviewsProvider>
   );

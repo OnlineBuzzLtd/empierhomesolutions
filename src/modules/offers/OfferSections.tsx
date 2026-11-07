@@ -13,7 +13,7 @@ const serviceIncludes = [
 ];
 
 const steps = [
-  { title: "Claim your offer", body: "Call us or send the short form. It takes under a minute." },
+  { title: "Send your enquiry", body: "Call us or send the short form. It takes under a minute." },
   { title: "We confirm the price", body: "We call you back, agree a time and confirm the price before any work starts." },
   { title: "A Gas Safe engineer visits", body: "Our own engineer does the work, explains what they did and leaves your home tidy." },
 ];

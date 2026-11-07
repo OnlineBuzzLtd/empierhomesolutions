@@ -28,7 +28,7 @@ export function QuoteCreateForm({
   submitLabel = "Create Quote",
   includeChangeSummary = false,
 }: {
-  customers: Customer[];
+  customers: Array<Pick<Customer, "id" | "full_name">>;
   jobs: Job[];
   products?: Product[];
   initialQuote?: Partial<Quote>;

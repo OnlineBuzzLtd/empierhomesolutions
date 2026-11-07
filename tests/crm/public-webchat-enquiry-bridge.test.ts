@@ -1,3 +1,4 @@
+// Legacy flow remains available to other tenants. Empire has a separate retirement test.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   summariseConversationForLead,
@@ -92,7 +93,7 @@ async function runBridge(opts: {
 
   const route = await import("@/app/api/public/webchat/messages/route");
   await route.POST(
-    new Request("http://localhost", {
+    new Request("https://example-tenant.crm.customerjourneys.ai", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -195,7 +196,7 @@ describe("public webchat test-traffic detection", () => {
   });
 
   it("does not flag a genuine customer who mentions a test", async () => {
-    const { isTestConversation } = await import("@/app/api/public/webchat/messages/route");
+    const { isTestConversation } = await import("@/modules/education/webchat-test-message");
 
     // These were all tagged is_test=true by the old /\btest\b/i rule, which then
     // excluded them from availability and put them in scope for test-data
@@ -206,7 +207,7 @@ describe("public webchat test-traffic detection", () => {
   });
 
   it("still flags an explicit test message", async () => {
-    const { isTestConversation } = await import("@/app/api/public/webchat/messages/route");
+    const { isTestConversation } = await import("@/modules/education/webchat-test-message");
 
     expect(isTestConversation("this is a test")).toBe(true);
     expect(isTestConversation("This is just a test, ignore")).toBe(true);

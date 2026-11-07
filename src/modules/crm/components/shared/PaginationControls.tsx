@@ -3,7 +3,7 @@ import {
   DEFAULT_CRM_PAGE_SIZE,
   normalizeCrmPagination,
   type CrmPaginationInput,
-} from "@/modules/crm/lib/performance";
+} from "@/modules/crm/lib/pagination";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 

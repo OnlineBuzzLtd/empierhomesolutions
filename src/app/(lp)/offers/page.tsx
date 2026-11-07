@@ -7,7 +7,7 @@ import { HowItWorksSection, OfferCtaBand, ServiceIncludesStrip } from "@/modules
 import { offers } from "@/modules/offers/offers";
 import { Section } from "@/modules/ui/Section";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Heating Offers | Empire Home Solutions",

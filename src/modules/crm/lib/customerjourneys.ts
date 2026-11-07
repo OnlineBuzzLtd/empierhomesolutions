@@ -1458,3 +1458,23 @@ export function summariseConversationForLead(
   }
   return transcript.slice(0, maxChars);
 }
+
+/** Stateless information request. Does not use session or message operations. */
+export async function answerCustomerJourneysEducation(
+  link: CustomerJourneysRuntimeLink | null,
+  input: { message: string; history: Array<{ role: "user" | "assistant"; content: string }> },
+) {
+  requireRuntimeLink(link);
+  const response = await fetch(`${getRuntimeBaseUrl(link)}/v1/webchat/education`, {
+    method: "POST",
+    headers: { ...buildRuntimeHeaders(link), "content-type": "application/json" },
+    body: JSON.stringify({ ...input, tenantId: link.customerjourneys_tenant_id }),
+    signal: AbortSignal.timeout(25000), cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Educational answer unavailable");
+  const result = await response.json();
+  if (result.mode !== "education" || typeof result.answer !== "string" || !Array.isArray(result.sources)) {
+    throw new Error("Invalid educational answer");
+  }
+  return result;
+}

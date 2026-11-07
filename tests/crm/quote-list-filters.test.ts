@@ -1,3 +1,4 @@
+import { parseQuoteStatusFilter } from "@/modules/crm/lib/quote-status-filter";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Regression cover for two quote-screen bugs reported 2026-07-30:
@@ -132,15 +133,14 @@ describe("quotes API status parameter", () => {
     }
   });
 
-  it("recognises every real quote status", async () => {
-    const route = await loadRoute(vi.fn().mockResolvedValue([]));
+  it("recognises every real quote status", () => {
 
-    expect(route.parseQuoteStatusFilter("draft")).toBe("draft");
-    expect(route.parseQuoteStatusFilter("sent")).toBe("sent");
-    expect(route.parseQuoteStatusFilter("accepted")).toBe("accepted");
-    expect(route.parseQuoteStatusFilter("declined")).toBe("declined");
-    expect(route.parseQuoteStatusFilter("all")).toBeNull();
-    expect(route.parseQuoteStatusFilter(null)).toBeNull();
+    expect(parseQuoteStatusFilter("draft")).toBe("draft");
+    expect(parseQuoteStatusFilter("sent")).toBe("sent");
+    expect(parseQuoteStatusFilter("accepted")).toBe("accepted");
+    expect(parseQuoteStatusFilter("declined")).toBe("declined");
+    expect(parseQuoteStatusFilter("all")).toBeNull();
+    expect(parseQuoteStatusFilter(null)).toBeNull();
   });
 });
 

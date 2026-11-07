@@ -7,6 +7,7 @@ import type { LeadCustomerMatchResult, LeadDedupeResult, LeadStatus } from "@/mo
 import type { Attribution } from "@/modules/tracking/attribution";
 import { resolveLandingPageTenantId, tenantIdFromSlug } from "@/modules/forms/api/landing-tenant";
 import { z } from "zod";
+import { getOffer, isOfferLive } from "@/modules/offers/offers";
 
 const WEBSITE_INTAKE_SOURCE = "website";
 const WEBSITE_CUSTOMER_SOURCE = "Website booking form";
@@ -38,6 +39,7 @@ export const leadRequestSchema = z.object({
   companyWebsite: z.string().optional().default(""),
   pagePath: z.string().min(1),
   service: z.string().optional(),
+  offerId: z.enum(["boiler-repair", "boiler-service", "power-flush"]).optional(),
   location: z.string().optional(),
   leadType: z.enum(["repair", "install", "finance", "power-flush"]).default("repair"),
   origin: z.string().url(),
@@ -105,7 +107,9 @@ function buildAddressLine1(houseNameNumber: string, street: string) {
   return [sanitizeText(houseNameNumber), sanitizeText(street)].filter(Boolean).join(" ");
 }
 
-export function sanitizeLeadPayload(lead: LeadRequest) {
+export function sanitizeLeadPayload(lead: LeadRequest, now = new Date()) {
+  const offer = lead.offerId ? getOffer(lead.offerId) : null;
+  const offerLive = offer ? isOfferLive(offer, now) : false;
   const normalizedIssue = lead.issue ? sanitizeText(lead.issue) : "";
   const email = lead.email ? normalizeEmail(lead.email) : "";
   const addressLine1 = buildAddressLine1(lead.house_name_number, lead.street);
@@ -119,11 +123,14 @@ export function sanitizeLeadPayload(lead: LeadRequest) {
     postcode: sanitizeText(lead.postcode.toUpperCase()),
     phone: normalizePhone(lead.phone),
     issue: normalizedIssue || "Not provided",
-    leadType: lead.leadType,
+    leadType: offer?.lead.leadType ?? lead.leadType,
     metadata: {
-      timestamp: new Date().toISOString(),
+      timestamp: now.toISOString(),
+      offerId: offer?.slug ?? null,
+      offerStatus: offer ? (offerLive ? "active" : "expired_service_enquiry") : null,
+      offerBookBy: offer?.bookBy ?? null,
       pagePath: sanitizeText(lead.pagePath),
-      service: lead.service ? sanitizeText(lead.service) : "",
+      service: offer ? (offerLive ? offer.lead.service : offer.title) : (lead.service ? sanitizeText(lead.service) : ""),
       location: lead.location ? sanitizeText(lead.location) : "",
     },
     attribution: sanitizeAttribution(lead.attribution),
@@ -160,6 +167,7 @@ type CustomerMatchDecision = {
 
 export function buildSubmissionFingerprint(cleanPayload: CleanLeadPayload) {
   return [
+    ...(cleanPayload.metadata.offerId ? [`offer:${cleanPayload.metadata.offerId}`] : []),
     normalizePhone(cleanPayload.phone),
     cleanPayload.leadType,
     normalizeName(cleanPayload.issue),
@@ -246,9 +254,16 @@ const jobTypeSlugByLeadType: Record<LeadRequest["leadType"], string | null> = {
   "power-flush": "power-flush",
 };
 
-function buildLeadNotes(cleanPayload: ReturnType<typeof sanitizeLeadPayload>) {
+export function buildLeadNotes(cleanPayload: ReturnType<typeof sanitizeLeadPayload>) {
   const noteLines = [
     `Website lead type: ${cleanPayload.leadType}`,
+    `Originating page: ${cleanPayload.metadata.pagePath}`,
+    ...(cleanPayload.metadata.offerId ? [
+      `Offer identifier: ${cleanPayload.metadata.offerId}`,
+      `Offer status: ${cleanPayload.metadata.offerStatus}`,
+      ...(cleanPayload.metadata.offerBookBy ? [`Offer book-by date (Europe/London, inclusive): ${cleanPayload.metadata.offerBookBy}`] : []),
+      ...(cleanPayload.metadata.offerStatus === "expired_service_enquiry" ? ["Promotion expired: ordinary service enquiry; no promotional price or discount promised."] : []),
+    ] : []),
     `Issue: ${cleanPayload.issue}`,
     `Address: ${cleanPayload.address_line1}, ${cleanPayload.postcode}`,
   ];
@@ -415,8 +430,12 @@ async function submitLeadToCrm(
     };
   }
 
+  if (cleanPayload.metadata.offerId && tenantId !== "11111111-1111-4111-8111-111111111111") {
+    return { ok: false, status: 400, error: { code: "invalid_offer_tenant", message: "This offer is not available for this business." } };
+  }
+
   const serviceSlug = serviceSlugByLeadType[cleanPayload.leadType];
-  const jobTypeSlug = jobTypeSlugByLeadType[cleanPayload.leadType];
+  const jobTypeSlug = cleanPayload.metadata.offerId === "boiler-service" ? "boiler-service" : jobTypeSlugByLeadType[cleanPayload.leadType];
 
   const [{ data: service }, { data: existingCustomers }] = await Promise.all([
     serviceSlug

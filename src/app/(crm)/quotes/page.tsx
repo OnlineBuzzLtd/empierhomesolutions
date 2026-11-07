@@ -8,29 +8,38 @@ import { requireCrmUser } from "@/modules/crm/lib/auth";
 import { getCrmDemoState } from "@/modules/crm/lib/demo-state";
 import { buildQuoteDraftFromTemplate, summarizePaymentTerms } from "@/modules/crm/lib/quote-templates";
 import { getCrmSetupState } from "@/modules/crm/lib/setup";
-import { listCustomers, listJobs, listProducts, listQuoteTemplates } from "@/modules/crm/lib/data";
+import { getJobDetail, listCustomers, listJobs, listProducts, listQuoteTemplates } from "@/modules/crm/lib/data";
 import { crmPaginationFromSearchParams } from "@/modules/crm/lib/performance";
 import type { CrmMode } from "@/modules/crm/lib/demo";
+import {
+  applyJobToQuoteDraft,
+  quoteCreateHref,
+  quoteJobIdFromParams,
+  wantsQuoteCreatePanel,
+  withJobCustomer,
+} from "@/modules/crm/lib/quote-prefill";
 
-async function QuoteCreatePanel({ mode, templateId }: { mode: CrmMode; templateId: string | null }) {
-  const [customers, jobs, templates, products] = await Promise.all([
+async function QuoteCreatePanel({ mode, templateId, jobId }: { mode: CrmMode; templateId: string | null; jobId: string | null }) {
+  const [customers, jobs, templates, products, jobDetail] = await Promise.all([
     listCustomers(mode, { pageSize: 100 }),
     listJobs(mode, { pageSize: 100 }),
     listQuoteTemplates(mode),
     listProducts(mode),
+    jobId ? getJobDetail(jobId, mode) : null,
   ]);
+  const job = jobDetail?.job ?? null;
   const selectedTemplate = templateId ? templates.find((template) => template.id === templateId) ?? null : null;
 
   return (
     <SectionCard title="New Quote">
       <div className="mb-4 flex flex-wrap gap-2">
-        <Link href="/quotes" className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate ? "border border-slate-200 text-slate-600 hover:bg-slate-50" : "bg-slate-900 text-white"}`}>
+        <Link href={quoteCreateHref({ jobId: job?.id })} className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate ? "border border-slate-200 text-slate-600 hover:bg-slate-50" : "bg-slate-900 text-white"}`}>
           Blank quote
         </Link>
         {templates.map((template) => (
           <Link
             key={template.id}
-            href={`/quotes?template=${template.id}`}
+            href={quoteCreateHref({ templateId: template.id, jobId: job?.id })}
             className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTemplate?.id === template.id ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
           >
             {template.name}
@@ -38,20 +47,16 @@ async function QuoteCreatePanel({ mode, templateId }: { mode: CrmMode; templateI
         ))}
       </div>
       <QuoteCreateForm
-        customers={customers}
+        customers={withJobCustomer(customers, job)}
         jobs={jobs}
         products={products}
-        initialQuote={buildQuoteDraftFromTemplate(selectedTemplate)}
+        initialQuote={applyJobToQuoteDraft(buildQuoteDraftFromTemplate(selectedTemplate), job)}
         optionalExtras={selectedTemplate?.optional_extras ?? []}
         paymentTermsSummary={summarizePaymentTerms(selectedTemplate?.payment_terms)}
         templateLabel={selectedTemplate?.name ?? null}
       />
     </SectionCard>
   );
-}
-
-function wantsCreatePanel(params: Record<string, string | string[] | undefined>) {
-  return params.new === "1" || typeof params.template === "string";
 }
 
 export default async function QuotesPage({
@@ -69,7 +74,8 @@ export default async function QuotesPage({
   const params = await searchParams;
   const pagination = crmPaginationFromSearchParams(params);
   const templateId = typeof params.template === "string" ? params.template : null;
-  const showCreatePanel = wantsCreatePanel(params);
+  const jobId = quoteJobIdFromParams(params);
+  const showCreatePanel = wantsQuoteCreatePanel(params);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -90,7 +96,7 @@ export default async function QuotesPage({
 
         {showCreatePanel ? (
           <Suspense fallback={<SectionCard title="New Quote"><p className="text-sm text-slate-500">Loading form...</p></SectionCard>}>
-            <QuoteCreatePanel mode={demoState.mode} templateId={templateId} />
+            <QuoteCreatePanel mode={demoState.mode} templateId={templateId} jobId={jobId} />
           </Suspense>
         ) : null}
       </div>

@@ -221,6 +221,12 @@ export async function sendWebsiteLeadAlertSms(
   input: WebsiteLeadAlertInput,
   sendSms?: SmsSender,
 ) {
+  // Immediate website alerts must obey the same Empire handoff pause as cron.
+  // Return before reserving a notification or calling the legacy SMS provider.
+  if (input.tenantId === "11111111-1111-4111-8111-111111111111" &&
+      process.env.CRM_V2_DISPATCH_PAUSED === "true") {
+    return { ok: true as const, skipped: true as const, reason: "legacy_dispatch_paused" as const };
+  }
   const service = [input.service, input.location, input.leadType].filter(Boolean).join(" / ");
 
   return sendLeadAlertSms(

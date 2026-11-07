@@ -58,7 +58,7 @@ describe("heating offers", () => {
     );
 
     expect(live).toContain("£100 off");
-    expect(live).toContain("Book before 30 October 2026");
+    expect(live).toContain("Book by 30 October 2026 (inclusive, UK time)");
     expect(ended).not.toContain("£100 off");
     expect(ended).toContain("This offer ended on 30 October 2026");
   });

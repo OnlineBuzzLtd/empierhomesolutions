@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -25,6 +25,7 @@ type QuoteFormInput = z.input<typeof quoteFormSchema>;
 
 type QuoteFormProps = {
   service?: string;
+  offerId?: "boiler-repair" | "boiler-service" | "power-flush";
   location?: string;
   leadType?: "repair" | "install" | "power-flush";
   heading?: string;
@@ -34,6 +35,7 @@ type QuoteFormProps = {
 
 export function QuoteForm({
   service,
+  offerId,
   location,
   leadType = "repair",
   heading = "Book now - request a callback",
@@ -44,7 +46,7 @@ export function QuoteForm({
   const [isMobile, setIsMobile] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileError, setTurnstileError] = useState("");
-  const attribution = useMemo(() => getAttribution(), []);
+  const attribution = getAttribution();
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const turnstileRequired = Boolean(turnstileSiteKey);
 
@@ -135,10 +137,13 @@ export function QuoteForm({
           issue: issueText,
           pagePath: window.location.pathname,
           service,
+          offerId,
           location,
           leadType,
           origin: window.location.origin,
-          attribution,
+          // Analytics captures the current campaign after hydration. Read it at
+          // submission time so a previous page cannot freeze stale attribution.
+          attribution: getAttribution(),
           turnstileToken,
         }),
       });

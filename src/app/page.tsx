@@ -5,7 +5,7 @@ import { lpSocialImage } from "@/modules/lp/social-image";
 import Link from "next/link";
 import { CheckCircle2, Clock3, House, PhoneCall, PoundSterling, ShieldCheck, Star } from "lucide-react";
 import { businessDetails } from "@/lib/business";
-import { AiChatBubble } from "@/modules/lp/components/AiChatBubble";
+import { WebsiteChat } from "@/modules/lp/components/WebsiteChat";
 import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
 import { getAbFlags } from "@/modules/lp/abFlags";
@@ -160,6 +160,12 @@ export default function HomePage() {
                 className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
               >
                 Power Flushing
+              </Link>
+              <Link
+                href="/offers"
+                className="inline-flex snap-start items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 hover:bg-white hover:text-[var(--ehs-brand-accent)]"
+              >
+                Heating Offers
               </Link>
               <Link
                 href="/finance"
@@ -372,7 +378,7 @@ export default function HomePage() {
 
         <SiteFooter />
       </main>
-      <AiChatBubble preflightEnabled={flags.webchatPreflight === "on"} />
+      <WebsiteChat preflightEnabled={flags.webchatPreflight === "on"} />
       </ChatToggleProvider>
     </GoogleReviewsProvider>
   );

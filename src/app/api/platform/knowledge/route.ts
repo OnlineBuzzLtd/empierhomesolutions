@@ -1,3 +1,5 @@
+import { buildEducationSources } from "@/modules/education/knowledge";
+import { EMPIRE_CRM_TENANT } from "@/modules/education/policy";
 import { NextResponse } from "next/server";
 import { buildAiKnowledgeForTenant } from "@/modules/crm/lib/ai-knowledge";
 import { getCrmEnv } from "@/modules/crm/lib/env";
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Tenant not found." }, { status: 404 });
     }
 
-    return NextResponse.json(knowledge, {
+    return NextResponse.json({ ...knowledge, ...(tenantId === EMPIRE_CRM_TENANT ? { educationSources: buildEducationSources(knowledge) } : {}) }, {
       headers: {
         "cache-control": "no-store",
       },

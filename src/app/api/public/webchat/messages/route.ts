@@ -1,3 +1,5 @@
+import { isTestConversation } from "@/modules/education/webchat-test-message";
+import { isEmpireWebsiteHost, ENQUIRY_FORM } from "@/modules/education/policy";
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -73,18 +75,6 @@ function extractUkPostcodeFromText(value: string | null) {
   if (!value) return null;
   const match = value.match(/\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/i);
   return match?.[0]?.toUpperCase() ?? null;
-}
-
-// A public webchat message is only treated as test traffic when the customer
-// says so unambiguously. The previous rule was `/\btest\b/i` over the whole
-// message, which flagged genuine customers writing things like "the boiler
-// failed its test" or "I need a gas safety test" — those rows then got excluded
-// from availability checks and swept up by test-data cleanup.
-const EXPLICIT_TEST_MESSAGE =
-  /^\s*(?:this\s+is\s+(?:a|just\s+a)\s+test|test\s+message|testing\s+the\s+(?:chat|bot|system)|ignore[\s,-]+test)\b/i;
-
-export function isTestConversation(inboundText: string) {
-  return EXPLICIT_TEST_MESSAGE.test(inboundText);
 }
 
 function eventTypeForWebchatOutcome(outcome: string | null, bookingState: string | null): PlatformEventType | null {
@@ -211,6 +201,9 @@ async function processPublicWebchatOutcome(input: {
 }
 
 export async function POST(request: Request) {
+  if (isEmpireWebsiteHost(new URL(request.url).host)) {
+    return NextResponse.json({ ok: false, error: { code: "education_only", message: "Please reload the page to ask about our services, or use the enquiry form." }, enquiryUrl: ENQUIRY_FORM }, { status: 410, headers: { "cache-control": "no-store" } });
+  }
   const headerStore = await headers();
   const ip = getClientIp(headerStore);
 

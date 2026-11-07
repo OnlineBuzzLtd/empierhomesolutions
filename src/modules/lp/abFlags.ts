@@ -11,6 +11,7 @@ type AbFlags = {
   trustOrder: TrustOrderVariant;
   reviews: FeatureState;
   webchatPreflight: FeatureState;
+  webchat: FeatureState;
 };
 
 const defaultFlags: AbFlags = {
@@ -19,6 +20,9 @@ const defaultFlags: AbFlags = {
   trustOrder: "default",
   reviews: "off",
   webchatPreflight: "off",
+  // Off while the CustomerJourneys platform behind the chat is paused (Nov 2026).
+  // Set {"webchat":"on"} in NEXT_PUBLIC_LP_AB_FLAGS to show it again.
+  webchat: "off",
 };
 
 function featureState(value: unknown, fallback: FeatureState): FeatureState {
@@ -39,6 +43,7 @@ export function getAbFlags(): AbFlags {
       trustOrder: parsed.trustOrder ?? defaultFlags.trustOrder,
       reviews: featureState(parsed.reviews, defaultFlags.reviews),
       webchatPreflight: featureState(parsed.webchatPreflight, defaultFlags.webchatPreflight),
+      webchat: featureState(parsed.webchat, defaultFlags.webchat),
     };
   } catch {
     return defaultFlags;

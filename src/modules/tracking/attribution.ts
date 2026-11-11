@@ -1,3 +1,5 @@
+import { getMeasurementConsent } from "./measurement-consent";
+
 const ATTRIBUTION_COOKIE = "ehs_attribution";
 const ATTRIBUTION_SESSION_KEY = "ehs_attribution";
 const ATTRIBUTION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -10,6 +12,7 @@ export type Attribution = {
   utm_content?: string;
   gclid?: string;
   msclkid?: string;
+  oppref?: string;
   landing_url?: string;
 };
 
@@ -52,7 +55,7 @@ export function parseAttributionFromSearchParams(
 }
 
 export function hasAttributionData(attribution: Attribution) {
-  return Object.keys(attribution).length > 0;
+  return Object.entries(attribution).some(([key, value]) => key !== "landing_url" && Boolean(value));
 }
 
 export function serializeAttribution(attribution: Attribution) {
@@ -95,34 +98,40 @@ export function getAttributionFromCookieString(cookieString: string | undefined)
 }
 
 export function persistAttribution(attribution: Attribution) {
-  if (typeof window === "undefined" || !hasAttributionData(attribution)) {
-    return;
+  if (typeof window === "undefined" || !hasAttributionData(attribution)) return;
+  // OpenAI owns the consent-controlled __oppref cookie. Don't duplicate it.
+  const stored = { ...attribution };
+  delete stored.oppref;
+  try {
+    document.cookie = buildAttributionCookie(stored);
+    window.sessionStorage.setItem(ATTRIBUTION_SESSION_KEY, JSON.stringify(stored));
+  } catch {
+    // Storage restrictions must not prevent someone submitting an enquiry.
   }
-
-  document.cookie = buildAttributionCookie(attribution);
-  window.sessionStorage.setItem(ATTRIBUTION_SESSION_KEY, JSON.stringify(attribution));
 }
 
 export function getAttribution(): Attribution {
-  if (typeof window === "undefined") {
-    return {};
+  if (typeof window === "undefined") return {};
+  let stored: Attribution = {};
+  try {
+    const raw = window.sessionStorage.getItem(ATTRIBUTION_SESSION_KEY);
+    stored = raw ? JSON.parse(raw) : getAttributionFromCookieString(document.cookie) ?? {};
+  } catch {
+    // Fall back to the current URL if browser storage is unavailable.
   }
-
-  const sessionRaw = window.sessionStorage.getItem(ATTRIBUTION_SESSION_KEY);
-  if (sessionRaw) {
+  const query = parseAttributionFromSearchParams(new URLSearchParams(window.location.search), window.location.href);
+  const result = hasAttributionData(query) ? query : { ...stored, landing_url: stored.landing_url || query.landing_url };
+  delete result.oppref;
+  if (getMeasurementConsent() === "granted") {
+    const raw = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("__oppref="));
     try {
-      return JSON.parse(sessionRaw) as Attribution;
+      const reference = new URLSearchParams(window.location.search).get("oppref") || (raw ? decodeURIComponent(raw.slice(9)) : undefined);
+      if (reference && reference.length <= 4096) result.oppref = reference;
     } catch {
-      window.sessionStorage.removeItem(ATTRIBUTION_SESSION_KEY);
+      // Ignore malformed cookie encoding; preserve the enquiry itself.
     }
   }
-
-  const cookieAttribution = getAttributionFromCookieString(document.cookie) ?? {};
-  if (hasAttributionData(cookieAttribution)) {
-    window.sessionStorage.setItem(ATTRIBUTION_SESSION_KEY, JSON.stringify(cookieAttribution));
-  }
-
-  return cookieAttribution;
+  return result;
 }
 
 export function readAttributionFromRequest(url: string, cookieHeader?: string | null): Attribution {

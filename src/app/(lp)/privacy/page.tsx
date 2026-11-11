@@ -30,6 +30,20 @@ export default function PrivacyPage() {
           names, review text, dates, ratings, and links are displayed with Google Maps attribution and are
           subject to the <a className="underline" href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.
         </p>
+        <h2 className="text-lg font-semibold text-[var(--ehs-brand-dark)]">Advertising measurement</h2>
+        <p>
+          If you allow advertising measurement, we use OpenAI&apos;s measurement Pixel to report page visits
+          and enquiries successfully saved in our CRM. It uses an ad click reference and a browser
+          reference to help connect these actions to our adverts. When automatic advanced matching is
+          enabled by OpenAI, supported contact information entered in forms may be hashed in your
+          browser for matching; raw contact details are not sent through that feature.
+        </p>
+        <p>
+          The __oppref cookie lasts up to 30 days and __obref up to 365 days, subject to browser limits.
+          We remember your measurement choice in local browser storage. You can decline or withdraw
+          at any time using Advertising preferences in the footer of any page. Booking still works when measurement is declined.
+          See <a href="https://openai.com/policies/privacy-policy/" className="underline">OpenAI&apos;s privacy policy</a>.
+        </p>
         <h2 className="text-lg font-semibold text-[var(--ehs-brand-dark)]">Your choices</h2>
         <p>
           You may ask us to correct or delete information, restrict its use, or provide a copy where the

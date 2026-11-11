@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Facebook, Instagram, MessageCircle, PhoneCall, Star, Youtube } from "lucide-react";
 import { businessDetails, phoenixFinanceDisclosure } from "@/lib/business";
+import { AdvertisingPreferencesLink } from "@/modules/tracking/AdvertisingPreferencesLink";
 
 const socialItems = [
   { key: "facebook", label: "Facebook", href: businessDetails.socials.facebook, icon: Facebook },
@@ -8,7 +9,8 @@ const socialItems = [
   { key: "youtube", label: "YouTube", href: businessDetails.socials.youtube, icon: Youtube },
 ];
 
-export function SiteFooter() {
+/** `showAdPreferences` only when the ChatGPT ads Pixel is active on the page. */
+export function SiteFooter({ showAdPreferences = false }: { showAdPreferences?: boolean } = {}) {
   const year = new Date().getFullYear();
 
   return (
@@ -47,6 +49,9 @@ export function SiteFooter() {
             <Link href="/privacy" className="hover:text-white">
               Privacy
             </Link>
+            {showAdPreferences ? (
+              <AdvertisingPreferencesLink className="text-left hover:text-white" />
+            ) : null}
             <Link href="/terms" className="hover:text-white">
               Terms
             </Link>

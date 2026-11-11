@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Section } from "@/modules/ui/Section";
 import { Turnstile } from "@/modules/ui/Turnstile";
+import { measureOpenAiLead } from "@/modules/tracking/openai-pixel";
 import { getAttribution } from "@/modules/tracking/attribution";
 import { pushDataLayer, trackFormEvent } from "@/modules/tracking/pushDataLayer";
 
@@ -148,9 +149,9 @@ export function QuoteForm({
         }),
       });
 
-      const payload = (await response.json()) as { error?: { code?: string; message?: string } };
+      const payload = (await response.json()) as { ok?: boolean; conversionEventId?: string; error?: { code?: string; message?: string } };
 
-      if (!response.ok) {
+      if (!response.ok || payload.ok !== true) {
         const label = payload.error?.code ?? "unknown";
         trackFormEvent("form_error", label);
         setSubmitState("error");
@@ -166,6 +167,7 @@ export function QuoteForm({
       pushDataLayer({ event: "lead_conversion", category: "lead_form", action: leadType });
       setSubmitState("success");
       reset();
+      measureOpenAiLead(payload.conversionEventId);
     } catch {
       trackFormEvent("form_error", "network_error");
       setSubmitState("error");

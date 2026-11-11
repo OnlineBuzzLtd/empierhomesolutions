@@ -33,11 +33,14 @@ export function buildContentSecurityPolicy({ nonce }: CspOptions): string {
   const isProd = env.isProduction;
 
   const scriptExtras = [
+    "https://bzrcdn.openai.com",
     "https://www.googletagmanager.com",
     "https://www.google-analytics.com",
     "https://challenges.cloudflare.com",
   ];
   const connectExtras = [
+    "https://bzr.openai.com",
+    "https://bzrcdn.openai.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
     "https://www.google.com",

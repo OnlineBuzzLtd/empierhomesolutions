@@ -7,6 +7,7 @@ import type { LeadCustomerMatchResult, LeadDedupeResult, LeadStatus } from "@/mo
 import type { Attribution } from "@/modules/tracking/attribution";
 import { resolveLandingPageTenantId, tenantIdFromSlug } from "@/modules/forms/api/landing-tenant";
 import { z } from "zod";
+import { leadMeasurementEventId } from "@/modules/tracking/lead-event-id";
 import { getOffer, isOfferLive } from "@/modules/offers/offers";
 
 const WEBSITE_INTAKE_SOURCE = "website";
@@ -23,6 +24,7 @@ const attributionSchema = z
     utm_content: z.string().optional(),
     gclid: z.string().optional(),
     msclkid: z.string().optional(),
+    oppref: z.string().max(4096).optional(),
     landing_url: z.string().optional(),
   })
   .optional()
@@ -85,7 +87,7 @@ function sanitizeAttribution(attribution: Attribution = {}) {
   return Object.fromEntries(
     Object.entries(attribution)
       .filter(([, value]) => Boolean(value))
-      .map(([key, value]) => [key, sanitizeText(String(value))]),
+      .map(([key, value]) => [key, key === "oppref" ? String(value) : sanitizeText(String(value))]),
   );
 }
 
@@ -526,7 +528,7 @@ async function submitLeadToCrm(
         customer_id: customerId,
         service_id: serviceId,
         job_type_id: jobTypeId,
-        source: cleanPayload.attribution.utm_source || WEBSITE_CUSTOMER_SOURCE,
+        source: cleanPayload.attribution.utm_source || (cleanPayload.attribution.oppref ? "chatgpt" : WEBSITE_CUSTOMER_SOURCE),
         notes: duplicateLeadNotes,
         intake_source: WEBSITE_INTAKE_SOURCE,
         submission_fingerprint: submissionFingerprint,
@@ -565,7 +567,7 @@ async function submitLeadToCrm(
       submissionCount: nextSubmissionCount,
     });
 
-    return { ok: true };
+    return { ok: true, conversionEventId: leadMeasurementEventId(tenantId, dedupeCandidate.id) };
   }
 
   const { data: createdLead, error: leadError } = await admin
@@ -577,7 +579,7 @@ async function submitLeadToCrm(
       service_id: serviceId,
       job_type_id: jobTypeId,
       status: "new",
-      source: cleanPayload.attribution.utm_source || WEBSITE_CUSTOMER_SOURCE,
+      source: cleanPayload.attribution.utm_source || (cleanPayload.attribution.oppref ? "chatgpt" : WEBSITE_CUSTOMER_SOURCE),
       notes: leadNotes,
       intake_source: WEBSITE_INTAKE_SOURCE,
       submission_fingerprint: submissionFingerprint,
@@ -626,11 +628,11 @@ async function submitLeadToCrm(
     submissionCount: 1,
   });
 
-  return { ok: true };
+  return { ok: true, conversionEventId: leadMeasurementEventId(tenantId, createdLead.id) };
 }
 
 export type LeadSubmitResult =
-  | { ok: true }
+  | { ok: true; conversionEventId?: string }
   | {
       ok: false;
       status: number;

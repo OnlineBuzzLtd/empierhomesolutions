@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+import { OpenAiMeasurement } from "@/modules/tracking/OpenAiMeasurement";
 import { Suspense, type ReactNode } from "react";
 import type { Metadata } from "next";
 import { publicEnv } from "@/lib/env";
@@ -20,8 +22,12 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", images: [lpSocialImage] },
 };
 
-export default function LpLayout({ children }: { children: ReactNode }) {
+export default async function LpLayout({ children }: { children: ReactNode }) {
   const flags = getAbFlags();
+  const headerStore = await headers();
+  const tenantSlug = headerStore.get("x-tenant-slug");
+  const pixelId = !tenantSlug || tenantSlug === "empire-home-solutions"
+    ? process.env.NEXT_PUBLIC_OPENAI_PIXEL_ID ?? "" : "";
 
   return (
     <GoogleReviewsProvider enabled={flags.reviews === "on"}>
@@ -135,13 +141,14 @@ export default function LpLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
         {children}
-        <SiteFooter />
+        <SiteFooter showAdPreferences={Boolean(pixelId)} />
       </main>
       <Suspense fallback={null}>
         <StickyCallBar />
       </Suspense>
       <Suspense fallback={null}>
         <AnalyticsTracker />
+        <OpenAiMeasurement pixelId={pixelId} nonce={headerStore.get("x-nonce") ?? undefined} />
       </Suspense>
       <WebsiteChat preflightEnabled={flags.webchatPreflight === "on"} />
       </ChatToggleProvider>

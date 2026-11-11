@@ -152,5 +152,5 @@ export async function POST(request: Request) {
 
   await fireServerConversion(leadData.leadType, leadData.service, leadData.location);
 
-  return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(decision) });
+  return NextResponse.json({ ok: true, conversionEventId: submission.conversionEventId }, { headers: rateLimitHeaders(decision) });
 }

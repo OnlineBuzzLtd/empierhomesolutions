@@ -19,7 +19,9 @@ test.describe("Homepage: Phoenix finance banner and Bark badge", () => {
   test("keeps the Phoenix status disclosure in the homepage footer", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(
-      page.locator("footer").getByText(/Introducer Appointed Representative \(Financial Services Register No\. 1034368\)/),
+      page
+        .locator("footer")
+        .getByText(/Introducer Appointed Representative \(Financial Services Register No\. 1034368\)/),
     ).toBeVisible();
   });
 

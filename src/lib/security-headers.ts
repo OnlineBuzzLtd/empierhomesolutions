@@ -37,6 +37,8 @@ export function buildContentSecurityPolicy({ nonce }: CspOptions): string {
     "https://www.googletagmanager.com",
     "https://www.google-analytics.com",
     "https://challenges.cloudflare.com",
+    // Bark badge widget (homepage). Allowed by nonce under strict-dynamic; host listed for older browsers.
+    "https://www.bark.com",
   ];
   const connectExtras = [
     "https://bzr.openai.com",

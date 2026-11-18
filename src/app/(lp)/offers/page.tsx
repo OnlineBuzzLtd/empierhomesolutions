@@ -6,6 +6,8 @@ import { OfferPriceCard } from "@/modules/offers/OfferPriceCard";
 import { HowItWorksSection, OfferCtaBand, ServiceIncludesStrip } from "@/modules/offers/OfferSections";
 import { offers } from "@/modules/offers/offers";
 import { Section } from "@/modules/ui/Section";
+import { BarkBadge } from "@/modules/lp/components/BarkBadge";
+import { PhoenixFinanceSection } from "@/modules/lp/components/PhoenixFinanceBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ export default function OffersPage() {
     <>
       <OffersHubHero now={now} />
       <ServiceIncludesStrip />
+      <PhoenixFinanceSection />
       <div id="offers" className="scroll-mt-32">
         <Section title="Choose your offer" subtitle="Prices are shown plus VAT with the including-VAT total alongside.">
           <div className="grid gap-6 pt-3 md:grid-cols-3">
@@ -34,6 +37,12 @@ export default function OffersPage() {
       </div>
       <HowItWorksSection />
       <GoogleReviewsSection />
+      <section className="bg-white px-4 py-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3">
+          <p className="text-sm text-slate-700">Find us on Bark:</p>
+          <BarkBadge />
+        </div>
+      </section>
       <OfferCtaBand title="Not sure which offer you need?" />
     </>
   );

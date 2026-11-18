@@ -8,6 +8,8 @@ import { businessDetails } from "@/lib/business";
 import { WebsiteChat } from "@/modules/lp/components/WebsiteChat";
 import { ChatToggleProvider } from "@/modules/lp/components/ChatToggleProvider";
 import { SiteFooter } from "@/modules/lp/components/SiteFooter";
+import { PhoenixFinanceSection } from "@/modules/lp/components/PhoenixFinanceBanner";
+import { BarkBadge } from "@/modules/lp/components/BarkBadge";
 import { getAbFlags } from "@/modules/lp/abFlags";
 import { GoogleReviewsProvider } from "@/modules/lp/reviews/GoogleReviewsProvider";
 import { GoogleReviewsSection } from "@/modules/lp/reviews/GoogleReviewsSection";
@@ -266,6 +268,8 @@ export default function HomePage() {
           </div>
         </section>
 
+        <PhoenixFinanceSection />
+
         <section className="border-y border-slate-200 bg-[var(--ehs-surface-contrast)]">
           <div className="mx-auto w-full max-w-6xl px-4 py-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--ehs-card-shadow)]">
@@ -334,6 +338,10 @@ export default function HomePage() {
                   {point}
                 </p>
               ))}
+            </div>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <p className="text-sm text-slate-700">Find us on Bark:</p>
+              <BarkBadge />
             </div>
           </div>
         </section>

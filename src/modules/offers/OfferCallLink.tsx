@@ -2,7 +2,11 @@
 
 import { useMemo, type ReactNode } from "react";
 import { PhoneCall } from "lucide-react";
-import { getAttribution, hasAttributionData, parseAttributionFromSearchParams } from "@/modules/tracking/attribution";
+import {
+  getAttribution,
+  hasAttributionData,
+  parseAttributionFromSearchParams,
+} from "@/modules/tracking/attribution";
 import { resolveCallNumber, toTelHref } from "@/modules/tracking/callNumber";
 import { trackCallClick } from "@/modules/tracking/pushDataLayer";
 
@@ -10,13 +14,15 @@ type OfferCallLinkProps = {
   className?: string;
   /** Visible label; defaults to the resolved phone number. */
   children?: ReactNode;
+  /** Shown before the number, e.g. "Call now". The tracked number is still displayed. */
+  lead?: ReactNode;
 };
 
 /**
  * Call button using the attribution-aware tracking number, resolved the same
  * way as the sticky call bar. The layout's AnalyticsTracker persists attribution.
  */
-export function OfferCallLink({ className, children }: OfferCallLinkProps) {
+export function OfferCallLink({ className, children, lead }: OfferCallLinkProps) {
   const callNumber = useMemo(() => {
     if (typeof window === "undefined") {
       return resolveCallNumber();
@@ -30,7 +36,8 @@ export function OfferCallLink({ className, children }: OfferCallLinkProps) {
 
   return (
     <a href={toTelHref(callNumber)} className={className} onClick={() => trackCallClick("hero")}>
-      <PhoneCall size={16} aria-hidden />
+      <PhoneCall size={lead ? 20 : 16} aria-hidden />
+      {lead ? <span>{lead}</span> : null}
       {children ?? callNumber}
     </a>
   );

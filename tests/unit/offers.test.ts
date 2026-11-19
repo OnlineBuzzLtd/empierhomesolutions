@@ -58,9 +58,16 @@ describe("heating offers", () => {
     );
 
     expect(live).toContain("£100 off");
-    expect(live).toContain("Book by 30 October 2026 (inclusive, UK time)");
     expect(ended).not.toContain("£100 off");
-    expect(ended).toContain("This offer ended on 30 October 2026");
+    expect(ended).toContain("Call us for today&#x27;s price.");
+  });
+
+  it("never shows offer end dates or countdowns on the cards", () => {
+    for (const item of offers)
+      for (const now of [new Date("2026-10-20T12:00:00Z"), new Date("2026-11-20T12:00:00Z")]) {
+        const markup = renderToStaticMarkup(createElement(OfferPriceCard, { offer: item, now }));
+        expect(markup, `${item.slug} at ${now.toISOString()}`).not.toMatch(/Book by|ended on|days? left|Last day to book|October 2026/);
+      }
   });
 
   it("drops the discount from the power flush page copy once it has ended", () => {

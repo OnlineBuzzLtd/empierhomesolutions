@@ -46,3 +46,16 @@ body {
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Pulsing "Call now" button on the offers hero: a soft ring that radiates outwards. */
+@keyframes ehs-call-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.75); }
+  70% { box-shadow: 0 0 0 16px rgba(251, 191, 36, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+}
+.ehs-call-pulse {
+  animation: ehs-call-pulse 1.8s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ehs-call-pulse { animation: none; }
+}

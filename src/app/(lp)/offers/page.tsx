@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Heating Offers | Empire Home Solutions",
   description:
-    "Boiler repairs from £79 + VAT, a full boiler service for £79 + VAT and limited-time power flush savings from Gas Safe engineers.",
+    "New boiler installed from £1,895 + VAT, plus boiler repairs from £79 + VAT and a full boiler service for £79 + VAT, from Gas Safe engineers.",
   alternates: { canonical: `${publicEnv.siteUrl}/offers` },
 };
 
@@ -23,7 +23,7 @@ export default function OffersPage() {
 
   return (
     <>
-      <OffersHubHero now={now} />
+      <OffersHubHero />
       <ServiceIncludesStrip />
       <PhoenixFinanceSection />
       <div id="offers" className="scroll-mt-32">

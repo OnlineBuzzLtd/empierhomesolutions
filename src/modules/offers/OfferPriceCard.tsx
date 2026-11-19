@@ -2,8 +2,6 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock3, Droplets, Flame, Wrench, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
-  daysLeftToBook,
-  formatBookBy,
   formatOfferPrice,
   offerView,
   type Offer,
@@ -16,14 +14,9 @@ export const offerIcons: Record<OfferIcon, LucideIcon> = {
   droplets: Droplets,
 };
 
-export function daysLeftLabel(days: number) {
-  return days === 1 ? "Last day to book" : `${days} days left to book`;
-}
-
 /** The headline price or discount for an offer, sized for light or dark backgrounds. */
 export function OfferPrice({ offer, now, tone = "light" }: { offer: Offer; now: Date; tone?: "light" | "dark" }) {
   const { live } = offerView(offer, now);
-  const bookBy = formatBookBy(offer);
   const price = offer.priceNet === undefined ? null : formatOfferPrice(offer.priceNet);
   const strong = tone === "dark" ? "text-white" : "text-[var(--ehs-brand-dark-strong)]";
   const muted = tone === "dark" ? "text-slate-300" : "text-slate-600";
@@ -46,7 +39,6 @@ export function OfferPrice({ offer, now, tone = "light" }: { offer: Offer; now: 
         <p className={cn("text-xs font-semibold uppercase tracking-wider", muted)}>Save</p>
         <p className={cn("text-4xl font-extrabold tracking-tight md:text-5xl", strong)}>{offer.discountLabel}</p>
         {offer.discountExtra ? <p className={cn("mt-1 text-base font-semibold", strong)}>{offer.discountExtra}</p> : null}
-        {bookBy ? <p className={cn("mt-1 text-sm", muted)}>Book by {bookBy} (inclusive, UK time)</p> : null}
       </div>
     );
   }
@@ -54,7 +46,7 @@ export function OfferPrice({ offer, now, tone = "light" }: { offer: Offer; now: 
   return (
     <div>
       <p className={cn("text-2xl font-bold", strong)}>Fixed-price quote</p>
-      <p className={cn("mt-1 text-sm", muted)}>This offer ended on {bookBy}. Call us for today&apos;s price.</p>
+      <p className={cn("mt-1 text-sm", muted)}>Call us for today&apos;s price.</p>
     </div>
   );
 }
@@ -68,8 +60,8 @@ type OfferPriceCardProps = {
 
 export function OfferPriceCard({ offer, now, href }: OfferPriceCardProps) {
   const { live, priceNote } = offerView(offer, now);
-  const days = live ? daysLeftToBook(offer, now) : null;
-  const featured = days !== null;
+  // A live time-limited offer is highlighted, without showing its end date.
+  const featured = live && Boolean(offer.bookBy);
   const Icon = offerIcons[offer.icon];
 
   return (
@@ -98,12 +90,6 @@ export function OfferPriceCard({ offer, now, href }: OfferPriceCardProps) {
 
       <div className="mx-5 rounded-xl bg-[var(--ehs-panel)] px-4 py-4">
         <OfferPrice offer={offer} now={now} />
-        {days !== null ? (
-          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--ehs-brand-dark)] px-3 py-1 text-xs font-semibold text-white">
-            <Clock3 size={13} aria-hidden />
-            {daysLeftLabel(days)}
-          </p>
-        ) : null}
       </div>
 
       <ul className="flex-1 space-y-2.5 px-5 py-5 text-sm text-slate-700">

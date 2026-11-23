@@ -28,6 +28,28 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+
+        <Script
+          id="openai-ads-pixel"
+          strategy="afterInteractive"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(w,d,s,u){
+                if(w.oaiq)return;
+                var q=function(){q.q.push(arguments);};
+                q.q=[];
+                w.oaiq=q;
+                var js=d.createElement(s);
+                js.async=true;
+                js.src=u;
+                var f=d.getElementsByTagName(s)[0];
+                f.parentNode.insertBefore(js,f);
+              })(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");
+              oaiq("init",{pixelId:"85kBFnoWZmZdHfCLAGHWyZ"});
+            `,
+          }}
+        />
         {gtmId ? (
           <Script
             id="gtm-loader"

@@ -119,7 +119,10 @@ export function applySecurityHeaders(
     ].join(", "),
   );
 
-  if (env.isProduction && (request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https")) {
+  if (
+    env.isProduction &&
+    (request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https")
+  ) {
     response.headers.set(
       "Strict-Transport-Security",
       "max-age=63072000; includeSubDomains; preload",

@@ -156,6 +156,12 @@ export function QuoteForm({
 
       trackFormEvent("form_success");
       pushDataLayer({ event: "lead_conversion", category: "lead_form", action: leadType });
+      const openAiQueue = (window as typeof window & {
+        oaiq?: (...args: unknown[]) => void;
+      }).oaiq;
+      openAiQueue?.("measure", "lead_created", {
+        type: "customer_action",
+      });
       setSubmitState("success");
       reset();
     } catch {

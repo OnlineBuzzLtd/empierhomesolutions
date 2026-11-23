@@ -36,6 +36,7 @@ export function buildContentSecurityPolicy({ nonce }: CspOptions): string {
     "https://www.googletagmanager.com",
     "https://www.google-analytics.com",
     "https://challenges.cloudflare.com",
+    "https://bzrcdn.openai.com",
   ];
   const connectExtras = [
     "https://www.google-analytics.com",
@@ -44,6 +45,8 @@ export function buildContentSecurityPolicy({ nonce }: CspOptions): string {
     "https://googleads.g.doubleclick.net",
     "https://stats.g.doubleclick.net",
     "https://challenges.cloudflare.com",
+    "https://bzr.openai.com",
+    "https://bzrcdn.openai.com",
     "https://*.supabase.co",
     "wss://*.supabase.co",
   ];
